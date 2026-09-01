@@ -3,7 +3,10 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  static const String baseUrl = String.fromEnvironment(
+  'API_URL',
+  defaultValue: 'http://localhost:8000/api/v1',
+);
   final Dio _dio = Dio();
 
   ApiService() {
