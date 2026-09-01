@@ -1,0 +1,29 @@
+# backend/app/database.py
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.orm import declarative_base
+import os
+
+DATABASE_URL = os.getenv("DATABASE_URL") 
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
+
+# Для асинхронного драйвера
+ASYNC_DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+asyncpg://")
+
+engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    echo=True
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+Base = declarative_base()
+
+
+async def get_db():
+    async with AsyncSessionLocal() as session:
+        yield session

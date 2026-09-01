@@ -1,0 +1,138 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: excel_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - excel_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: excel_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - excel_network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: excel_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - templates:/app/templates
+      - output:/app/output
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=${REDIS_URL}
+      - DEBUG=${DEBUG}
+      - SECRET_KEY=${SECRET_KEY}
+    restart: unless-stopped
+    networks:
+      - excel_network
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: excel_worker
+    command: celery -A app.celery.worker.celery_app worker -l info -P gevent --concurrency=4
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - templates:/app/templates
+      - output:/app/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=${REDIS_URL}
+      - DEBUG=${DEBUG}
+    restart: unless-stopped
+    networks:
+      - excel_network
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: excel_beat
+    command: celery -A app.celery.worker.celery_app beat -l info
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - redis
+      - worker
+      - postgres
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=${REDIS_URL}
+      - DEBUG=${DEBUG}
+    restart: unless-stopped
+    networks:
+      - excel_network
+
+  nginx:
+    image: nginx:alpine
+    container_name: excel_nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - uploads:/usr/share/nginx/uploads
+      - output:/usr/share/nginx/output
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - excel_network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  uploads:
+    driver: local
+  templates:
+    driver: local
+  output:
+    driver: local
+
+networks:
+  excel_network:
+    driver: bridge

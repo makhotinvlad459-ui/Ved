@@ -1,0 +1,105 @@
+docker exec -it excel_worker python -c "
+import asyncio
+from app.init_db import init_db
+asyncio.run(init_db())
+"
+
+
+
+
+
+excel-processor/
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                 # FastAPI приложение
+│   │   ├── config.py               # Настройки
+│   │   ├── database.py             # Подключение к БД
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   ├── category.py         # Категории товаров
+│   │   │   ├── color.py            # Цвета (перевод)
+│   │   │   ├── product.py          # Модели товаров
+│   │   │   ├── rule.py             # Правила трансформации
+│   │   │   └── session.py          # Сессии обработки
+│   │   ├── schemas/
+│   │   │   ├── __init__.py
+│   │   │   ├── request.py          # Pydantic схемы для запросов
+│   │   │   └── response.py         # Pydantic схемы для ответов
+│   │   ├── services/
+│   │   │   ├── __init__.py
+│   │   │   ├── parser.py           # Парсинг Excel
+│   │   │   ├── transformer.py      # Трансформация названий
+│   │   │   ├── serializer.py       # Обработка серийников
+│   │   │   ├── generator.py        # Генерация спецификации
+│   │   │   └── product_matcher.py  # Поиск/создание моделей
+│   │   ├── api/
+│   │   │   ├── __init__.py
+│   │   │   ├── v1/
+│   │   │   │   ├── __init__.py
+│   │   │   │   ├── upload.py       # Загрузка файлов
+│   │   │   │   ├── process.py      # Обработка
+│   │   │   │   ├── models.py       # CRUD моделей
+│   │   │   │   ├── categories.py   # CRUD категорий
+│   │   │   │   ├── colors.py       # CRUD цветов
+│   │   │   │   └── rules.py        # CRUD правил
+│   │   ├── celery/
+│   │   │   ├── __init__.py
+│   │   │   ├── worker.py           # Celery приложение
+│   │   │   └── tasks.py            # Асинхронные задачи
+│   │   └── utils/
+│   │       ├── __init__.py
+│   │       ├── excel.py            # Вспомогательные функции для Excel
+│   │       └── validators.py       # Валидаторы
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── celery_worker.py
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── Upload.jsx         # Загрузка файлов
+│   │   │   ├── Processing.jsx     # Статус обработки
+│   │   │   ├── NewModelModal.jsx  # Модалка для новой модели
+│   │   │   ├── ModelsTable.jsx    # Таблица моделей
+│   │   │   ├── ColorsTable.jsx    # Таблица цветов
+│   │   │   └── CategoriesTable.jsx # Таблица категорий
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Upload.jsx
+│   │   │   ├── Models.jsx
+│   │   │   ├── Colors.jsx
+│   │   │   └── Categories.jsx
+│   │   ├── api/
+│   │   │   └── client.js
+│   │   └── App.jsx
+│   ├── package.json
+│   └── Dockerfile
+├── docker-compose.yml
+├── nginx.conf
+└── .env
+
+backend/app/
+├── __init__.py
+├── main.py
+├── database.py
+├── models.py          # <-- СОЗДАЕМ
+├── schemas.py         # <-- СОЗДАЕМ
+├── init_db.py         # <-- СОЗДАЕМ (для начальных данных)
+├── api/
+│   ├── __init__.py
+│   └── v1/
+│       ├── __init__.py
+│       ├── upload.py
+│       ├── models.py
+│       ├── categories.py
+│       └── colors.py
+├── celery/
+│   ├── __init__.py
+│   ├── worker.py
+│   └── tasks.py
+└── services/
+    ├── __init__.py
+    ├── parser.py
+    ├── transformer.py
+    ├── serializer.py
+    └── generator.py
