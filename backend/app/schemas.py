@@ -80,6 +80,8 @@ class ProductBase(BaseModel):
     override_serial_source: Optional[str] = None
     override_collect_serials: Optional[bool] = None
     override_clean_serial: Optional[bool] = None
+    weight: Optional[float] = None
+    honest_code: Optional[str] = None
 
 
 class ProductCreate(ProductBase):
@@ -100,6 +102,8 @@ class ProductUpdate(BaseModel):
     override_collect_serials: Optional[bool] = None
     override_clean_serial: Optional[bool] = None
     is_active: Optional[bool] = None
+    weight: Optional[float] = None
+    honest_code: Optional[str] = None
 
 
 class ProductResponse(ProductBase):
@@ -157,3 +161,29 @@ class PendingModelApprove(BaseModel):
     custom_name_ru: Optional[str] = None
     custom_category_id: Optional[int] = None
     custom_color_id: Optional[int] = None        
+
+class PendingWeightBase(BaseModel):
+    part_number: str
+    qty: int
+    pallet_no: Optional[str] = None
+    box_no: Optional[str] = None
+    model_number: Optional[str] = None
+    description: Optional[str] = None
+    category_name: Optional[str] = None
+    color_name: Optional[str] = None
+    suggested_weight: Optional[float] = None
+
+
+class PendingWeightResponse(PendingWeightBase):
+    id: int
+    session_id: str
+    status: str
+    custom_weight: Optional[float] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PendingWeightApprove(BaseModel):
+    custom_weight: float    

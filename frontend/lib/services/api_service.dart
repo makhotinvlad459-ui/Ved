@@ -184,4 +184,64 @@ class ApiService {
       throw Exception('Ошибка создания цвета: $e');
     }
   }
+
+  Future<Map<String, dynamic>> uploadPackingList({
+  required List<int> bytes,
+  required String fileName,
+}) async {
+  try {
+    FormData formData = FormData.fromMap({
+      'file': MultipartFile.fromBytes(bytes, filename: fileName),
+    });
+    final response = await _dio.post('/packing-list/upload', data: formData);
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка загрузки: $e');
+  }
+}
+
+// 13. Статус Packing List
+Future<Map<String, dynamic>> getPackingListStatus(String sessionId) async {
+  try {
+    final response = await _dio.get('/packing-list/status/$sessionId');
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка получения статуса: $e');
+  }
+}
+
+// 14. Получение pending весов
+Future<Map<String, dynamic>> getPendingWeights(String sessionId) async {
+  try {
+    final response = await _dio.get('/packing-list/pending/$sessionId');
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка получения pending весов: $e');
+  }
+}
+
+// 15. Подтверждение веса
+Future<Map<String, dynamic>> approveWeight(int pendingId, double weight) async {
+  try {
+    final response = await _dio.post(
+      '/packing-list/pending/$pendingId/approve',
+      queryParameters: {'weight': weight},  // <-- ИСПРАВЛЕНО
+    );
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка подтверждения веса: $e');
+  }
+}
+
+// 16. Скачивание Packing List
+Future<Response> downloadPackingList(String sessionId) async {
+  try {
+    return await _dio.get(
+      '/packing-list/download/$sessionId',
+      options: Options(responseType: ResponseType.bytes),
+    );
+  } catch (e) {
+    throw Exception('Ошибка скачивания: $e');
+  }
+}
 }

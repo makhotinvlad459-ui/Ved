@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/upload_screen.dart';
 import 'services/api_service.dart';
+import 'screens/packing_list_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -28,6 +29,7 @@ class MyApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         routes: {
           '/upload': (context) => const UploadScreen(),
+          '/packing-list': (context) => const PackingListScreen(), 
         },
       ),
     );

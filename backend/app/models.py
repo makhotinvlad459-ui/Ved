@@ -1,5 +1,5 @@
 # backend/app/models.py
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from .database import Base
@@ -52,6 +52,8 @@ class Product(Base):
     part_number = Column(String(50), nullable=False, index=True)  # "MGEA4LL/A"
     description = Column(Text)  # Полное описание из инвойса
     model_name = Column(String(255))  # "MacBook Pro 16"
+    weight = Column(Float, nullable=True)  
+    honest_code = Column(String(100), nullable=True)
     
     # Связи с категорией и цветом
     category_id = Column(Integer, ForeignKey("categories.id"))
@@ -138,3 +140,32 @@ class PendingModel(Base):
     suggested_color = relationship("Color", foreign_keys=[suggested_color_id])
     custom_category = relationship("Category", foreign_keys=[custom_category_id])
     custom_color = relationship("Color", foreign_keys=[custom_color_id])
+
+class PendingWeight(Base):
+    """Модели, ожидающие подтверждения веса для Packing List"""
+    __tablename__ = "pending_weights"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(36), nullable=False, index=True)
+    
+    # Данные из файла
+    part_number = Column(String(50), nullable=False)
+    qty = Column(Integer, nullable=False)
+    pallet_no = Column(String(50))
+    box_no = Column(String(50))
+    
+    # Информация из БД (если модель найдена)
+    model_number = Column(String(50))
+    description = Column(Text)
+    category_name = Column(String(100))
+    color_name = Column(String(50))
+    
+    # Вес
+    suggested_weight = Column(Float)  # Из файла (если есть)
+    custom_weight = Column(Float)  # Введённый пользователем
+    
+    # Статус: pending/approved/skipped
+    status = Column(String(50), default="pending")
+    
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())    

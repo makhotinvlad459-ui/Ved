@@ -1,2 +1,6 @@
 .env
 docker-compose.yml
+*.log
+*.pyc
+__pycache__/
+*.xlsx

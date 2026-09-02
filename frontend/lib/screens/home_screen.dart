@@ -81,17 +81,12 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 16),
 
               _ServiceCard(
-                icon: Icons.compare_arrows_outlined,
-                title: 'Сравнение документов',
-                subtitle: 'Сравнение инвойса и манифеста',
-                color: Colors.orange,
-                onTap: () {
-                  // Пока заглушка
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Сервис в разработке'),
-                    ),
-                  );
+  icon: Icons.inventory_outlined,
+  title: 'Генерация Packing List',
+  subtitle: 'Обработка упаковочного листа',
+  color: Colors.orange,
+  onTap: () {
+    Navigator.pushNamed(context, '/packing-list');
                 },
               ),
 

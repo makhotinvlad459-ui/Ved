@@ -233,3 +233,140 @@ def cleanup_old_files():
                         print(f'🗑️ Удален: {filename}')
     
     return f'🗑️ Удалено {deleted} файлов старше 1 дня'
+
+ # Packing list
+@celery_app.task(name="process_packing_list")
+def process_packing_list(session_id: str):
+    """
+    Обработка Packing List
+    """
+    print(f"🔄 Начинаем обработку Packing List {session_id}")
+    
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:apple_samsung_2024@postgres:5432/ved")
+    sync_engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=sync_engine)
+    
+    try:
+        with SessionLocal() as db:
+            from app.models import ProcessingSession, Product, PendingWeight
+            
+            stmt = select(ProcessingSession).where(ProcessingSession.session_id == session_id)
+            result = db.execute(stmt)
+            session = result.scalar_one_or_none()
+            
+            if not session:
+                print(f"❌ Сессия {session_id} не найдена")
+                return {"error": "Session not found"}
+            
+            # Парсим файл
+            from app.services.packing_list_parser import parse_packing_list, get_product_by_part_number
+            data = parse_packing_list(session.invoice_file)
+            items = data.get("items", [])
+            
+            print(f"   Найдено позиций: {len(items)}")
+            
+            # Группируем по паллетам
+            pallet_groups = {}
+            for item in items:
+                pallet = item.get("pallet_no", "1")
+                if pallet not in pallet_groups:
+                    pallet_groups[pallet] = []
+                pallet_groups[pallet].append(item)
+            
+            all_processed_items = []
+            pending_items = []
+            
+            for pallet, pallet_items in pallet_groups.items():
+                pallet_weight = pallet_items[0].get("pallet_weight", 0)
+                
+                for item in pallet_items:
+                    part_number = item.get("part_number")
+                    qty = item.get("qty", 0)
+                    
+                    # Ищем продукт по part_number
+                    product, model_number = get_product_by_part_number(db, part_number)
+                    
+                    if product and product.weight:
+                        # Вес есть — используем
+                        net = product.weight * qty
+                        item["net"] = net
+                        item["weight_per_item"] = product.weight
+                        item["model_number"] = product.model_number
+                        item["description"] = product.description
+                        item["category_name"] = product.category.name if product.category else None
+                        item["color_name"] = product.color.rus if product.color else None
+                    else:
+                        # Веса нет — добавляем в pending
+                        pending_items.append({
+                            **item,
+                            "model_number": model_number
+                        })
+                
+                # Если есть позиции без веса — пропускаем расчёт
+                if pending_items:
+                    for item in pending_items:
+                        pending_weight = PendingWeight(
+                            session_id=session_id,
+                            part_number=item.get("part_number"),
+                            model_number=item.get("model_number"),
+                            qty=item.get("qty", 0),
+                            pallet_no=item.get("pallet_no"),
+                            box_no=item.get("box_no"),
+                            suggested_weight=item.get("weight_per_1"),
+                            status="pending"
+                        )
+                        db.add(pending_weight)
+                    
+                    db.commit()
+                    session.status = "pending_weights"
+                    db.commit()
+                    return {
+                        "status": "pending_weights",
+                        "session_id": session_id,
+                        "pending_count": len(pending_items),
+                        "pending_items": [item.get("part_number") for item in pending_items],
+                        "message": f"Найдено {len(pending_items)} моделей без веса. Добавьте вес."
+                    }
+                
+                # Если все веса есть — считаем GROSS
+                if pallet_weight > 0:
+                    from app.services.packing_list_parser import redistribute_gross
+                    pallet_items = redistribute_gross(pallet_items, pallet_weight)
+                
+                all_processed_items.extend(pallet_items)
+            
+            # Генерируем результат
+            from app.services.packing_list_generator import generate_packing_list
+            
+            output_path = f"/app/output/{session_id}_packing_list.xlsx"
+            generate_packing_list(
+                items=all_processed_items,
+                template_path=session.invoice_file,
+                output_path=output_path,
+                session_id=session_id
+            )
+            
+            session.status = "completed"
+            session.result_file = output_path
+            db.commit()
+            
+            print(f"✅ Packing List {session_id} завершён")
+            return {"status": "completed", "session_id": session_id}
+            
+    except Exception as e:
+        print(f"❌ Ошибка обработки {session_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        with SessionLocal() as db:
+            session = db.query(ProcessingSession).filter(
+                ProcessingSession.session_id == session_id
+            ).first()
+            if session:
+                session.status = "error"
+                session.errors = str(e)
+                db.commit()
+        
+        raise e
+    finally:
+        sync_engine.dispose()
