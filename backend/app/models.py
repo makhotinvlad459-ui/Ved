@@ -168,4 +168,49 @@ class PendingWeight(Base):
     status = Column(String(50), default="pending")
     
     created_at = Column(DateTime, server_default=func.now())
-    updated_at = Column(DateTime, onupdate=func.now())    
+    updated_at = Column(DateTime, onupdate=func.now())  
+
+# ============================================================
+# ПОСТАВКИ (SHIPMENTS)
+# ============================================================
+
+class Shipment(Base):
+    """Поставка — контейнер для всех задач по одной поставке"""
+    __tablename__ = "shipments"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    shipment_number = Column(String(50), unique=True, nullable=False)  # "Поставка №1"
+    invoice_number = Column(String(50))  # "K466"
+    invoice_date = Column(DateTime)
+    supplier = Column(String(200))  # "KVN Group FZCO"
+    
+    status = Column(String(50), default="in_progress")  # in_progress / completed / cancelled
+    progress = Column(Integer, default=0)  # 0-100
+    
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+    
+    # Связь с задачами
+    tasks = relationship("ShipmentTask", back_populates="shipment", cascade="all, delete-orphan")
+
+
+class ShipmentTask(Base):
+    """Задача внутри поставки"""
+    __tablename__ = "shipment_tasks"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    shipment_id = Column(Integer, ForeignKey("shipments.id", ondelete="CASCADE"), nullable=False)
+    
+    task_key = Column(String(50), nullable=False)  # invoice, declaration_create, etc.
+    task_name = Column(String(200), nullable=False)  # "Инвойс", "Создание отправка брокеру"
+    parent_task = Column(String(50))  # Для группировки: declaration, cz, etc.
+    
+    is_done = Column(Boolean, default=False)
+    comment = Column(Text)
+    order_index = Column(Integer, default=0)  # Порядок отображения
+    
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+    
+    # Связь с поставкой
+    shipment = relationship("Shipment", back_populates="tasks")      

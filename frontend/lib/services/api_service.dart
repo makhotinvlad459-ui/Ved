@@ -244,4 +244,88 @@ Future<Response> downloadPackingList(String sessionId) async {
     throw Exception('Ошибка скачивания: $e');
   }
 }
+// ============================================================
+// ПОСТАВКИ (SHIPMENTS)
+// ============================================================
+
+// 17. Получить все поставки
+Future<List<dynamic>> getShipments() async {
+  try {
+    final response = await _dio.get('/shipments/');
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка получения поставок: $e');
+  }
+}
+
+// 18. Создать поставку
+Future<Map<String, dynamic>> createShipment({
+  required String shipmentNumber,
+  String? invoiceNumber,
+  String? invoiceDate,
+  String? supplier,
+}) async {
+  try {
+    final response = await _dio.post(
+      '/shipments/',
+      data: {
+        'shipment_number': shipmentNumber,
+        'invoice_number': invoiceNumber,
+        'invoice_date': invoiceDate,
+        'supplier': supplier,
+      },
+    );
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка создания поставки: $e');
+  }
+}
+
+// 19. Получить поставку по ID
+Future<Map<String, dynamic>> getShipment(int id) async {
+  try {
+    final response = await _dio.get('/shipments/$id');
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка получения поставки: $e');
+  }
+}
+
+// 20. Обновить задачу (галочка/комментарий)
+Future<Map<String, dynamic>> updateTask({
+  required int taskId,
+  bool? isDone,
+  String? comment,
+}) async {
+  try {
+    final response = await _dio.put(
+      '/shipments/tasks/$taskId',
+      data: {
+        'is_done': isDone,
+        'comment': comment,
+      },
+    );
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка обновления задачи: $e');
+  }
+}
+
+// 21. Удалить поставку
+Future<void> deleteShipment(int id) async {
+  try {
+    await _dio.delete('/shipments/$id');
+  } catch (e) {
+    throw Exception('Ошибка удаления поставки: $e');
+  }
+}
+
+Future<List<dynamic>> getShipmentTasks(int shipmentId) async {
+  try {
+    final response = await _dio.get('/shipments/$shipmentId/tasks');
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка получения задач: $e');
+  }
+}
 }

@@ -187,3 +187,68 @@ class PendingWeightResponse(PendingWeightBase):
 
 class PendingWeightApprove(BaseModel):
     custom_weight: float    
+
+# ============================================================
+# ПОСТАВКИ (SHIPMENTS)
+# ============================================================
+
+class ShipmentBase(BaseModel):
+    shipment_number: str
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[datetime] = None
+    supplier: Optional[str] = None
+
+
+class ShipmentCreate(ShipmentBase):
+    pass
+
+
+class ShipmentUpdate(BaseModel):
+    shipment_number: Optional[str] = None
+    invoice_number: Optional[str] = None
+    invoice_date: Optional[datetime] = None
+    supplier: Optional[str] = None
+    status: Optional[str] = None
+
+
+class ShipmentResponse(ShipmentBase):
+    id: int
+    status: str
+    progress: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+class ShipmentTaskBase(BaseModel):
+    task_key: str
+    task_name: str
+    parent_task: Optional[str] = None
+    is_done: bool = False
+    comment: Optional[str] = None
+    order_index: int = 0
+
+
+class ShipmentTaskCreate(ShipmentTaskBase):
+    shipment_id: int
+
+
+class ShipmentTaskUpdate(BaseModel):
+    is_done: Optional[bool] = None
+    comment: Optional[str] = None
+
+
+class ShipmentTaskResponse(ShipmentTaskBase):
+    id: int
+    shipment_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+
+# Обновляем forward references
+ShipmentResponse.model_rebuild()    
