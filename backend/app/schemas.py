@@ -251,4 +251,67 @@ class ShipmentTaskResponse(ShipmentTaskBase):
 
 
 # Обновляем forward references
-ShipmentResponse.model_rebuild()    
+ShipmentResponse.model_rebuild()   
+
+# ============================================================
+# ЧЕСТНЫЙ ЗНАК (GTIN)
+# ============================================================
+
+class GtinProductBase(BaseModel):
+    gtin: str
+    part_number: Optional[str] = None
+    model_number: Optional[str] = None
+    coo: Optional[str] = None
+    product_name: Optional[str] = None
+    category_name: Optional[str] = None
+
+
+class GtinProductCreate(GtinProductBase):
+    pass
+
+
+class GtinProductUpdate(BaseModel):
+    part_number: Optional[str] = None
+    model_number: Optional[str] = None
+    coo: Optional[str] = None
+    product_name: Optional[str] = None
+    category_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class GtinProductResponse(GtinProductBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    
+    class Config:
+        from_attributes = True
+
+class PendingGtinBase(BaseModel):
+    gtin: str
+    code_count: int
+    suggested_name: Optional[str] = None
+
+
+class PendingGtinResponse(PendingGtinBase):
+    id: int
+    session_id: str
+    status: str
+    part_number: Optional[str] = None
+    model_number: Optional[str] = None
+    coo: Optional[str] = None
+    product_name: Optional[str] = None
+    category_name: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class PendingGtinApprove(BaseModel):
+    part_number: str
+    model_number: str
+    coo: str
+    product_name: str
+    category_name: Optional[str] = None        

@@ -328,4 +328,91 @@ Future<List<dynamic>> getShipmentTasks(int shipmentId) async {
     throw Exception('Ошибка получения задач: $e');
   }
 }
+
+  // ============================================================
+  // ЧЕСТНЫЙ ЗНАК (CZ)
+  // ============================================================
+
+  // 23. Загрузка файла ЧЗ
+  Future<Map<String, dynamic>> uploadCZFile({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final response = await _dio.post('/cz/upload', data: formData);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка загрузки: $e');
+    }
+  }
+
+  // 24. Статус ЧЗ
+  Future<Map<String, dynamic>> getCZStatus(String sessionId) async {
+    try {
+      final response = await _dio.get('/cz/status/$sessionId');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения статуса: $e');
+    }
+  }
+
+  // 25. Получить pending GTIN
+  Future<Map<String, dynamic>> getPendingGtins(String sessionId) async {
+    try {
+      final response = await _dio.get('/cz/pending/$sessionId');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения pending GTIN: $e');
+    }
+  }
+
+  // 26. Подтвердить GTIN
+  Future<Map<String, dynamic>> approveGtin({
+    required int pendingId,
+    required String partNumber,
+    required String modelNumber,
+    required String coo,
+    required String productName,
+    String? categoryName,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/cz/pending/$pendingId/approve',
+        data: {
+          'part_number': partNumber,
+          'model_number': modelNumber,
+          'coo': coo,
+          'product_name': productName,
+          'category_name': categoryName,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка подтверждения GTIN: $e');
+    }
+  }
+
+  // 27. Скачать результат ЧЗ (ZIP)
+  Future<Response> downloadCZResult(String sessionId) async {
+    try {
+      return await _dio.get(
+        '/cz/download/$sessionId',
+        options: Options(responseType: ResponseType.bytes),
+      );
+    } catch (e) {
+      throw Exception('Ошибка скачивания: $e');
+    }
+  }
+
+  // 28. Пропустить GTIN
+  Future<void> skipGtin(int pendingId) async {
+    try {
+      await _dio.delete('/cz/pending/$pendingId/skip');
+    } catch (e) {
+      throw Exception('Ошибка пропуска GTIN: $e');
+    }
+  }
 }

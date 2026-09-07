@@ -7,6 +7,7 @@ import 'screens/upload_screen.dart';
 import 'screens/packing_list_screen.dart';
 import 'services/api_service.dart';
 import 'screens/shipments_screen.dart';
+import 'screens/cz_screen.dart';
 
 
 void main() {
@@ -35,6 +36,8 @@ class MyApp extends StatelessWidget {
           '/upload': (context) => const UploadScreen(),
           '/packing-list': (context) => const PackingListScreen(),
           '/shipments': (context) => const ShipmentsScreen(),
+          '/cz': (context) => const CzScreen(),
+
         },
       ),
     );

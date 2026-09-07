@@ -1,4 +1,3 @@
-// frontend/lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -105,17 +104,12 @@ class HomeScreen extends StatelessWidget {
               const SizedBox(height: 16),
 
               _ServiceCard(
-                icon: Icons.history_outlined,
-                title: 'История обработки',
-                subtitle: 'Просмотр предыдущих сессий',
-                color: Colors.green,
+                icon: Icons.qr_code,
+                title: 'Честный знак',
+                subtitle: 'Обработка кодов ЧЗ (ввод в оборот)',
+                color: Colors.purple,
                 onTap: () {
-                  // Пока заглушка
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Сервис в разработке'),
-                    ),
-                  );
+                  Navigator.pushNamed(context, '/cz');
                 },
               ),
             ],
