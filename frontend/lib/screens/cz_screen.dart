@@ -1,6 +1,7 @@
 // frontend/lib/screens/cz_screen.dart
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/api_service.dart';
@@ -307,7 +308,6 @@ class _CzStatusScreenState extends State<CzStatusScreen> {
       final c = _controllers[pendingId];
       if (c == null) return;
 
-      // Парсим поля из строки: "Артикул, Модель, Страна, Название"
       final parts = c.text.split(',').map((s) => s.trim()).toList();
       if (parts.length < 4) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -453,12 +453,54 @@ class _CzStatusScreenState extends State<CzStatusScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'GTIN: ${item['gtin']}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            // GTIN с копированием
+                            Row(
+                              children: [
+                                const Text(
+                                  'GTIN: ',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                                GestureDetector(
+                                  onTap: () {
+                                    Clipboard.setData(ClipboardData(text: item['gtin']));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('✅ GTIN скопирован в буфер обмена'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                  child: SelectableText(
+                                    item['gtin'] ?? '',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.blue,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                IconButton(
+                                  icon: Icon(Icons.copy, size: 16, color: Colors.grey[600]),
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: item['gtin']));
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('✅ GTIN скопирован в буфер обмена'),
+                                        duration: Duration(seconds: 1),
+                                      ),
+                                    );
+                                  },
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
                             ),
                             Text('Кодов: ${item['code_count']}'),
-                            Text('Предложенное имя: ${item['suggested_name'] ?? '—'}'),
+                            SelectableText(
+                              'Предложенное имя: ${item['suggested_name'] ?? '—'}',
+                              style: const TextStyle(fontSize: 13),
+                            ),
                             const SizedBox(height: 8),
                             TextField(
                               controller: _controllers[id],

@@ -1,3 +1,4 @@
+# backend/app/celery/tasks.py
 from .worker import celery_app
 import os
 from sqlalchemy import create_engine
@@ -112,15 +113,12 @@ def process_invoice(session_id: str):
                             color = c
                             break
                 
-                # Трансформируем название (без f-string проблем)
-                prefix = category.prefix_ru if category and category.prefix_ru else ""
-                
                 if product and product.custom_name_ru:
                     name_with_article = f"{product.custom_name_ru} ({part_number})"
-                    if prefix:
-                        transformed_name = prefix + " " + name_with_article + " / " + description
+                    if category and category.prefix_ru:
+                        transformed_name = f"{category.prefix_ru} {name_with_article} / {description}"
                     else:
-                        transformed_name = name_with_article + " / " + description
+                        transformed_name = f"{name_with_article} / {description}"
                 else:
                     transformed_name = transform_product_name(
                         description=description,
@@ -234,12 +232,9 @@ def cleanup_old_files():
     
     return f'🗑️ Удалено {deleted} файлов старше 1 дня'
 
- # Packing list
+
 @celery_app.task(name="process_packing_list")
 def process_packing_list(session_id: str):
-    """
-    Обработка Packing List
-    """
     print(f"🔄 Начинаем обработку Packing List {session_id}")
     
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:apple_samsung_2024@postgres:5432/ved")
@@ -258,14 +253,12 @@ def process_packing_list(session_id: str):
                 print(f"❌ Сессия {session_id} не найдена")
                 return {"error": "Session not found"}
             
-            # Парсим файл
             from app.services.packing_list_parser import parse_packing_list, get_product_by_part_number
             data = parse_packing_list(session.invoice_file)
             items = data.get("items", [])
             
             print(f"   Найдено позиций: {len(items)}")
             
-            # Группируем по паллетам
             pallet_groups = {}
             for item in items:
                 pallet = item.get("pallet_no", "1")
@@ -283,11 +276,9 @@ def process_packing_list(session_id: str):
                     part_number = item.get("part_number")
                     qty = item.get("qty", 0)
                     
-                    # Ищем продукт по part_number
                     product, model_number = get_product_by_part_number(db, part_number)
                     
                     if product and product.weight:
-                        # Вес есть — используем
                         net = product.weight * qty
                         item["net"] = net
                         item["weight_per_item"] = product.weight
@@ -296,13 +287,11 @@ def process_packing_list(session_id: str):
                         item["category_name"] = product.category.name if product.category else None
                         item["color_name"] = product.color.rus if product.color else None
                     else:
-                        # Веса нет — добавляем в pending
                         pending_items.append({
                             **item,
                             "model_number": model_number
                         })
                 
-                # Если есть позиции без веса — пропускаем расчёт
                 if pending_items:
                     for item in pending_items:
                         pending_weight = PendingWeight(
@@ -328,14 +317,12 @@ def process_packing_list(session_id: str):
                         "message": f"Найдено {len(pending_items)} моделей без веса. Добавьте вес."
                     }
                 
-                # Если все веса есть — считаем GROSS
                 if pallet_weight > 0:
                     from app.services.packing_list_parser import redistribute_gross
                     pallet_items = redistribute_gross(pallet_items, pallet_weight)
                 
                 all_processed_items.extend(pallet_items)
             
-            # Генерируем результат
             from app.services.packing_list_generator import generate_packing_list
             
             output_path = f"/app/output/{session_id}_packing_list.xlsx"
@@ -371,6 +358,7 @@ def process_packing_list(session_id: str):
     finally:
         sync_engine.dispose()
 
+
 @celery_app.task(name="process_cz")
 def process_cz(session_id: str):
     print(f"🔄 Начинаем обработку ЧЗ {session_id}")
@@ -391,7 +379,6 @@ def process_cz(session_id: str):
                 print(f"❌ Сессия {session_id} не найдена")
                 return {"error": "Session not found"}
             
-            # Парсим файл
             from app.services.cz_parser import parse_cz_file
             groups = parse_cz_file(session.invoice_file)
             
@@ -401,7 +388,6 @@ def process_cz(session_id: str):
             known_gtins = {}
             
             for gtin, data in groups.items():
-                # Ищем в БД
                 product = db.query(GtinProduct).filter(
                     GtinProduct.gtin == gtin,
                     GtinProduct.is_active == True
@@ -410,12 +396,11 @@ def process_cz(session_id: str):
                 if product:
                     known_gtins[gtin] = product
                 else:
-                    # Добавляем в pending
                     pending = PendingGtin(
                         session_id=session_id,
                         gtin=gtin,
-                        code_count=data["count"],
-                        suggested_name=data["suggested_name"],
+                        code_count=len(data),
+                        suggested_name=data[0][:200] if data else "Неизвестный товар",
                         status="pending"
                     )
                     db.add(pending)
@@ -434,7 +419,6 @@ def process_cz(session_id: str):
                     "message": f"Найдено {len(pending_gtins)} новых GTIN. Привяжите их к товарам."
                 }
             
-            # Если всё известно — генерируем файлы
             from app.services.cz_generator import generate_cz_files
             
             output_dir = "/app/output"
