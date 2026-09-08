@@ -384,47 +384,12 @@ def process_cz(session_id: str):
             
             print(f"   Найдено GTIN: {len(groups)}")
             
-            pending_gtins = []
-            known_gtins = {}
-            
-            for gtin, data in groups.items():
-                product = db.query(GtinProduct).filter(
-                    GtinProduct.gtin == gtin,
-                    GtinProduct.is_active == True
-                ).first()
-                
-                if product:
-                    known_gtins[gtin] = product
-                else:
-                    pending = PendingGtin(
-                        session_id=session_id,
-                        gtin=gtin,
-                        code_count=len(data),
-                        suggested_name=data[0][:200] if data else "Неизвестный товар",
-                        status="pending"
-                    )
-                    db.add(pending)
-                    pending_gtins.append(gtin)
-            
-            db.commit()
-            
-            if pending_gtins:
-                session.status = "pending_gtins"
-                db.commit()
-                return {
-                    "status": "pending_gtins",
-                    "session_id": session_id,
-                    "pending_count": len(pending_gtins),
-                    "pending_gtins": pending_gtins,
-                    "message": f"Найдено {len(pending_gtins)} новых GTIN. Привяжите их к товарам."
-                }
-            
             from app.services.cz_generator import generate_cz_files
             
             output_dir = "/app/output"
             files = generate_cz_files(
                 groups=groups,
-                gtin_products=known_gtins,
+                gtin_products={},  # не используем привязку
                 output_dir=output_dir,
                 session_id=session_id
             )

@@ -5,47 +5,34 @@ from typing import Dict, List, Any
 
 
 def generate_cz_files(
-    groups: Dict[str, List[str]],
+    groups: Dict[str, Dict[str, Any]],
     gtin_products: Dict[str, Any],
     output_dir: str,
     session_id: str
 ) -> List[str]:
     """
-    Создаёт .xlsx файлы для каждого GTIN (только коды, без заголовков)
+    Создаёт .xlsx файлы для каждого GTIN
+    Имя файла: GTIN_{gtin}-{count}.xlsx
     """
     created_files = []
     
-    for gtin, codes in groups.items():
-        product = gtin_products.get(gtin)
+    for gtin, data in groups.items():
+        codes = data.get("codes", [])
+        count = len(codes)
         
-        if product:
-            parts = []
-            if product.product_name:
-                parts.append(product.product_name.replace(' ', '_'))
-            if product.model_number:
-                parts.append(product.model_number)
-            if product.coo:
-                parts.append(product.coo)
-            
-            if not parts:
-                parts.append(gtin)
-            
-            filename = ".".join(parts) + ".xlsx"
-        else:
-            filename = f"GTIN_{gtin}.xlsx"
-        
+        filename = f"GTIN_{gtin}-{count}.xlsx"
         file_path = os.path.join(output_dir, f"{session_id}_{filename}")
         
-        # Создаём Excel файл
         wb = openpyxl.Workbook()
         ws = wb.active
+        ws.title = "Коды ЧЗ"
         
-        # Записываем ТОЛЬКО коды в первый столбец (без заголовков!)
+        # Записываем коды в первый столбец (без заголовка)
         for i, code in enumerate(codes, start=1):
-            ws.cell(i, 1).value = code.strip()
+            ws.cell(i, 1).value = code
         
         wb.save(file_path)
         created_files.append(file_path)
-        print(f"   📄 Создан файл: {filename} ({len(codes)} кодов)")
+        print(f"   📄 Создан файл: {filename} ({count} кодов)")
     
     return created_files
