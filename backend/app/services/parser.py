@@ -4,15 +4,10 @@ from typing import List, Dict, Any, Optional
 
 
 def parse_invoice(file_path: str) -> Dict[str, Any]:
-    """
-    Парсинг инвойса
-    """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
     
-    # ============================================
-    # 1. Находим дату и номер инвойса
-    # ============================================
+    # === Дата и номер ===
     invoice_date = None
     invoice_number = None
     
@@ -21,14 +16,12 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
             if cell.value and isinstance(cell.value, str):
                 val = cell.value.strip()
                 
-                # Ищем Reference (номер инвойса) — данные в колонке 13
                 if "Reference" in val:
                     ref_cell = ws.cell(row=cell.row, column=14)
                     if ref_cell.value:
                         invoice_number = str(ref_cell.value).strip()
                         print(f"   📝 Найден номер инвойса: {invoice_number}")
                 
-                # Ищем Date (дата инвойса) — данные в колонке 13
                 if "Date" in val:
                     date_cell = ws.cell(row=cell.row, column=14)
                     if date_cell.value:
@@ -49,30 +42,17 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
         if invoice_date and invoice_number:
             break
     
-    # ============================================
-    # 2. Находим строку с заголовками
-    # ============================================
+    # === Заголовки ===
     header_row = None
     for row in ws.iter_rows(min_row=1, max_row=30):
         for cell in row:
             if cell.value and isinstance(cell.value, str):
                 val = cell.value.strip()
-                if "Model" in val or "P/N" in val or "Description" in val:
+                if "Model" in val and "P/N" not in val:
                     header_row = cell.row
                     break
         if header_row:
             break
-    
-    if not header_row:
-        for row_idx in range(20, 30):
-            row = ws[row_idx]
-            for cell in row:
-                if cell.value and isinstance(cell.value, str):
-                    if "Model" in cell.value or "P/N" in cell.value:
-                        header_row = row_idx
-                        break
-            if header_row:
-                break
     
     items = []
     if header_row:
@@ -80,43 +60,85 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
         for col_idx, cell in enumerate(ws[header_row], 1):
             if cell.value:
                 val = str(cell.value).strip()
-                if "Model" in val:
+                if val == "Model":
                     header_cells["model"] = col_idx
                 elif "P/N" in val or "Part" in val:
                     header_cells["part"] = col_idx
-                elif "Description" in val or "description" in val:
+                elif "Description" in val:
                     header_cells["desc"] = col_idx
                 elif "Qty" in val or "Quantity" in val:
                     header_cells["qty"] = col_idx
                 elif "COO" in val or "Country" in val:
                     header_cells["coo"] = col_idx
-                elif "UPC" in val or "code" in val:
+                elif "UPC" in val:
                     header_cells["upc"] = col_idx
-                elif "Price" in val or "Unit" in val:
+                elif "Price" in val:
                     header_cells["price"] = col_idx
                 elif "Total" in val:
                     header_cells["total"] = col_idx
         
+        print(f"   📋 Заголовки: {header_cells}")
+        
         for row in ws.iter_rows(min_row=header_row + 1):
-            model_cell = row[header_cells.get("model", 1) - 1]
-            if not model_cell.value or not str(model_cell.value).strip():
-                break
+            # Проверяем P/N — он должен быть у каждой позиции
+            part_idx = header_cells.get("part", 4) - 1
+            part_cell = row[part_idx] if part_idx < len(row) else None
             
-            try:
-                item = {
-                    "model_number": str(model_cell.value).strip(),
-                    "part_number": str(row[header_cells.get("part", 3) - 1].value or "").strip(),
-                    "description": str(row[header_cells.get("desc", 5) - 1].value or "").strip(),
-                    "qty": int(row[header_cells.get("qty", 20) - 1].value or 0),
-                    "coo": str(row[header_cells.get("coo", 27) - 1].value or "").strip(),
-                    "upc": str(row[header_cells.get("upc", 28) - 1].value or "").strip(),
-                    "price": float(row[header_cells.get("price", 29) - 1].value or 0),
-                    "total": float(row[header_cells.get("total", 33) - 1].value or 0),
-                }
-                items.append(item)
-            except Exception as e:
-                print(f"⚠️ Ошибка парсинга строки: {e}")
+            if not part_cell or not part_cell.value:
+                continue  # пропускаем пустые строки
+            
+            part_number = str(part_cell.value).strip()
+            
+            # Пропускаем строки с итогами
+            if part_number.lower() in ["total", "итого", ""]:
                 continue
+            
+            model_idx = header_cells.get("model", 2) - 1
+            model_cell = row[model_idx] if model_idx < len(row) else None
+            model_number = str(model_cell.value).strip() if model_cell and model_cell.value else ""
+            
+            desc_idx = header_cells.get("desc", 7) - 1
+            desc_cell = row[desc_idx] if desc_idx < len(row) else None
+            description = str(desc_cell.value).strip() if desc_cell and desc_cell.value else ""
+            
+            qty_idx = header_cells.get("qty", 21) - 1
+            qty_cell = row[qty_idx] if qty_idx < len(row) else None
+            qty = int(qty_cell.value or 0) if qty_cell else 0
+            
+            coo_idx = header_cells.get("coo", 28) - 1
+            coo_cell = row[coo_idx] if coo_idx < len(row) else None
+            coo = str(coo_cell.value).strip() if coo_cell and coo_cell.value else ""
+            
+            upc_idx = header_cells.get("upc", 29) - 1
+            upc_cell = row[upc_idx] if upc_idx < len(row) else None
+            upc = str(upc_cell.value).strip() if upc_cell and upc_cell.value else ""
+            
+            price_idx = header_cells.get("price", 30) - 1
+            price_cell = row[price_idx] if price_idx < len(row) else None
+            try:
+                price = float(price_cell.value or 0) if price_cell else 0
+            except:
+                price = 0
+            
+            total_idx = header_cells.get("total", 34) - 1
+            total_cell = row[total_idx] if total_idx < len(row) else None
+            try:
+                total = float(total_cell.value or 0) if total_cell else 0
+            except:
+                total = 0
+            
+            items.append({
+                "model_number": model_number,
+                "part_number": part_number,
+                "description": description,
+                "qty": qty,
+                "coo": coo,
+                "upc": upc,
+                "price": price,
+                "total": total
+            })
+    
+    print(f"   ✅ Всего позиций: {len(items)}")
     
     return {
         "invoice_date": invoice_date,

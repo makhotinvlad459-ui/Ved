@@ -1,5 +1,5 @@
 import openpyxl
-from typing import Dict, List
+from typing import Dict, List, Any
 import re
 
 
@@ -16,15 +16,15 @@ def parse_cz_file(file_path: str) -> Dict[str, List[str]]:
             cell = ws.cell(row, col)
             if cell.value and isinstance(cell.value, str):
                 cell_lower = cell.value.lower()
-                if "код" in cell_lower or "code" in cell_lower:
+                if \"код\" in cell_lower or \"code\" in cell_lower:
                     col_code = col
-                elif "gtin" in cell_lower:
+                elif \"gtin\" in cell_lower:
                     col_gtin = col
         if col_code and col_gtin:
             break
     
     if not col_code or not col_gtin:
-        raise Exception("Не удалось найти колонки 'Код' и 'GTIN'")
+        raise Exception(\"Не удалось найти колонки 'Код' и 'GTIN'\")
     
     for row in range(2, ws.max_row + 1):
         code = ws.cell(row, col_code).value
