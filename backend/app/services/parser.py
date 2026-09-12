@@ -22,7 +22,7 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
                         invoice_number = str(ref_cell.value).strip()
                         print(f"   📝 Найден номер инвойса: {invoice_number}")
                 
-                if "Date" in val:
+                if val == "Date":
                     date_cell = ws.cell(row=cell.row, column=14)
                     if date_cell.value:
                         if isinstance(date_cell.value, datetime):
@@ -42,33 +42,40 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
         if invoice_date and invoice_number:
             break
     
-    # === Заголовки ===
-    header_row = None
-    for row in ws.iter_rows(min_row=1, max_row=30):
+    # === Находим ВСЕ заголовки таблиц ===
+    header_rows = []
+    for row in ws.iter_rows(min_row=1, max_row=ws.max_row):
+        has_model = False
+        has_pn = False
         for cell in row:
             if cell.value and isinstance(cell.value, str):
                 val = cell.value.strip()
-                if "Model" in val and "P/N" not in val:
-                    header_row = cell.row
-                    break
-        if header_row:
-            break
+                if val == "Model":
+                    has_model = True
+                elif "P/N" in val:
+                    has_pn = True
+        if has_model and has_pn:
+            header_rows.append(row[0].row)
+    
+    print(f"   📋 Найдено блоков: {len(header_rows)} (строки: {header_rows})")
     
     items = []
-    if header_row:
+    
+    for idx, header_row in enumerate(header_rows):
+        # Определяем колонки
         header_cells = {}
         for col_idx, cell in enumerate(ws[header_row], 1):
             if cell.value:
                 val = str(cell.value).strip()
                 if val == "Model":
                     header_cells["model"] = col_idx
-                elif "P/N" in val or "Part" in val:
+                elif "P/N" in val or val == "P/N":
                     header_cells["part"] = col_idx
                 elif "Description" in val:
                     header_cells["desc"] = col_idx
-                elif "Qty" in val or "Quantity" in val:
+                elif "Qty" in val:
                     header_cells["qty"] = col_idx
-                elif "COO" in val or "Country" in val:
+                elif "COO" in val:
                     header_cells["coo"] = col_idx
                 elif "UPC" in val:
                     header_cells["upc"] = col_idx
@@ -77,19 +84,24 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
                 elif "Total" in val:
                     header_cells["total"] = col_idx
         
-        print(f"   📋 Заголовки: {header_cells}")
+        print(f"   📋 Блок {idx+1} (строка {header_row}): {header_cells}")
         
-        for row in ws.iter_rows(min_row=header_row + 1):
-            # Проверяем P/N — он должен быть у каждой позиции
+        # Определяем конец блока — либо следующий заголовок, либо конец файла
+        if idx + 1 < len(header_rows):
+            end_row = header_rows[idx + 1] - 1
+        else:
+            end_row = ws.max_row
+        
+        # Читаем строки блока
+        for row in ws.iter_rows(min_row=header_row + 1, max_row=end_row):
             part_idx = header_cells.get("part", 4) - 1
             part_cell = row[part_idx] if part_idx < len(row) else None
             
             if not part_cell or not part_cell.value:
-                continue  # пропускаем пустые строки
+                continue
             
             part_number = str(part_cell.value).strip()
             
-            # Пропускаем строки с итогами
             if part_number.lower() in ["total", "итого", ""]:
                 continue
             
