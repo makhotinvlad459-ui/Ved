@@ -13,25 +13,25 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
     description_lower = description.lower()
     
     rules = {
-    "Телефон": ["iphone", "galaxy", "pixel", "phone", "mobile"],
-    "Компьютер": ["macbook", "laptop", "notebook"],  # только портативные
-    "Персональный компьютер": ["imac", "mac mini", "mac studio", "mac pro"],  # настольные
-    "Планшет": ["ipad", "galaxy tab", "tablet"],
-    "Часы": ["watch", "galaxy watch", "apple watch"],
-    "Зарядное": ["adapter", "charger", "power adapter", "power supply"],
-    "Чехол": ["case", "folio", "cover", "silicon", "techwoven"],
-    "Чехол-книжка": ["smart folio", "book cover"],
-    "Наушники": ["airpods", "headphones", "earbuds", "earphones"],
-    "Кабель": ["cable", "wire", "usb-c", "lightning"],
-    "Экшн-камера": ["action cam", "osmo", "insta360", "gopro"],
-    "Фитнес-браслет": ["fitbit", "fitness", "tracker", "band"],
-    "Кошелек": ["wallet", "card holder"],
-    "Ремешок": ["strap", "band", "bracelet"],
-    "Клавиатура": ["keyboard", "magic keyboard"],
-    "Стилус": ["pencil", "stylus"],
-    "Полировочная ткань": ["polishing cloth"],
-    "Адаптеры": ["adapter", "thunderbolt"],
-}
+        "Телефон": ["iphone", "galaxy", "pixel", "phone", "mobile"],
+        "Компьютер": ["macbook", "laptop", "notebook"],  # только портативные
+        "Персональный компьютер": ["imac", "mac mini", "mac studio", "mac pro"],  # настольные
+        "Планшет": ["ipad", "galaxy tab", "tablet"],
+        "Часы": ["watch", "galaxy watch", "apple watch"],
+        "Чехол-книжка": ["smart folio", "book cover"],
+        "Чехол": ["case", "folio", "cover", "silicon", "techwoven"],
+        "Зарядное": ["adapter", "charger", "power adapter", "power supply"],
+        "Наушники": ["airpods", "headphones", "earbuds", "earphones"],
+        "Кабель": ["cable", "wire", "usb-c", "lightning"],
+        "Экшн-камера": ["action cam", "osmo", "insta360", "gopro"],
+        "Фитнес-браслет": ["fitbit", "fitness", "tracker", "band"],
+        "Кошелек": ["wallet", "card holder"],
+        "Ремешок": ["strap", "band", "bracelet"],
+        "Клавиатура": ["keyboard", "magic keyboard"],
+        "Стилус": ["pencil", "stylus"],
+        "Полировочная ткань": ["polishing cloth"],
+        "Адаптеры": ["adapter", "thunderbolt"],
+    }
     
     for category_name, keywords in rules.items():
         for keyword in keywords:
