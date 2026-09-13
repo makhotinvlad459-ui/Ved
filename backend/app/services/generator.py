@@ -68,7 +68,7 @@ def generate_specification(
 
         # ---------- АНГЛИЙСКАЯ ЧАСТЬ ----------
         en_spec_cell = ws.cell(row, 7)
-        en_number_cell = ws.cell(row, 9)
+        en_number_cell = ws.cell(row, 8)
 
         if en_spec_cell.value and "SPECIFICATION" in str(en_spec_cell.value):
             if en_number_cell.value and "№" in str(en_number_cell.value):
@@ -125,7 +125,7 @@ def generate_specification(
 
         # ---------- НОМЕР ИНВОЙСА (английская часть) ----------
         en_invoice_cell = ws.cell(row, 7)
-        en_invoice_number_cell = ws.cell(row, 9)
+        en_invoice_number_cell = ws.cell(row, 8)
 
         if en_invoice_cell.value and "Commercial Invoice" in str(en_invoice_cell.value):
             if en_invoice_number_cell.value and "№" in str(en_invoice_number_cell.value):
