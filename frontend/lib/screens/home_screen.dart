@@ -88,30 +88,6 @@ class HomeScreen extends StatelessWidget {
                   Navigator.pushNamed(context, '/packing-list');
                 },
               ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.inventory_2_outlined,
-                title: 'Поставки',
-                subtitle: 'Управление поставками и задачами',
-                color: Colors.purple,
-                onTap: () {
-                  Navigator.pushNamed(context, '/shipments');
-                },
-              ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.qr_code,
-                title: 'Честный знак',
-                subtitle: 'Обработка кодов ЧЗ (ввод в оборот)',
-                color: Colors.purple,
-                onTap: () {
-                  Navigator.pushNamed(context, '/cz');
-                },
-              ),
             ],
           ),
         ),

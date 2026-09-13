@@ -1,12 +1,11 @@
 // frontend/lib/services/api_service.dart
 import 'package:dio/dio.dart';
-import 'package:file_picker/file_picker.dart';
 
 class ApiService {
   static const String baseUrl = String.fromEnvironment(
-  'API_URL',
-  defaultValue: 'http://localhost:8000/api/v1',
-);
+    'API_URL',
+    defaultValue: 'http://localhost:8000/api/v1',
+  );
   final Dio _dio = Dio();
 
   ApiService() {
@@ -15,7 +14,7 @@ class ApiService {
     _dio.options.receiveTimeout = const Duration(seconds: 120);
   }
 
-  // 1. Загрузка файлов
+  // 1. Загрузка файлов (спецификация)
   Future<Map<String, dynamic>> uploadFiles({
     required List<int> invoiceBytes,
     required String invoiceName,
@@ -185,156 +184,8 @@ class ApiService {
     }
   }
 
+  // 12. Загрузка Packing List
   Future<Map<String, dynamic>> uploadPackingList({
-  required List<int> bytes,
-  required String fileName,
-}) async {
-  try {
-    FormData formData = FormData.fromMap({
-      'file': MultipartFile.fromBytes(bytes, filename: fileName),
-    });
-    final response = await _dio.post('/packing-list/upload', data: formData);
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка загрузки: $e');
-  }
-}
-
-// 13. Статус Packing List
-Future<Map<String, dynamic>> getPackingListStatus(String sessionId) async {
-  try {
-    final response = await _dio.get('/packing-list/status/$sessionId');
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка получения статуса: $e');
-  }
-}
-
-// 14. Получение pending весов
-Future<Map<String, dynamic>> getPendingWeights(String sessionId) async {
-  try {
-    final response = await _dio.get('/packing-list/pending/$sessionId');
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка получения pending весов: $e');
-  }
-}
-
-// 15. Подтверждение веса
-Future<Map<String, dynamic>> approveWeight(int pendingId, double weight) async {
-  try {
-    final response = await _dio.post(
-      '/packing-list/pending/$pendingId/approve',
-      queryParameters: {'weight': weight},  // <-- ИСПРАВЛЕНО
-    );
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка подтверждения веса: $e');
-  }
-}
-
-// 16. Скачивание Packing List
-Future<Response> downloadPackingList(String sessionId) async {
-  try {
-    return await _dio.get(
-      '/packing-list/download/$sessionId',
-      options: Options(responseType: ResponseType.bytes),
-    );
-  } catch (e) {
-    throw Exception('Ошибка скачивания: $e');
-  }
-}
-// ============================================================
-// ПОСТАВКИ (SHIPMENTS)
-// ============================================================
-
-// 17. Получить все поставки
-Future<List<dynamic>> getShipments() async {
-  try {
-    final response = await _dio.get('/shipments/');
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка получения поставок: $e');
-  }
-}
-
-// 18. Создать поставку
-Future<Map<String, dynamic>> createShipment({
-  required String shipmentNumber,
-  String? invoiceNumber,
-  String? invoiceDate,
-  String? supplier,
-}) async {
-  try {
-    final response = await _dio.post(
-      '/shipments/',
-      data: {
-        'shipment_number': shipmentNumber,
-        'invoice_number': invoiceNumber,
-        'invoice_date': invoiceDate,
-        'supplier': supplier,
-      },
-    );
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка создания поставки: $e');
-  }
-}
-
-// 19. Получить поставку по ID
-Future<Map<String, dynamic>> getShipment(int id) async {
-  try {
-    final response = await _dio.get('/shipments/$id');
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка получения поставки: $e');
-  }
-}
-
-// 20. Обновить задачу (галочка/комментарий)
-Future<Map<String, dynamic>> updateTask({
-  required int taskId,
-  bool? isDone,
-  String? comment,
-}) async {
-  try {
-    final response = await _dio.put(
-      '/shipments/tasks/$taskId',
-      data: {
-        'is_done': isDone,
-        'comment': comment,
-      },
-    );
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка обновления задачи: $e');
-  }
-}
-
-// 21. Удалить поставку
-Future<void> deleteShipment(int id) async {
-  try {
-    await _dio.delete('/shipments/$id');
-  } catch (e) {
-    throw Exception('Ошибка удаления поставки: $e');
-  }
-}
-
-Future<List<dynamic>> getShipmentTasks(int shipmentId) async {
-  try {
-    final response = await _dio.get('/shipments/$shipmentId/tasks');
-    return response.data;
-  } catch (e) {
-    throw Exception('Ошибка получения задач: $e');
-  }
-}
-
-  // ============================================================
-  // ЧЕСТНЫЙ ЗНАК (CZ)
-  // ============================================================
-
-  // 23. Загрузка файла ЧЗ
-  Future<Map<String, dynamic>> uploadCZFile({
     required List<int> bytes,
     required String fileName,
   }) async {
@@ -342,77 +193,55 @@ Future<List<dynamic>> getShipmentTasks(int shipmentId) async {
       FormData formData = FormData.fromMap({
         'file': MultipartFile.fromBytes(bytes, filename: fileName),
       });
-      final response = await _dio.post('/cz/upload', data: formData);
+      final response = await _dio.post('/packing-list/upload', data: formData);
       return response.data;
     } catch (e) {
       throw Exception('Ошибка загрузки: $e');
     }
   }
 
-  // 24. Статус ЧЗ
-  Future<Map<String, dynamic>> getCZStatus(String sessionId) async {
+  // 13. Статус Packing List
+  Future<Map<String, dynamic>> getPackingListStatus(String sessionId) async {
     try {
-      final response = await _dio.get('/cz/status/$sessionId');
+      final response = await _dio.get('/packing-list/status/$sessionId');
       return response.data;
     } catch (e) {
       throw Exception('Ошибка получения статуса: $e');
     }
   }
 
-  // 25. Получить pending GTIN
-  Future<Map<String, dynamic>> getPendingGtins(String sessionId) async {
+  // 14. Получение pending весов
+  Future<Map<String, dynamic>> getPendingWeights(String sessionId) async {
     try {
-      final response = await _dio.get('/cz/pending/$sessionId');
+      final response = await _dio.get('/packing-list/pending/$sessionId');
       return response.data;
     } catch (e) {
-      throw Exception('Ошибка получения pending GTIN: $e');
+      throw Exception('Ошибка получения pending весов: $e');
     }
   }
 
-  // 26. Подтвердить GTIN
-  Future<Map<String, dynamic>> approveGtin({
-    required int pendingId,
-    required String partNumber,
-    required String modelNumber,
-    required String coo,
-    required String productName,
-    String? categoryName,
-  }) async {
+  // 15. Подтверждение веса
+  Future<Map<String, dynamic>> approveWeight(int pendingId, double weight) async {
     try {
       final response = await _dio.post(
-        '/cz/pending/$pendingId/approve',
-        data: {
-          'part_number': partNumber,
-          'model_number': modelNumber,
-          'coo': coo,
-          'product_name': productName,
-          'category_name': categoryName,
-        },
+        '/packing-list/pending/$pendingId/approve',
+        queryParameters: {'weight': weight},
       );
       return response.data;
     } catch (e) {
-      throw Exception('Ошибка подтверждения GTIN: $e');
+      throw Exception('Ошибка подтверждения веса: $e');
     }
   }
 
-  // 27. Скачать результат ЧЗ (ZIP)
-  Future<Response> downloadCZResult(String sessionId) async {
+  // 16. Скачивание Packing List
+  Future<Response> downloadPackingList(String sessionId) async {
     try {
       return await _dio.get(
-        '/cz/download/$sessionId',
+        '/packing-list/download/$sessionId',
         options: Options(responseType: ResponseType.bytes),
       );
     } catch (e) {
       throw Exception('Ошибка скачивания: $e');
-    }
-  }
-
-  // 28. Пропустить GTIN
-  Future<void> skipGtin(int pendingId) async {
-    try {
-      await _dio.delete('/cz/pending/$pendingId/skip');
-    } catch (e) {
-      throw Exception('Ошибка пропуска GTIN: $e');
     }
   }
 }
