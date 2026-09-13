@@ -20,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
 
-  static const String _correctPassword = 'bigap2026';
+  static const String _correctPassword = 'ved';
 
   @override
   void initState() {
