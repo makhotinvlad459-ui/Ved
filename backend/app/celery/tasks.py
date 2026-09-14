@@ -291,7 +291,7 @@ def process_packing_list(session_id: str):
                         item["description"] = product.description
                         item["category_name"] = product.category.name if product.category else None
                         item["color_name"] = product.color.rus if product.color else None
-                     else:
+                    else:
                         pending_items.append({
                             **item,
                             "model_number": model_number
