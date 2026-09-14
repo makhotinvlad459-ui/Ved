@@ -1,6 +1,22 @@
-.env
-docker-compose.yml
-*.log
-*.pyc
+# Python
 __pycache__/
-*.xlsx
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# macOS
+.DS_Store
+
+# Env
+.env
+.env.*
+
+# Logs
+*.log
+
+# Excel (если не нужен)
+# *.xlsx

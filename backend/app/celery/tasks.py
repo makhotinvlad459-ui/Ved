@@ -291,14 +291,23 @@ def process_packing_list(session_id: str):
                         item["description"] = product.description
                         item["category_name"] = product.category.name if product.category else None
                         item["color_name"] = product.color.rus if product.color else None
-                    else:
+                     else:
                         pending_items.append({
                             **item,
                             "model_number": model_number
                         })
 
                 if pending_items:
+                    # Дедупликация по part_number — не создаём дубли
+                    seen_parts = set()
+                    unique_pending = []
                     for item in pending_items:
+                        pn = item.get("part_number")
+                        if pn and pn not in seen_parts:
+                            seen_parts.add(pn)
+                            unique_pending.append(item)
+
+                    for item in unique_pending:
                         pending_weight = PendingWeight(
                             session_id=session_id,
                             part_number=item.get("part_number"),
@@ -317,11 +326,10 @@ def process_packing_list(session_id: str):
                     return {
                         "status": "pending_weights",
                         "session_id": session_id,
-                        "pending_count": len(pending_items),
-                        "pending_items": [item.get("part_number") for item in pending_items],
-                        "message": f"Найдено {len(pending_items)} моделей без веса. Добавьте вес."
+                        "pending_count": len(unique_pending),
+                        "pending_items": [item.get("part_number") for item in unique_pending],
+                        "message": f"Найдено {len(unique_pending)} моделей без веса. Добавьте вес."
                     }
-
                 if pallet_weight > 0:
                     from app.services.packing_list_parser import redistribute_gross
                     pallet_items = redistribute_gross(pallet_items, pallet_weight)

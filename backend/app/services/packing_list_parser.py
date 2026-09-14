@@ -113,17 +113,28 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
 
 def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Optional[str]]:
     """
-    Ищет продукт по part_number, возвращает product и model_number
+    Ищет продукт по part_number (с нормализацией).
+    Возвращает (product, model_number).
     """
     from app.models import Product
-    
-    product = db.query(Product).filter(
-        Product.part_number == part_number
-    ).first()
-    
+
+    if not part_number:
+        return None, None
+
+    # Нормализация: убираем пробелы, приводим к верхнему регистру
+    normalized = part_number.strip().upper()
+
+    product = db.query(Product).filter(Product.part_number == normalized).first()
+
     if product:
         return product, product.model_number
-    
+
+    # Fallback: попробовать как есть (на случай разных регистров в БД)
+    product = db.query(Product).filter(Product.part_number == part_number).first()
+
+    if product:
+        return product, product.model_number
+
     return None, None
 
 

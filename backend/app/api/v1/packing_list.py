@@ -121,36 +121,49 @@ async def approve_weight(
     )
     result = await db.execute(stmt)
     pending = result.scalar_one_or_none()
-    
+
     if not pending:
         raise HTTPException(status_code=404, detail="Запись не найдена")
-    
+
     pending.custom_weight = weight
     pending.status = "approved"
-    
-    if pending.model_number:
+
+    # Обновляем вес у Product — сначала по part_number, если нет — по model_number
+    products = []
+    if pending.part_number:
+        product_stmt = select(Product).where(Product.part_number == pending.part_number)
+        product_result = await db.execute(product_stmt)
+        products = product_result.scalars().all()
+
+    if not products and pending.model_number:
         product_stmt = select(Product).where(Product.model_number == pending.model_number)
         product_result = await db.execute(product_stmt)
         products = product_result.scalars().all()
-        for product in products:
-            product.weight = weight
-    
+
+    for product in products:
+        product.weight = weight
+
+    if not products:
+        print(f"⚠️ Product не найден для part_number={pending.part_number}, "
+              f"model_number={pending.model_number}")
+
     await db.commit()
-    
+
     remaining_stmt = select(PendingWeight).where(
         PendingWeight.session_id == pending.session_id,
         PendingWeight.status == "pending"
     )
     remaining_result = await db.execute(remaining_stmt)
     remaining = remaining_result.scalars().all()
-    
+
     if not remaining:
         from app.celery.tasks import process_packing_list
         process_packing_list.delay(pending.session_id)
-    
+
     return {
         "message": "Вес подтверждён",
         "pending_id": pending_id,
+        "products_updated": len(products),
         "remaining": len(remaining)
     }
 
