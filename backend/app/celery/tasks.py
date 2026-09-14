@@ -297,44 +297,45 @@ def process_packing_list(session_id: str):
                             "model_number": model_number
                         })
 
-                if pending_items:
-                    # Дедупликация по part_number — не создаём дубли
-                    seen_parts = set()
-                    unique_pending = []
-                    for item in pending_items:
-                        pn = item.get("part_number")
-                        if pn and pn not in seen_parts:
-                            seen_parts.add(pn)
-                            unique_pending.append(item)
+            if pending_items:
+                # Дедупликация по part_number — не создаём дубли
+                seen_parts = set()
+                unique_pending = []
+                for item in pending_items:
+                    pn = item.get("part_number")
+                    if pn and pn not in seen_parts:
+                        seen_parts.add(pn)
+                        unique_pending.append(item)
 
-                    for item in unique_pending:
-                        pending_weight = PendingWeight(
-                            session_id=session_id,
-                            part_number=item.get("part_number"),
-                            model_number=item.get("model_number"),
-                            qty=item.get("qty", 0),
-                            pallet_no=item.get("pallet_no"),
-                            box_no=item.get("box_no"),
-                            suggested_weight=item.get("weight_per_1"),
-                            status="pending"
-                        )
-                        db.add(pending_weight)
+                for item in unique_pending:
+                    pending_weight = PendingWeight(
+                        session_id=session_id,
+                        part_number=item.get("part_number"),
+                        model_number=item.get("model_number"),
+                        qty=item.get("qty", 0),
+                        pallet_no=item.get("pallet_no"),
+                        box_no=item.get("box_no"),
+                        suggested_weight=item.get("weight_per_1"),
+                        status="pending"
+                    )
+                    db.add(pending_weight)
 
-                    db.commit()
-                    session.status = "pending_weights"
-                    db.commit()
-                    return {
-                        "status": "pending_weights",
-                        "session_id": session_id,
-                        "pending_count": len(unique_pending),
-                        "pending_items": [item.get("part_number") for item in unique_pending],
-                        "message": f"Найдено {len(unique_pending)} моделей без веса. Добавьте вес."
-                    }
-                if pallet_weight > 0:
-                    from app.services.packing_list_parser import redistribute_gross
-                    pallet_items = redistribute_gross(pallet_items, pallet_weight)
+                db.commit()
+                session.status = "pending_weights"
+                db.commit()
+                return {
+                    "status": "pending_weights",
+                    "session_id": session_id,
+                    "pending_count": len(unique_pending),
+                    "pending_items": [item.get("part_number") for item in unique_pending],
+                    "message": f"Найдено {len(unique_pending)} моделей без веса. Добавьте вес."
+                }
 
-                all_processed_items.extend(pallet_items)
+            if pallet_weight > 0:
+                from app.services.packing_list_parser import redistribute_gross
+                pallet_items = redistribute_gross(pallet_items, pallet_weight)
+
+            all_processed_items.extend(pallet_items)
 
             from app.services.packing_list_generator import generate_packing_list
 
@@ -370,5 +371,3 @@ def process_packing_list(session_id: str):
         raise e
     finally:
         sync_engine.dispose()
-
-
