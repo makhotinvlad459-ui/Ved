@@ -106,7 +106,9 @@ def generate_packing_list(
     
     pallet_groups = {}
     for item in items:
-        pallet = str(item.get('pallet_no', '1'))
+        # Берём pallet_no, если он задан; иначе — box_no; иначе '1'
+        pallet = item.get('pallet_no') or item.get('box_no') or '1'
+        pallet = str(pallet)
         if pallet not in pallet_groups:
             pallet_groups[pallet] = []
         pallet_groups[pallet].append(item)

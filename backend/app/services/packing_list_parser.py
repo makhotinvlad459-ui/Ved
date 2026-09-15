@@ -88,6 +88,10 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
         
         if pallet_no:
             current_pallet = pallet_no
+        elif box_no:
+            # Если в файле колонка Pallet no. пустая,
+            # используем Box No. как идентификатор группы (паллета)
+            current_pallet = box_no
         if box_no:
             current_box = box_no
         
