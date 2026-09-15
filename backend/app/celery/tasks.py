@@ -264,6 +264,7 @@ def process_packing_list(session_id: str):
 
             print(f"   Найдено позиций: {len(items)}")
 
+            # Группируем по паллетам (или по box_no, если pallet_no пустой — задаётся в парсере)
             pallet_groups = {}
             for item in items:
                 pallet = item.get("pallet_no", "1")
@@ -274,9 +275,11 @@ def process_packing_list(session_id: str):
             all_processed_items = []
             pending_items = []
 
+            # === ОБРАБОТКА КАЖДОЙ ПАЛЛЕТЫ ===
             for pallet, pallet_items in pallet_groups.items():
                 pallet_weight = pallet_items[0].get("pallet_weight", 0)
 
+                # 1) Для каждого товара в паллете ищем Product и вес
                 for item in pallet_items:
                     part_number = item.get("part_number")
                     qty = item.get("qty", 0)
@@ -297,6 +300,15 @@ def process_packing_list(session_id: str):
                             "model_number": model_number
                         })
 
+                # 2) Распределяем GROSS внутри паллеты
+                if pallet_weight > 0:
+                    from app.services.packing_list_parser import redistribute_gross
+                    pallet_items = redistribute_gross(pallet_items, pallet_weight)
+
+                # 3) Добавляем обработанные паллеты в общий список
+                all_processed_items.extend(pallet_items)
+
+            # === ЕСЛИ ЕСТЬ ТОВАРЫ БЕЗ ВЕСА — ОСТАНАВЛИВАЕМСЯ ===
             if pending_items:
                 # Дедупликация по part_number — не создаём дубли
                 seen_parts = set()
@@ -331,12 +343,7 @@ def process_packing_list(session_id: str):
                     "message": f"Найдено {len(unique_pending)} моделей без веса. Добавьте вес."
                 }
 
-            if pallet_weight > 0:
-                from app.services.packing_list_parser import redistribute_gross
-                pallet_items = redistribute_gross(pallet_items, pallet_weight)
-
-            all_processed_items.extend(pallet_items)
-
+            # === ГЕНЕРИРУЕМ ФИНАЛЬНЫЙ PACKING LIST ===
             from app.services.packing_list_generator import generate_packing_list
 
             output_path = f"/app/output/{session_id}_packing_list.xlsx"
@@ -351,8 +358,8 @@ def process_packing_list(session_id: str):
             session.result_file = output_path
             db.commit()
 
-            print(f"✅ Packing List {session_id} завершён")
-            return {"status": "completed", "session_id": session_id}
+            print(f"✅ Packing List {session_id} завершён, обработано паллет: {len(pallet_groups)}")
+            return {"status": "completed", "session_id": session_id, "pallets": len(pallet_groups)}
 
     except Exception as e:
         print(f"❌ Ошибка обработки {session_id}: {e}")
