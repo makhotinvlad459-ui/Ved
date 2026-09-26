@@ -63,10 +63,6 @@ def generate_cz_specification(
     cz_codes: Dict[str, List[str]],
     invoice_data: dict,
 ) -> str:
-    """
-    Генерирует спецификацию, где колонка F (Серийный номер)
-    заменена на коды Честного Знака.
-    """
     spec_number, header_row, total_row = parse_spec_info(spec_template_path)
     if not header_row:
         raise Exception("Не найден заголовок таблицы в спецификации")
@@ -74,7 +70,7 @@ def generate_cz_specification(
     wb = openpyxl.load_workbook(spec_template_path)
     ws = wb.active
 
-    # 1. Переименовываем заголовок колонки F
+    # 1. Переименование заголовка колонки F
     new_header = f"ЧЗ - код №{spec_number}" if spec_number else "ЧЗ - код"
     for row in range(1, header_row + 1):
         cell = ws.cell(row, 6)
@@ -89,10 +85,11 @@ def generate_cz_specification(
     # 2. Индекс инвойса
     invoice_idx = build_invoice_index(invoice_data)
 
-    # 3. Счётчики использованных кодов по GTIN
+    # 3. Глобальные счётчики + защита от повторного использования
     used: Dict[str, int] = {gtin: 0 for gtin in cz_codes}
+    consumed: set = set()   # все уже выданные коды (на всякий случай)
 
-    # 4. Обходим строки данных
+    # 4. Обход строк данных
     end_row = total_row if total_row else ws.max_row + 1
     row = header_row + 1
 
@@ -104,14 +101,12 @@ def generate_cz_specification(
 
         part_number = str(part_number_cell).strip()
 
-        # qty из колонки H
         qty_val = ws.cell(row, 8).value
         try:
             qty = int(qty_val) if qty_val is not None else 0
         except (ValueError, TypeError):
             qty = 0
 
-        # Ищем GTIN через инвойс
         gtin: Optional[str] = None
         inv_items = invoice_idx.get(part_number, [])
         if inv_items:
@@ -126,18 +121,23 @@ def generate_cz_specification(
         if gtin and gtin in cz_codes and qty > 0:
             pool = cz_codes[gtin]
             start = used[gtin]
-            take = pool[start:start + qty]
-            used[gtin] = start + len(take)
-            codes_for_row = list(take)
+            # Набираем qty кодов, пропуская уже выданные
+            for code in pool[start:]:
+                if len(codes_for_row) >= qty:
+                    break
+                if code in consumed:
+                    continue
+                codes_for_row.append(code)
+                consumed.add(code)
+                used[gtin] += 1
 
-        # Недостающие → N/A
+        # Добиваем N/A, если не хватило
         if qty > 0 and len(codes_for_row) < qty:
             codes_for_row.extend(["N/A"] * (qty - len(codes_for_row)))
 
         if not codes_for_row:
             codes_for_row = ["N/A"]
 
-        # Пишем в колонку F
         cell = ws.cell(row, 6)
         cell.value = "\n".join(codes_for_row)
         cell.alignment = Alignment(
