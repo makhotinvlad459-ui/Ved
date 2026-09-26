@@ -5,12 +5,75 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
 from datetime import datetime, timedelta
+from typing import Optional
 
 from app.models import ProcessingSession, Product, Category, Color, PendingModel
 from app.services.parser import parse_invoice, parse_manifest
 from app.services.transformer import transform_product_name, clean_serial
 from app.services.generator import generate_specification
 from app.services.model_detector import save_pending_models, get_pending_models_by_session
+
+
+def resolve_weight(
+    db,
+    part_number: Optional[str] = None,
+    model_number: Optional[str] = None,
+):
+    """
+    Единая точка поиска веса.
+
+    Приоритет:
+      1. Product.weight по part_number
+      2. Вес "сестринского" Product с тем же model_number (вес модели)
+      3. История PendingWeight(approved) по part_number
+      4. История PendingWeight(approved) по model_number
+
+    Возвращает (weight, source, product) или (None, None, product_or_None).
+    """
+    from app.models import Product, PendingWeight
+
+    product = None
+    if part_number:
+        product = db.query(Product).filter(Product.part_number == part_number).first()
+
+    # 1. Прямой вес Product
+    if product and product.weight:
+        return float(product.weight), "product", product
+
+    # Эффективная модель: сначала из Product, иначе из аргумента
+    effective_model = (product.model_number if product and product.model_number else None) or model_number
+
+    # 2. Вес "сестринского" Product с той же моделью
+    if effective_model:
+        sibling = db.query(Product).filter(
+            Product.model_number == effective_model,
+            Product.weight.isnot(None),
+            Product.weight > 0,
+        ).first()
+        if sibling:
+            return float(sibling.weight), f"model:{effective_model}", product
+
+    # 3. История approved по part_number
+    if part_number:
+        pw = db.query(PendingWeight).filter(
+            PendingWeight.part_number == part_number,
+            PendingWeight.status == "approved",
+            PendingWeight.custom_weight.isnot(None),
+        ).order_by(PendingWeight.updated_at.desc()).first()
+        if pw:
+            return float(pw.custom_weight), "pending_part", product
+
+    # 4. История approved по model_number
+    if effective_model:
+        pw = db.query(PendingWeight).filter(
+            PendingWeight.model_number == effective_model,
+            PendingWeight.status == "approved",
+            PendingWeight.custom_weight.isnot(None),
+        ).order_by(PendingWeight.updated_at.desc()).first()
+        if pw:
+            return float(pw.custom_weight), "pending_model", product
+
+    return None, None, product
 
 
 @celery_app.task(name="process_invoice")
@@ -105,7 +168,6 @@ def process_invoice(session_id: str):
                     category = db.query(Category).filter(Category.id == product.category_id).first()
 
                 if not category:
-                    # Используем общие правила из model_detector
                     from app.services.model_detector import detect_category
                     category = detect_category(description, categories)
 
@@ -284,16 +346,39 @@ def process_packing_list(session_id: str):
                     part_number = item.get("part_number")
                     qty = item.get("qty", 0)
 
+                    # Ищем Product + model_number
                     product, model_number = get_product_by_part_number(db, part_number)
 
-                    if product and product.weight:
-                        net = product.weight * qty
-                        item["net"] = net
-                        item["weight_per_item"] = product.weight
-                        item["model_number"] = product.model_number
-                        item["description"] = product.description
-                        item["category_name"] = product.category.name if product.category else None
-                        item["color_name"] = product.color.rus if product.color else None
+                    # Единая точка поиска веса:
+                    # Product → сестринский Product по модели → история PendingWeight
+                    known_weight, source, product = resolve_weight(
+                        db, part_number, model_number
+                    )
+
+                    if known_weight:
+                        # Если Product есть, но вес был NULL — восстановим и запишем
+                        if product and not product.weight:
+                            product.weight = known_weight
+                            print(f"   ♻️ Product {part_number}: вес {known_weight} ← {source}")
+
+                        item["net"] = known_weight * qty
+                        item["weight_per_item"] = known_weight
+                        item["model_number"] = (
+                            product.model_number if product and product.model_number
+                            else model_number
+                        )
+                        item["description"] = (
+                            product.description if product
+                            else item.get("description_raw")
+                        )
+                        item["category_name"] = (
+                            product.category.name
+                            if product and product.category else None
+                        )
+                        item["color_name"] = (
+                            product.color.rus
+                            if product and product.color else None
+                        )
                     else:
                         pending_items.append({
                             **item,

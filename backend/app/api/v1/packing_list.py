@@ -1,3 +1,4 @@
+# backend/app/api/v1/packing_list.py
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,10 +27,10 @@ async def upload_packing_list(
 ):
     session_id = str(uuid.uuid4())
     file_path = os.path.join(UPLOAD_DIR, f"{session_id}_packing_list.xlsx")
-    
+
     with open(file_path, "wb") as f:
         f.write(await file.read())
-    
+
     session = ProcessingSession(
         session_id=session_id,
         status="pending",
@@ -39,9 +40,9 @@ async def upload_packing_list(
     db.add(session)
     await db.commit()
     await db.refresh(session)
-    
+
     process_packing_list.delay(session_id)
-    
+
     return {
         "session_id": session_id,
         "status": "pending",
@@ -57,17 +58,17 @@ async def get_status(
     stmt = select(ProcessingSession).where(ProcessingSession.session_id == session_id)
     result = await db.execute(stmt)
     session = result.scalar_one_or_none()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
-    
+
     pending_stmt = select(PendingWeight).where(
         PendingWeight.session_id == session_id,
         PendingWeight.status == "pending"
     )
     pending_result = await db.execute(pending_stmt)
     pending_count = len(pending_result.scalars().all())
-    
+
     return {
         "session_id": session.session_id,
         "status": session.status,
@@ -89,7 +90,7 @@ async def get_pending_weights(
     )
     result = await db.execute(stmt)
     pendings = result.scalars().all()
-    
+
     pending_list = []
     for p in pendings:
         pending_list.append({
@@ -102,7 +103,7 @@ async def get_pending_weights(
             "suggested_weight": p.suggested_weight,
             "status": p.status
         })
-    
+
     return {
         "session_id": session_id,
         "pending_weights": pending_list
@@ -128,27 +129,40 @@ async def approve_weight(
     pending.custom_weight = weight
     pending.status = "approved"
 
-    # Обновляем вес у Product — сначала по part_number, если нет — по model_number
+    # === 1. Ищем Product по part_number ===
     products = []
     if pending.part_number:
-        product_stmt = select(Product).where(Product.part_number == pending.part_number)
-        product_result = await db.execute(product_stmt)
-        products = product_result.scalars().all()
+        stmt = select(Product).where(Product.part_number == pending.part_number)
+        products = (await db.execute(stmt)).scalars().all()
 
+    # === 2. Если у найденных Product есть model_number —
+    #         добавляем ВСЕ Product с той же моделью (вес модели) ===
+    model_numbers = {p.model_number for p in products if p.model_number}
+    if model_numbers:
+        stmt = select(Product).where(Product.model_number.in_(model_numbers))
+        siblings = (await db.execute(stmt)).scalars().all()
+        existing_ids = {p.id for p in products}
+        for s in siblings:
+            if s.id not in existing_ids:
+                products.append(s)
+
+    # === 3. Fallback: искать по model_number самого pending ===
     if not products and pending.model_number:
-        product_stmt = select(Product).where(Product.model_number == pending.model_number)
-        product_result = await db.execute(product_stmt)
-        products = product_result.scalars().all()
+        stmt = select(Product).where(Product.model_number == pending.model_number)
+        products = (await db.execute(stmt)).scalars().all()
 
+    # === 4. Пишем вес всем найденным Product ===
     for product in products:
         product.weight = weight
 
     if not products:
         print(f"⚠️ Product не найден для part_number={pending.part_number}, "
-              f"model_number={pending.model_number}")
+              f"model_number={pending.model_number}. "
+              f"Вес сохранён только в истории pending_weights.")
 
     await db.commit()
 
+    # === 5. Проверяем, остались ли ещё pending ===
     remaining_stmt = select(PendingWeight).where(
         PendingWeight.session_id == pending.session_id,
         PendingWeight.status == "pending"
@@ -157,6 +171,7 @@ async def approve_weight(
     remaining = remaining_result.scalars().all()
 
     if not remaining:
+        # Все веса введены — перезапускаем генерацию
         from app.celery.tasks import process_packing_list
         process_packing_list.delay(pending.session_id)
 
@@ -176,19 +191,19 @@ async def download_result(
     stmt = select(ProcessingSession).where(ProcessingSession.session_id == session_id)
     result = await db.execute(stmt)
     session = result.scalar_one_or_none()
-    
+
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
-    
+
     if session.status != "completed":
         raise HTTPException(status_code=400, detail="Обработка еще не завершена")
-    
+
     result_path = session.result_file
     if not result_path or not os.path.exists(result_path):
         raise HTTPException(status_code=404, detail="Файл результата не найден")
-    
+
     filename = f"packing_list_{session_id[:8]}.xlsx"
-    
+
     return FileResponse(
         path=result_path,
         filename=filename,
