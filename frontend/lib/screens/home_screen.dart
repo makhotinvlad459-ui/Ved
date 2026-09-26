@@ -13,7 +13,6 @@ class HomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Верхняя часть с логотипом
               Row(
                 children: [
                   Container(
@@ -37,44 +36,31 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(width: 12),
                   const Text(
                     'VED Processor',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
                   ),
                 ],
               ),
 
               const SizedBox(height: 32),
 
-              // Заголовок
               const Text(
                 'Выберите сервис',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
                 'Выберите тип обработки документов',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey),
               ),
 
               const SizedBox(height: 32),
 
-              // Список сервисов
               _ServiceCard(
                 icon: Icons.description_outlined,
                 title: 'Генерация спецификации',
                 subtitle: 'Инвойс + Манифест → Готовая спецификация',
                 color: Colors.blue,
-                onTap: () {
-                  Navigator.pushNamed(context, '/upload');
-                },
+                onTap: () => Navigator.pushNamed(context, '/upload'),
               ),
 
               const SizedBox(height: 16),
@@ -84,9 +70,17 @@ class HomeScreen extends StatelessWidget {
                 title: 'Генерация Packing List',
                 subtitle: 'Обработка упаковочного листа',
                 color: Colors.orange,
-                onTap: () {
-                  Navigator.pushNamed(context, '/packing-list');
-                },
+                onTap: () => Navigator.pushNamed(context, '/packing-list'),
+              ),
+
+              const SizedBox(height: 16),
+
+              _ServiceCard(
+                icon: Icons.qr_code_2,
+                title: 'Загрузка кодов ЧЗ',
+                subtitle: 'Инвойс + Спецификация + ЧЗ → Спецификация с кодами',
+                color: Colors.purple,
+                onTap: () => Navigator.pushNamed(context, '/cz-upload'),
               ),
             ],
           ),
@@ -96,7 +90,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// Карточка сервиса
 class _ServiceCard extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -138,40 +131,23 @@ class _ServiceCard extends StatelessWidget {
                 color: color.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(
-                icon,
-                color: color,
-                size: 28,
-              ),
+              child: Icon(icon, color: color, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
-                  ),
+                  Text(subtitle,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-              size: 24,
-            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400], size: 24),
           ],
         ),
       ),

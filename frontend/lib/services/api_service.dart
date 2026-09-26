@@ -244,4 +244,48 @@ class ApiService {
       throw Exception('Ошибка скачивания: $e');
     }
   }
+
+  // ЧЕСТНЫЙ ЗНАК (ЧЗ)
+  // ============================================================
+
+  Future<Map<String, dynamic>> uploadCzFiles({
+    required List<int> invoiceBytes,
+    required String invoiceName,
+    required List<int> specBytes,
+    required String specName,
+    required List<int> czBytes,
+    required String czName,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'invoice': MultipartFile.fromBytes(invoiceBytes, filename: invoiceName),
+        'specification': MultipartFile.fromBytes(specBytes, filename: specName),
+        'cz_file': MultipartFile.fromBytes(czBytes, filename: czName),
+      });
+      final response = await _dio.post('/chestny-znak/upload', data: formData);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка загрузки: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCzStatus(String sessionId) async {
+    try {
+      final response = await _dio.get('/chestny-znak/status/$sessionId');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения статуса: $e');
+    }
+  }
+
+  Future<Response> downloadCzResult(String sessionId) async {
+    try {
+      return await _dio.get(
+        '/chestny-znak/download/$sessionId',
+        options: Options(responseType: ResponseType.bytes),
+      );
+    } catch (e) {
+      throw Exception('Ошибка скачивания: $e');
+    }
+  }
 }

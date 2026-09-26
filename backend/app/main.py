@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1 import upload, models, categories, colors, packing_list
+from app.api.v1 import upload, models, categories, colors, packing_list, chestny_znak
 
 from app.database import get_db
 
@@ -25,10 +25,10 @@ app.add_middleware(
 # Подключаем роутеры
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(models.router, prefix="/api/v1")
-app.include_router(categories.router, prefix="/api/v1")  
-app.include_router(colors.router, prefix="/api/v1")   
-app.include_router(packing_list.router, prefix="/api/v1")   
-
+app.include_router(categories.router, prefix="/api/v1")
+app.include_router(colors.router, prefix="/api/v1")
+app.include_router(packing_list.router, prefix="/api/v1")
+app.include_router(chestny_znak.router, prefix="/api/v1")
 
 
 @app.get("/")
