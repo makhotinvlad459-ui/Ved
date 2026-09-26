@@ -5,7 +5,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
 from datetime import datetime, timedelta
-from typing import Optional
 
 from app.models import ProcessingSession, Product, Category, Color, PendingModel
 from app.services.parser import parse_invoice, parse_manifest
@@ -14,21 +13,13 @@ from app.services.generator import generate_specification
 from app.services.model_detector import save_pending_models, get_pending_models_by_session
 
 
-def resolve_weight(
-    db,
-    part_number: Optional[str] = None,
-    model_number: Optional[str] = None,
-):
+def resolve_weight(db, part_number=None, model_number=None):
     """
     Единая точка поиска веса.
-
-    Приоритет:
-      1. Product.weight по part_number
-      2. Вес "сестринского" Product с тем же model_number (вес модели)
-      3. История PendingWeight(approved) по part_number
-      4. История PendingWeight(approved) по model_number
-
-    Возвращает (weight, source, product) или (None, None, product_or_None).
+    1. Product.weight по part_number
+    2. Вес "сестринского" Product с тем же model_number
+    3. История PendingWeight(approved) по part_number
+    4. История PendingWeight(approved) по model_number
     """
     from app.models import Product, PendingWeight
 
@@ -36,14 +27,11 @@ def resolve_weight(
     if part_number:
         product = db.query(Product).filter(Product.part_number == part_number).first()
 
-    # 1. Прямой вес Product
     if product and product.weight:
         return float(product.weight), "product", product
 
-    # Эффективная модель: сначала из Product, иначе из аргумента
     effective_model = (product.model_number if product and product.model_number else None) or model_number
 
-    # 2. Вес "сестринского" Product с той же моделью
     if effective_model:
         sibling = db.query(Product).filter(
             Product.model_number == effective_model,
@@ -53,7 +41,6 @@ def resolve_weight(
         if sibling:
             return float(sibling.weight), f"model:{effective_model}", product
 
-    # 3. История approved по part_number
     if part_number:
         pw = db.query(PendingWeight).filter(
             PendingWeight.part_number == part_number,
@@ -63,7 +50,6 @@ def resolve_weight(
         if pw:
             return float(pw.custom_weight), "pending_part", product
 
-    # 4. История approved по model_number
     if effective_model:
         pw = db.query(PendingWeight).filter(
             PendingWeight.model_number == effective_model,
@@ -125,7 +111,7 @@ def process_invoice(session_id: str):
                 session_id=session_id
             )
 
-            # === НОВОЕ: проверяем, что для ВСЕХ товаров инвойса есть Product в БД ===
+            # === Проверяем, что для ВСЕХ товаров инвойса есть Product в БД ===
             missing_part_numbers = []
             for item in items:
                 pn = item.get("part_number", "")
@@ -155,6 +141,12 @@ def process_invoice(session_id: str):
 
             print(f"   ✅ Все модели найдены в БД, продолжаем обработку...")
             result_data = []
+
+            # === Курсоры для распределения серийников между строками
+            #     с одинаковым part_number (чтобы не было дублей) ===
+            serial_cursor = {}   # для serial_number
+            imei_cursor = {}     # для imei_1
+
             for item in items:
                 part_number = item.get("part_number", "")
                 description = item.get("description", "")
@@ -194,17 +186,30 @@ def process_invoice(session_id: str):
                         color_mapping=color_mapping
                     )
 
-                serials = []
-                if category and category.serial_source == "imei_1":
-                    serials = imei_dict.get(part_number, [])
-                else:
-                    serials = serials_dict.get(part_number, [])
+                # === Распределяем серийники между строками с одинаковым part_number ===
+                qty = item.get("qty", 0) or 0
+
+                is_imei = bool(category and category.serial_source == "imei_1")
+                source_dict = imei_dict if is_imei else serials_dict
+                cursor = imei_cursor if is_imei else serial_cursor
+
+                all_serials = source_dict.get(part_number, [])
+                start = cursor.get(part_number, 0)
+                serials = all_serials[start:start + qty] if qty > 0 else []
+                cursor[part_number] = start + len(serials)
 
                 cleaned_serials = [clean_serial(s, category, product) for s in serials]
+
+                # Заглушка для недостающих серийников
+                if qty > 0:
+                    missing = qty - len(cleaned_serials)
+                    if missing > 0:
+                        cleaned_serials.extend(["N/A"] * missing)
+
                 serials_str = "\n".join(cleaned_serials) if cleaned_serials else "Не заполняется"
 
-                if len(serials) != item.get("qty", 0):
-                    print(f"⚠️ Расхождение: {part_number} - инвойс: {item.get('qty')}, серийников: {len(serials)}")
+                if len(serials) != qty:
+                    print(f"⚠️ Расхождение: {part_number} - инвойс: {qty}, серийников: {len(serials)}")
 
                 result_item = {
                     "name": transformed_name,
@@ -326,7 +331,7 @@ def process_packing_list(session_id: str):
 
             print(f"   Найдено позиций: {len(items)}")
 
-            # Группируем по паллетам (или по box_no, если pallet_no пустой — задаётся в парсере)
+            # Группируем по паллетам
             pallet_groups = {}
             for item in items:
                 pallet = item.get("pallet_no", "1")
@@ -341,22 +346,17 @@ def process_packing_list(session_id: str):
             for pallet, pallet_items in pallet_groups.items():
                 pallet_weight = pallet_items[0].get("pallet_weight", 0)
 
-                # 1) Для каждого товара в паллете ищем Product и вес
                 for item in pallet_items:
                     part_number = item.get("part_number")
                     qty = item.get("qty", 0)
 
-                    # Ищем Product + model_number
                     product, model_number = get_product_by_part_number(db, part_number)
 
-                    # Единая точка поиска веса:
-                    # Product → сестринский Product по модели → история PendingWeight
                     known_weight, source, product = resolve_weight(
                         db, part_number, model_number
                     )
 
                     if known_weight:
-                        # Если Product есть, но вес был NULL — восстановим и запишем
                         if product and not product.weight:
                             product.weight = known_weight
                             print(f"   ♻️ Product {part_number}: вес {known_weight} ← {source}")
@@ -385,17 +385,14 @@ def process_packing_list(session_id: str):
                             "model_number": model_number
                         })
 
-                # 2) Распределяем GROSS внутри паллеты
                 if pallet_weight > 0:
                     from app.services.packing_list_parser import redistribute_gross
                     pallet_items = redistribute_gross(pallet_items, pallet_weight)
 
-                # 3) Добавляем обработанные паллеты в общий список
                 all_processed_items.extend(pallet_items)
 
             # === ЕСЛИ ЕСТЬ ТОВАРЫ БЕЗ ВЕСА — ОСТАНАВЛИВАЕМСЯ ===
             if pending_items:
-                # Дедупликация по part_number — не создаём дубли
                 seen_parts = set()
                 unique_pending = []
                 for item in pending_items:
@@ -463,6 +460,7 @@ def process_packing_list(session_id: str):
         raise e
     finally:
         sync_engine.dispose()
+
 
 @celery_app.task(name="process_chestny_znak")
 def process_chestny_znak(session_id: str):
@@ -533,4 +531,4 @@ def process_chestny_znak(session_id: str):
                 db.commit()
         raise e
     finally:
-        sync_engine.dispose()        
+        sync_engine.dispose()
