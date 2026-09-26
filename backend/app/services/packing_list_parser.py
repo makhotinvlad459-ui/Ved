@@ -5,16 +5,61 @@ from datetime import datetime
 import re
 
 
+def extract_part_number(description: str) -> Optional[str]:
+    """
+    Извлекает артикул из описания.
+
+    Примеры:
+        "MDV94LL/A"                              -> "MDV94LL/A"
+        "Google Fitbit Air Berry (840353943414)" -> "840353943414"
+        "Apple MacBook Air 15 (MDV94LL/A)"       -> "MDV94LL/A"
+        "Some product (ABC-123) extra"           -> "ABC-123"
+
+    Логика:
+      1) Если есть скобки — берём содержимое последних скобок,
+         если оно похоже на артикул (буквы/цифры/дефис/слэш/точка).
+      2) Если вся строка — «чистый» артикул без пробелов — берём её.
+      3) Fallback — оставляем строку как есть.
+    """
+    if description is None:
+        return None
+
+    s = str(description).strip()
+    if not s:
+        return None
+
+    # 1) Содержимое последних скобок
+    matches = re.findall(r'\(([^()]+)\)', s)
+    if matches:
+        candidate = matches[-1].strip()
+        # Артикул: буквы, цифры, дефис, слэш, точка. Без пробелов.
+        if re.fullmatch(r'[A-Za-z0-9\-/.]+', candidate):
+            return candidate
+
+    # 2) Вся строка — артикул
+    if re.fullmatch(r'[A-Za-z0-9\-/.]+', s):
+        return s
+
+    # 3) Fallback: первое «похожее на артикул» слово длиной >= 4
+    m = re.search(r'[A-Za-z0-9\-/.]{4,}', s)
+    if m:
+        return m.group(0)
+
+    # 4) Совсем не распознали — вернуть как есть
+    return s
+
+
 def parse_packing_list(file_path: str) -> Dict[str, Any]:
     """
     Парсинг файла Packing List
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
-    
+
     header_row = None
     headers = {}
-    
+
+    # Ищем строку заголовков
     for row in range(1, min(ws.max_row, 20)):
         for col in range(1, ws.max_column + 1):
             cell_value = ws.cell(row, col).value
@@ -24,7 +69,7 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                     break
         if header_row:
             break
-    
+
     if not header_row:
         for row in range(1, min(ws.max_row, 20)):
             for col in range(1, ws.max_column + 1):
@@ -35,10 +80,10 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                         break
             if header_row:
                 break
-    
+
     if not header_row:
         raise Exception("Не удалось найти заголовки таблицы")
-    
+
     for col in range(1, ws.max_column + 1):
         value = ws.cell(header_row, col).value
         if value and isinstance(value, str):
@@ -61,21 +106,21 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                 headers["pallet_weight"] = col
             elif "dimensions" in value_clean:
                 headers["dimensions"] = col
-    
+
     items = []
     current_pallet = None
     current_box = None
-    
+
     for row in range(header_row + 1, ws.max_row + 1):
         row_empty = True
         for col in range(1, ws.max_column + 1):
             if ws.cell(row, col).value:
                 row_empty = False
                 break
-        
+
         if row_empty:
             continue
-        
+
         pallet_no = ws.cell(row, headers.get("pallet_no", 1)).value if "pallet_no" in headers else None
         box_no = ws.cell(row, headers.get("box_no", 2)).value if "box_no" in headers else None
         description = ws.cell(row, headers.get("description", 3)).value if "description" in headers else None
@@ -85,23 +130,24 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
         gross = ws.cell(row, headers.get("gross", 7)).value if "gross" in headers else None
         pallet_weight = ws.cell(row, headers.get("pallet_weight", 8)).value if "pallet_weight" in headers else None
         dimensions = ws.cell(row, headers.get("dimensions", 9)).value if "dimensions" in headers else None
-        
+
         if pallet_no:
             current_pallet = pallet_no
         elif box_no:
-            # Если в файле колонка Pallet no. пустая,
-            # используем Box No. как идентификатор группы (паллета)
+            # Если колонка Pallet no. пустая — используем Box No. как идентификатор группы
             current_pallet = box_no
         if box_no:
             current_box = box_no
-        
-        if description and not description.isdigit():
-            part_number = str(description).strip()
-            part_number = re.sub(r'\)$', '', part_number)
-            part_number = part_number.strip()
-            
+
+        if description and not str(description).strip().isdigit():
+            part_number = extract_part_number(str(description))
+
+            if not part_number:
+                continue
+
             items.append({
                 "part_number": part_number,
+                "description_raw": str(description).strip(),  # сохраняем исходник на всякий случай
                 "qty": int(qty) if qty else 0,
                 "weight_per_1": float(weight_per_1) if weight_per_1 else None,
                 "net": float(net) if net else None,
@@ -111,13 +157,13 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                 "pallet_no": current_pallet,
                 "box_no": current_box
             })
-    
+
     return {"items": items}
 
 
 def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Optional[str]]:
     """
-    Ищет продукт по part_number (с нормализацией).
+    Ищет продукт по part_number с несколькими уровнями нормализации.
     Возвращает (product, model_number).
     """
     from app.models import Product
@@ -125,19 +171,32 @@ def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Opt
     if not part_number:
         return None, None
 
-    # Нормализация: убираем пробелы, приводим к верхнему регистру
-    normalized = part_number.strip().upper()
-
-    product = db.query(Product).filter(Product.part_number == normalized).first()
-
-    if product:
-        return product, product.model_number
-
-    # Fallback: попробовать как есть (на случай разных регистров в БД)
+    # 1) Точное совпадение (с регистром)
     product = db.query(Product).filter(Product.part_number == part_number).first()
-
     if product:
         return product, product.model_number
+
+    # 2) Upper-case
+    normalized = part_number.strip().upper()
+    product = db.query(Product).filter(Product.part_number == normalized).first()
+    if product:
+        return product, product.model_number
+
+    # 3) Без учёта регистра через func.lower
+    from sqlalchemy import func
+    product = db.query(Product).filter(
+        func.lower(Product.part_number) == normalized.lower()
+    ).first()
+    if product:
+        return product, product.model_number
+
+    # 4) Попробовать артикул из скобок (если исходник «грязный»)
+    m = re.findall(r'\(([^()]+)\)', str(part_number))
+    if m:
+        candidate = m[-1].strip()
+        product = db.query(Product).filter(Product.part_number == candidate).first()
+        if product:
+            return product, product.model_number
 
     return None, None
 
@@ -148,15 +207,15 @@ def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
     """
     if not items or pallet_weight <= 0:
         return items
-    
+
     total_net = sum(item.get("net", 0) or 0 for item in items)
     if total_net == 0:
         return items
-    
+
     for item in items:
         net = item.get("net", 0) or 0
         item["gross"] = (net / total_net) * pallet_weight
-    
+
     max_iterations = 100
     for _ in range(max_iterations):
         diffs = []
@@ -168,25 +227,25 @@ def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
                 diffs.append((item, diff, net, gross))
             else:
                 diffs.append((item, 0, net, gross))
-        
+
         max_diff_item, max_diff, max_net, max_gross = max(diffs, key=lambda x: x[1])
         min_diff_item, min_diff, min_net, min_gross = min(diffs, key=lambda x: x[1])
-        
+
         if max_diff - min_diff < 0.5:
             break
-        
+
         if max_diff <= 19 and min_diff >= 0:
             break
-        
+
         transfer = 0.1
-        
+
         if min_gross - transfer >= min_net:
             min_diff_item["gross"] = min_gross - transfer
         else:
             min_diff_item["gross"] = min_net
-        
+
         max_diff_item["gross"] = max_gross + transfer
-        
+
         new_max_gross = max_diff_item.get("gross", 0)
         if max_net > 0:
             new_max_diff = (new_max_gross - max_net) / max_net * 100
@@ -194,7 +253,7 @@ def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
                 max_diff_item["gross"] = max_gross
                 min_diff_item["gross"] = min_gross
                 break
-    
+
     for item in items:
         net = item.get("net", 0) or 0
         gross = item.get("gross", 0) or 0
@@ -203,12 +262,12 @@ def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
             if diff > 19:
                 new_net = gross / 1.19
                 item["net"] = new_net
-    
+
     for item in items:
         net = item.get("net", 0) or 0
         qty = item.get("qty", 0) or 0
         gross = item.get("gross", 0) or 0
-        
+
         if qty > 0:
             item["weight_per_item"] = net / qty
             item["total_net"] = net
@@ -217,5 +276,5 @@ def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
                 item["difference_percent"] = (gross - net) / net * 100
             else:
                 item["difference_percent"] = 0
-    
+
     return items
