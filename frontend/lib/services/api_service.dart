@@ -288,4 +288,45 @@ class ApiService {
       throw Exception('Ошибка скачивания: $e');
     }
   }
+
+    // ============================================================
+  // КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ
+  // ============================================================
+
+  Future<Map<String, dynamic>> uploadCommercialOffer({
+    required List<int> specBytes,
+    required String specName,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'specification': MultipartFile.fromBytes(specBytes, filename: specName),
+      });
+      final response =
+          await _dio.post('/commercial-offer/upload', data: formData);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка загрузки: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCommercialOfferStatus(
+      String sessionId) async {
+    try {
+      final response = await _dio.get('/commercial-offer/status/$sessionId');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения статуса: $e');
+    }
+  }
+
+  Future<Response> downloadCommercialOffer(String sessionId) async {
+    try {
+      return await _dio.get(
+        '/commercial-offer/download/$sessionId',
+        options: Options(responseType: ResponseType.bytes),
+      );
+    } catch (e) {
+      throw Exception('Ошибка скачивания: $e');
+    }
+  }
 }

@@ -4,7 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1 import upload, models, categories, colors, packing_list, chestny_znak
+from app.api.v1 import (
+    upload, models, categories, colors, packing_list,
+    chestny_znak, commercial_offer,
+)
 
 from app.database import get_db
 
@@ -22,13 +25,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры
+# Роутеры
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(models.router, prefix="/api/v1")
 app.include_router(categories.router, prefix="/api/v1")
 app.include_router(colors.router, prefix="/api/v1")
 app.include_router(packing_list.router, prefix="/api/v1")
 app.include_router(chestny_znak.router, prefix="/api/v1")
+app.include_router(commercial_offer.router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -43,7 +47,6 @@ async def health():
 
 @app.get("/api/v1/categories")
 async def get_categories(db: AsyncSession = Depends(get_db)):
-    """Получить все категории"""
     from app.models import Category
     stmt = select(Category).where(Category.is_active == True)
     result = await db.execute(stmt)
@@ -52,7 +55,6 @@ async def get_categories(db: AsyncSession = Depends(get_db)):
 
 @app.get("/api/v1/colors")
 async def get_colors(db: AsyncSession = Depends(get_db)):
-    """Получить все цвета"""
     from app.models import Color
     stmt = select(Color).where(Color.is_active == True)
     result = await db.execute(stmt)

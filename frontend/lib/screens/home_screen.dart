@@ -82,6 +82,16 @@ class HomeScreen extends StatelessWidget {
                 color: Colors.purple,
                 onTap: () => Navigator.pushNamed(context, '/cz-upload'),
               ),
+
+              const SizedBox(height: 16),
+
+              _ServiceCard(
+                icon: Icons.request_quote_outlined,
+                title: 'Коммерческое предложение',
+                subtitle: 'Спецификация → КП в Excel',
+                color: Colors.teal,
+                onTap: () => Navigator.pushNamed(context, '/commercial-offer'),
+              ),
             ],
           ),
         ),
