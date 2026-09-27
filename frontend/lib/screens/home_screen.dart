@@ -8,7 +8,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -91,6 +91,16 @@ class HomeScreen extends StatelessWidget {
                 subtitle: 'Спецификация → КП в Excel',
                 color: Colors.teal,
                 onTap: () => Navigator.pushNamed(context, '/commercial-offer'),
+              ),
+
+              const SizedBox(height: 16),
+
+              _ServiceCard(
+                icon: Icons.qr_code_scanner,
+                title: 'Коды ЧЗ для ввода',
+                subtitle: 'ЧЗ-спецификация → Архив с кодами по странам',
+                color: Colors.indigo,
+                onTap: () => Navigator.pushNamed(context, '/cz-codes'),
               ),
             ],
           ),

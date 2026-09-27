@@ -7,6 +7,7 @@ import 'screens/upload_screen.dart';
 import 'screens/packing_list_screen.dart';
 import 'screens/cz_upload_screen.dart';
 import 'screens/commercial_offer_screen.dart';
+import 'screens/cz_codes_screen.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -36,6 +37,7 @@ class MyApp extends StatelessWidget {
           '/packing-list': (context) => const PackingListScreen(),
           '/cz-upload': (context) => const CzUploadScreen(),
           '/commercial-offer': (context) => const CommercialOfferScreen(),
+          '/cz-codes': (context) => const CzCodesScreen(),
         },
       ),
     );

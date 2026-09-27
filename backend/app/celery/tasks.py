@@ -590,4 +590,64 @@ def process_commercial_offer(session_id: str):
                 db.commit()
         raise e
     finally:
-        sync_engine.dispose()        
+        sync_engine.dispose()
+
+@celery_app.task(name="process_cz_codes")
+def process_cz_codes(session_id: str):
+    print(f"🔄 Начинаем подготовку кодов ЧЗ {session_id}")
+
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:apple_samsung_2024@postgres:5432/ved")
+    sync_engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=sync_engine)
+
+    try:
+        with SessionLocal() as db:
+            stmt = select(ProcessingSession).where(ProcessingSession.session_id == session_id)
+            session = db.execute(stmt).scalar_one_or_none()
+            if not session:
+                print(f"❌ Сессия {session_id} не найдена")
+                return {"error": "Session not found"}
+
+            from app.services.cz_codes_generator import generate_cz_codes_zip
+
+            print(f"📄 Обрабатываем: {session.template_file}")
+            zip_path, spec_number, files_info = generate_cz_codes_zip(
+                cz_spec_path=session.template_file,
+                output_dir="/app/output",
+                session_id=session_id,
+            )
+
+            if not os.path.exists(zip_path):
+                raise Exception(f"ZIP не был создан: {zip_path}")
+
+            print(f"📦 Создано файлов: {len(files_info)}")
+            for name, count in files_info.items():
+                print(f"   - {name}: {count} кодов")
+
+            session.status = "completed"
+            session.result_file = zip_path
+            session.spec_number = spec_number
+            db.commit()
+
+            print(f"✅ ZIP создан: {zip_path}")
+            return {
+                "status": "completed",
+                "session_id": session_id,
+                "files": files_info,
+            }
+
+    except Exception as e:
+        print(f"❌ Ошибка {session_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        with SessionLocal() as db:
+            session = db.query(ProcessingSession).filter(
+                ProcessingSession.session_id == session_id
+            ).first()
+            if session:
+                session.status = "error"
+                session.errors = str(e)
+                db.commit()
+        raise e
+    finally:
+        sync_engine.dispose()
