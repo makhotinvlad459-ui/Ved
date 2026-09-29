@@ -223,7 +223,8 @@ def process_invoice(session_id: str):
                 }
                 result_data.append(result_item)
 
-            output_path = f"/app/output/{session_id}_specification.xlsx"
+            spec_number_for_name = (session.spec_number or "").strip() or session_id[:8]
+            output_path = f"/app/output/Specification_{spec_number_for_name}.xlsx"
             print(f"📊 Генерируем спецификацию: {output_path}")
 
             spec_date = invoice_date - timedelta(days=1) if invoice_date else datetime.now()

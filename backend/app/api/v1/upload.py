@@ -125,13 +125,14 @@ async def download_result(
     if not result_path or not os.path.exists(result_path):
         raise HTTPException(status_code=404, detail="Файл результата не найден")
     
-    filename = f"specification_{session.spec_number or session_id}.xlsx"
-    
+    filename = os.path.basename(result_path)
+
     return FileResponse(
         path=result_path,
         filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
 
 
 @router.delete("/cleanup/{session_id}")
