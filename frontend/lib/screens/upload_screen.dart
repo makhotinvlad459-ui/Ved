@@ -372,32 +372,8 @@ class _StatusScreenState extends State<StatusScreen> {
   }
 
   Future<void> _download() async {
-    try {
-      final api = Provider.of<ApiService>(context, listen: false);
-      final response = await api.downloadResult(widget.sessionId);
-      
-      final bytes = response.data as List<int>;
-      final blob = html.Blob([bytes]);
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'specification_${widget.sessionId.substring(0, 8)}.xlsx')
-        ..click();
-      html.Url.revokeObjectUrl(url);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Файл скачан!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Ошибка скачивания: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
+    final url = '${ApiService.baseUrl}/upload/download/${widget.sessionId}';
+    html.window.open(url, '_blank');
   }
 
   @override
