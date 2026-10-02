@@ -111,50 +111,52 @@ class _PackingListScreenState extends State<PackingListScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Загрузка Packing List',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Выберите файл Packing List для обработки',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 24),
-
-            _buildFilePicker(),
-            const SizedBox(height: 24),
-
-            ElevatedButton(
-              onPressed: _isLoading ? null : _upload,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+      body: SelectionArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Загрузка Packing List',
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 24,
-                      width: 24,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
+              const SizedBox(height: 8),
+              const Text(
+                'Выберите файл Packing List для обработки',
+                style: TextStyle(color: Colors.grey),
+              ),
+              const SizedBox(height: 24),
+
+              _buildFilePicker(),
+              const SizedBox(height: 24),
+
+              ElevatedButton(
+                onPressed: _isLoading ? null : _upload,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Text(
+                        'Загрузить и обработать',
+                        style: TextStyle(fontSize: 16),
                       ),
-                    )
-                  : const Text(
-                      'Загрузить и обработать',
-                      style: TextStyle(fontSize: 16),
-                    ),
-            ),
-          ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -295,8 +297,7 @@ class _PackingListStatusScreenState extends State<PackingListStatusScreen> {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
       final data = await api.getPendingWeights(widget.sessionId);
-      
-      // Группируем по model_number
+
       final Map<String, List<dynamic>> grouped = {};
       for (var item in data['pending_weights']) {
         final key = item['model_number'] ?? 'unknown';
@@ -305,14 +306,13 @@ class _PackingListStatusScreenState extends State<PackingListStatusScreen> {
         }
         grouped[key]!.add(item);
       }
-      
+
       setState(() {
         _pendingWeights = data['pending_weights'] ?? [];
         _groupedWeights = grouped;
         _isLoading = false;
       });
-      
-      // Создаём контроллеры для каждой группы
+
       for (var entry in grouped.entries) {
         if (!_weightControllers.containsKey(entry.key)) {
           _weightControllers[entry.key] = TextEditingController();
@@ -326,10 +326,10 @@ class _PackingListStatusScreenState extends State<PackingListStatusScreen> {
   Future<void> _approveGroupWeight(String modelNumber) async {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      
+
       final controller = _weightControllers[modelNumber];
       if (controller == null) return;
-      
+
       final weight = double.tryParse(controller.text);
       if (weight == null || weight <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -340,21 +340,19 @@ class _PackingListStatusScreenState extends State<PackingListStatusScreen> {
         );
         return;
       }
-      
-      // Подтверждаем все партийные номера в группе
+
       final items = _groupedWeights[modelNumber] ?? [];
       for (var item in items) {
         await api.approveWeight(item['id'], weight);
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('✅ Вес для модели $modelNumber подтверждён (${items.length} артикулов)'),
           backgroundColor: Colors.green,
         ),
       );
-      
-      // Обновляем список
+
       await _loadPendingWeights();
       await _checkStatus();
       setState(() {});
@@ -400,7 +398,7 @@ class _PackingListStatusScreenState extends State<PackingListStatusScreen> {
   Widget _buildGroupCard(String modelNumber, List<dynamic> items) {
     final partNumbers = items.map((i) => i['part_number']).join(', ');
     final totalQty = items.fold<int>(0, (sum, item) => sum + (item['qty'] as int? ?? 0));
-    
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: Padding(
@@ -486,83 +484,85 @@ class _PackingListStatusScreenState extends State<PackingListStatusScreen> {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (_isLoading) ...[
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ] else if (_status == 'error') ...[
-              const Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.error, color: Colors.red, size: 64),
-                      SizedBox(height: 20),
-                      Text('Ошибка', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    ],
+      body: SelectionArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_isLoading) ...[
+                const Expanded(
+                  child: Center(child: CircularProgressIndicator()),
+                ),
+              ] else if (_status == 'error') ...[
+                const Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error, color: Colors.red, size: 64),
+                        SizedBox(height: 20),
+                        Text('Ошибка', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            ] else if (_status == 'pending_weights') ...[
-              const Icon(Icons.warning, color: Colors.orange, size: 64),
-              const SizedBox(height: 20),
-              const Text(
-                'Требуется подтверждение весов',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Найдено ${_groupedWeights.keys.length} моделей без веса',
-                style: const TextStyle(color: Colors.grey),
-              ),
-              const SizedBox(height: 20),
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _groupedWeights.keys.length,
-                  itemBuilder: (context, index) {
-                    final modelNumber = _groupedWeights.keys.elementAt(index);
-                    final items = _groupedWeights[modelNumber] ?? [];
-                    return _buildGroupCard(modelNumber, items);
-                  },
+              ] else if (_status == 'pending_weights') ...[
+                const Icon(Icons.warning, color: Colors.orange, size: 64),
+                const SizedBox(height: 20),
+                const Text(
+                  'Требуется подтверждение весов',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
-              ),
-            ] else if (_isCompleted) ...[
-              const Icon(Icons.check_circle, color: Colors.green, size: 64),
-              const SizedBox(height: 20),
-              const Text(
-                'Готово!',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _download,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                const SizedBox(height: 10),
+                Text(
+                  'Найдено ${_groupedWeights.keys.length} моделей без веса',
+                  style: const TextStyle(color: Colors.grey),
                 ),
-                child: const Text('📥 Скачать Packing List'),
-              ),
-            ] else ...[
-              const Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 20),
-                      Text('Обработка...', style: TextStyle(fontSize: 16)),
-                    ],
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: _groupedWeights.keys.length,
+                    itemBuilder: (context, index) {
+                      final modelNumber = _groupedWeights.keys.elementAt(index);
+                      final items = _groupedWeights[modelNumber] ?? [];
+                      return _buildGroupCard(modelNumber, items);
+                    },
                   ),
                 ),
-              ),
+              ] else if (_isCompleted) ...[
+                const Icon(Icons.check_circle, color: Colors.green, size: 64),
+                const SizedBox(height: 20),
+                const Text(
+                  'Готово!',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: _download,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  ),
+                  child: const Text('📥 Скачать Packing List'),
+                ),
+              ] else ...[
+                const Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 20),
+                        Text('Обработка...', style: TextStyle(fontSize: 16)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
