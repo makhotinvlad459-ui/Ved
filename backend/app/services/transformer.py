@@ -1,3 +1,4 @@
+# backend/app/services/transformer.py
 import re
 from typing import Optional
 from app.models import Product, Category, Color
@@ -11,11 +12,20 @@ BRANDS = [
 
 
 def extract_color_from_description(description: str, color_mapping: dict) -> Optional[str]:
-    """Извлекает цвет из описания"""
+    """
+    Извлекает цвет из описания — самое длинное совпадение.
+    Это защищает от случая, когда 'Space Black' перебивается 'Black'.
+    """
+    if not description or not color_mapping:
+        return None
+    matches = []
     for eng_color in color_mapping.keys():
-        if eng_color in description:
-            return eng_color
-    return None
+        if eng_color and eng_color in description:
+            matches.append(eng_color)
+    if not matches:
+        return None
+    # Самое длинное совпадение имеет приоритет
+    return max(matches, key=len)
 
 
 def extract_article_from_description(description: str) -> Optional[str]:
@@ -28,13 +38,7 @@ def extract_article_from_description(description: str) -> Optional[str]:
 
 def _dedupe_brand(prefix: str, text: str) -> str:
     """
-    Убирает дублирование бренда в начале text,
-    если он уже есть в конце prefix.
-    
-    Пример:
-        prefix = "Персональный компьютер торговой марки Apple"
-        text   = "Apple iMac 24\" Silver..."
-        →       "iMac 24\" Silver..."
+    Убирает дублирование бренда в начале text, если он уже есть в конце prefix.
     """
     if not prefix or not text:
         return text
@@ -42,11 +46,9 @@ def _dedupe_brand(prefix: str, text: str) -> str:
     for brand in BRANDS:
         b_low = brand.lower()
         if p_low.endswith(b_low):
-            # Совпадение начала text с брендом (с учётом пробелов/кавычек)
             t_low = text.lstrip()
             if t_low.lower().startswith(b_low + ' ') or t_low.lower() == b_low:
                 cut = len(brand)
-                # Учитываем начальные пробелы в text
                 leading = len(text) - len(text.lstrip())
                 return text[:leading] + text[leading + cut:].lstrip()
     return text
@@ -60,12 +62,6 @@ def transform_product_name(
 ) -> str:
     """
     Трансформация названия для спецификации.
-    
-    Пример:
-    Вход:  Apple MacBook Pro 16" Space Black (...) (MGEA4LL/A)
-    Выход: Портативный персональный компьютер торговой марки 
-           Apple MacBook Pro 16" "Черный" (...) (MGEA4LL/A) / 
-           Apple MacBook Pro 16" Space Black (...) (MGEA4LL/A)
     """
     if not description:
         return ""
@@ -73,7 +69,7 @@ def transform_product_name(
     if not color_mapping:
         color_mapping = {}
 
-    # Находим цвет в описании
+    # Находим цвет — самое длинное совпадение
     color_eng = extract_color_from_description(description, color_mapping)
     color_rus = color_mapping.get(color_eng, color_eng) if color_eng else None
 
@@ -87,7 +83,7 @@ def transform_product_name(
     if category and category.prefix_ru:
         prefix = category.prefix_ru.strip()
 
-    # ⚠️ Защита от двойного бренда
+    # Защита от двойного бренда
     russian_description = _dedupe_brand(prefix, russian_description)
 
     russian_part = f"{prefix} {russian_description}".strip()

@@ -173,7 +173,20 @@ def process_invoice(session_id: str):
                             break
 
                 if product and product.custom_name_ru:
-                    name_with_article = f"{product.custom_name_ru} ({part_number})"
+                    # custom_name_ru может содержать английские цвета —
+                    # прогоняем через перевод, длинные совпадения первыми
+                    custom_ru_with_color = product.custom_name_ru
+                    sorted_colors = sorted(
+                        color_mapping.items(),
+                        key=lambda kv: len(kv[0] or ""),
+                        reverse=True,
+                    )
+                    for eng_color, rus_color in sorted_colors:
+                        if eng_color and eng_color in custom_ru_with_color:
+                            custom_ru_with_color = custom_ru_with_color.replace(
+                                eng_color, f'"{rus_color}"'
+                            )
+                    name_with_article = f"{custom_ru_with_color} ({part_number})"
                     if category and category.prefix_ru:
                         transformed_name = f"{category.prefix_ru} {name_with_article} / {description}"
                     else:

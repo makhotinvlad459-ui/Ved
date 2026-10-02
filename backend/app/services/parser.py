@@ -161,70 +161,98 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
 
 def parse_manifest(file_path: str) -> Dict[str, List[str]]:
     """
-    Парсинг манифеста
+    Парсинг манифеста. Возвращает {"serials": {...}, "imei": {...}}.
+
+    ВАЖНО: для IMEI берётся ТОЛЬКО колонка "IMEI 1" (первая колонка, где в
+    заголовке есть "IMEI"). Колонки "IMEI 2" и последующие игнорируются.
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
-    
-    serials_by_part = {}
-    imei_by_part = {}
-    
+
+    serials_by_part: Dict[str, List[str]] = {}
+    imei_by_part: Dict[str, List[str]] = {}
+
+    # === Ищем строку заголовков ===
     header_row = None
     for row in ws.iter_rows(min_row=1, max_row=10):
         for cell in row:
             if cell.value and isinstance(cell.value, str):
                 val = cell.value.strip()
-                if "Part Number" in val or "Part" in val:
+                if "Part Number" in val or val == "Part":
                     header_row = cell.row
                     break
         if header_row:
             break
-    
+
     if header_row:
         part_col = None
         serial_col = None
-        imei_col = None
-        
+        imei_col = None   # ← ровно одна колонка, самая первая с "IMEI"
+
         for col_idx, cell in enumerate(ws[header_row], 1):
-            if cell.value:
-                val = str(cell.value).strip()
-                if "Part" in val:
-                    part_col = col_idx
-                elif "Serial" in val:
-                    serial_col = col_idx
-                elif "IMEI" in val:
-                    imei_col = col_idx
-        
+            if cell.value is None:
+                continue
+            val = str(cell.value).strip()
+            v_low = val.lower()
+
+            if v_low == "part number" or v_low == "part":
+                part_col = col_idx
+            elif "serial" in v_low and serial_col is None:
+                serial_col = col_idx
+            elif "imei" in v_low and imei_col is None:
+                # Берём ТОЛЬКО первую IMEI-колонку. Всё, что правее (IMEI 2, IMEI 3)
+                # игнорируется, потому что imei_col уже установлен.
+                imei_col = col_idx
+
+        print(f"   📋 Манифест: part_col={part_col}, serial_col={serial_col}, "
+              f"imei_col={imei_col} (только IMEI 1)")
+
         for row in ws.iter_rows(min_row=header_row + 1):
-            if part_col and row[part_col - 1].value:
-                part_number = str(row[part_col - 1].value).strip()
-                
-                if part_number not in serials_by_part:
-                    serials_by_part[part_number] = []
-                    imei_by_part[part_number] = []
-                
-                if serial_col and row[serial_col - 1].value:
-                    serials_by_part[part_number].append(str(row[serial_col - 1].value).strip())
-                
-                if imei_col and row[imei_col - 1].value:
-                    imei_by_part[part_number].append(str(row[imei_col - 1].value).strip())
+            if part_col is None or part_col - 1 >= len(row):
+                continue
+            part_cell = row[part_col - 1]
+            if not part_cell or not part_cell.value:
+                continue
+            part_number = str(part_cell.value).strip()
+            if not part_number:
+                continue
+
+            if part_number not in serials_by_part:
+                serials_by_part[part_number] = []
+                imei_by_part[part_number] = []
+
+            # Serial Number
+            if serial_col is not None and serial_col - 1 < len(row):
+                serial_val = row[serial_col - 1].value
+                if serial_val:
+                    serials_by_part[part_number].append(str(serial_val).strip())
+
+            # IMEI — только IMEI 1
+            if imei_col is not None and imei_col - 1 < len(row):
+                imei_val = row[imei_col - 1].value
+                if imei_val:
+                    imei_by_part[part_number].append(str(imei_val).strip())
+
     else:
+        # Fallback на старый формат — как было
         for row in ws.iter_rows(min_row=2):
             part_number = row[3].value
             if not part_number:
                 break
-            
             part_key = str(part_number).strip()
-            
+
             if part_key not in serials_by_part:
                 serials_by_part[part_key] = []
                 imei_by_part[part_key] = []
-            
+
             if row[4].value:
                 serials_by_part[part_key].append(str(row[4].value).strip())
             if row[5].value:
                 imei_by_part[part_key].append(str(row[5].value).strip())
-    
+
+    print(f"   ✅ Серийников: {sum(len(v) for v in serials_by_part.values())}, "
+          f"IMEI (только 1): {sum(len(v) for v in imei_by_part.values())}")
+
     return {
         "serials": serials_by_part,
         "imei": imei_by_part
