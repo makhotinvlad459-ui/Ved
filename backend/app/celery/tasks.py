@@ -173,19 +173,31 @@ def process_invoice(session_id: str):
                             break
 
                 if product and product.custom_name_ru:
-                    # custom_name_ru может содержать английские цвета —
-                    # прогоняем через перевод, длинные совпадения первыми
+                    # custom_name_ru может содержать английские цвета.
+                    # Ищем САМОЕ ДЛИННОЕ совпадение, заменяем ТОЛЬКО его.
+                    # Остальные цвета не трогаем — чтобы не было "Navy Blue" → "Тёмно-синий" "Голубой".
+                    import re as _re
                     custom_ru_with_color = product.custom_name_ru
+
                     sorted_colors = sorted(
                         color_mapping.items(),
                         key=lambda kv: len(kv[0] or ""),
                         reverse=True,
                     )
+
                     for eng_color, rus_color in sorted_colors:
-                        if eng_color and eng_color in custom_ru_with_color:
-                            custom_ru_with_color = custom_ru_with_color.replace(
-                                eng_color, f'"{rus_color}"'
+                        if not eng_color:
+                            continue
+                        # \b — граница слова, чтобы "Olive" не находилось внутри "OliveGreen"
+                        if _re.search(rf'\b{_re.escape(eng_color)}\b', custom_ru_with_color):
+                            custom_ru_with_color = _re.sub(
+                                rf'\b{_re.escape(eng_color)}\b',
+                                f'"{rus_color}"',
+                                custom_ru_with_color,
+                                count=1,   # только первое
                             )
+                            break   # ВЫХОДИМ, остальные цвета не трогаем
+
                     name_with_article = f"{custom_ru_with_color} ({part_number})"
                     if category and category.prefix_ru:
                         transformed_name = f"{category.prefix_ru} {name_with_article} / {description}"
