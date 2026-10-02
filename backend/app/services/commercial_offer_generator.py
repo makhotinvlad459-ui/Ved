@@ -51,16 +51,18 @@ CONDITIONS = {
 
 def parse_specification(file_path: str) -> Tuple[Optional[str], Optional[datetime], List[dict]]:
     """
-    Читает спецификацию, возвращает (spec_number, invoice_date, items).
-    items: [{"num": 1, "description": "...", "qty": 16, "price": 5473.82}, ...]
+    Читает спецификацию, возвращает (spec_number, spec_date, items).
+
+    ВАЖНО: берётся дата ИЗ САМОЙ СПЕЦИФИКАЦИИ (строка "СПЕЦИФИКАЦИЯ | № 110 от 23.09.2026"),
+    а не из строки инвойса. Строка инвойса игнорируется.
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
 
     spec_number: Optional[str] = None
-    invoice_date: Optional[datetime] = None
+    spec_date: Optional[datetime] = None
 
-    # Ищем "№ 110 от 23.09.2026" и "№ K537 от 24.09.2026" в строках 1..11
+    # Ищем только строку спецификации
     for row in range(1, 12):
         a_val = ws.cell(row, 1).value
         c_val = ws.cell(row, 3).value
@@ -75,17 +77,10 @@ def parse_specification(file_path: str) -> Tuple[Optional[str], Optional[datetim
             if m:
                 spec_number = m.group(1).strip()
                 try:
-                    invoice_date = datetime.strptime(m.group(2), "%d.%m.%Y")
+                    spec_date = datetime.strptime(m.group(2), "%d.%m.%Y")
                 except ValueError:
                     pass
-        # "по Коммерческому инвойсу | № K537 от 24.09.2026"
-        if "инвойсу" in a_str.lower() or "invoice" in a_str.lower():
-            m = re.search(r'от\s+(\d{2}\.\d{2}\.\d{4})', c_str)
-            if m:
-                try:
-                    invoice_date = datetime.strptime(m.group(1), "%d.%m.%Y")
-                except ValueError:
-                    pass
+                break   # ← нашли — больше не ищем
 
     # Заголовок таблицы
     header_row = None
@@ -142,21 +137,21 @@ def parse_specification(file_path: str) -> Tuple[Optional[str], Optional[datetim
             "price": price,
         })
 
-    return spec_number, invoice_date, items
+    return spec_number, spec_date, items
 
 
 def generate_commercial_offer(spec_path: str, output_path: str) -> str:
     """
-    Генерирует КП по спецификации.
+    Генерирует КП по спецификации. Все даты берутся из спецификации.
     """
-    spec_number, invoice_date, items = parse_specification(spec_path)
-    if invoice_date is None:
-        invoice_date = datetime.now()
+    spec_number, spec_date, items = parse_specification(spec_path)
+    if spec_date is None:
+        spec_date = datetime.now()
 
     # Дата со слэшами — для шапки
-    date_str = invoice_date.strftime("%d/%m/%Y")
+    date_str = spec_date.strftime("%d/%m/%Y")
     # Дата с точками — для вводной строки
-    date_str_dots = invoice_date.strftime("%d.%m.%Y")
+    date_str_dots = spec_date.strftime("%d.%m.%Y")
 
     wb = openpyxl.Workbook()
     ws = wb.active
