@@ -111,7 +111,6 @@ def process_invoice(session_id: str):
                 session_id=session_id
             )
 
-            # === Проверяем, что для ВСЕХ товаров инвойса есть Product в БД ===
             missing_part_numbers = []
             for item in items:
                 pn = item.get("part_number", "")
@@ -142,10 +141,8 @@ def process_invoice(session_id: str):
             print(f"   ✅ Все модели найдены в БД, продолжаем обработку...")
             result_data = []
 
-            # === Курсоры для распределения серийников между строками
-            #     с одинаковым part_number (чтобы не было дублей) ===
-            serial_cursor = {}   # для serial_number
-            imei_cursor = {}     # для imei_1
+            serial_cursor = {}
+            imei_cursor = {}
 
             for item in items:
                 part_number = item.get("part_number", "")
@@ -173,9 +170,6 @@ def process_invoice(session_id: str):
                             break
 
                 if product and product.custom_name_ru:
-                    # custom_name_ru может содержать английские цвета.
-                    # Ищем САМОЕ ДЛИННОЕ совпадение, заменяем ТОЛЬКО его.
-                    # Остальные цвета не трогаем — чтобы не было "Navy Blue" → "Тёмно-синий" "Голубой".
                     import re as _re
                     custom_ru_with_color = product.custom_name_ru
 
@@ -188,15 +182,14 @@ def process_invoice(session_id: str):
                     for eng_color, rus_color in sorted_colors:
                         if not eng_color:
                             continue
-                        # \b — граница слова, чтобы "Olive" не находилось внутри "OliveGreen"
                         if _re.search(rf'\b{_re.escape(eng_color)}\b', custom_ru_with_color):
                             custom_ru_with_color = _re.sub(
                                 rf'\b{_re.escape(eng_color)}\b',
                                 f'"{rus_color}"',
                                 custom_ru_with_color,
-                                count=1,   # только первое
+                                count=1,
                             )
-                            break   # ВЫХОДИМ, остальные цвета не трогаем
+                            break
 
                     name_with_article = f"{custom_ru_with_color} ({part_number})"
                     if category and category.prefix_ru:
@@ -211,7 +204,6 @@ def process_invoice(session_id: str):
                         color_mapping=color_mapping
                     )
 
-                # === Распределяем серийники между строками с одинаковым part_number ===
                 qty = item.get("qty", 0) or 0
 
                 is_imei = bool(category and category.serial_source == "imei_1")
@@ -225,7 +217,6 @@ def process_invoice(session_id: str):
 
                 cleaned_serials = [clean_serial(s, category, product) for s in serials]
 
-                # Заглушка для недостающих серийников
                 if qty > 0:
                     missing = qty - len(cleaned_serials)
                     if missing > 0:
@@ -357,20 +348,34 @@ def process_packing_list(session_id: str):
 
             print(f"   Найдено позиций: {len(items)}")
 
-            # Группируем по паллетам
+            # Группируем по group_id (паллета или коробка-как-единица)
             pallet_groups = {}
             for item in items:
-                pallet = item.get("pallet_no", "1")
-                if pallet not in pallet_groups:
-                    pallet_groups[pallet] = []
-                pallet_groups[pallet].append(item)
+                group_id = (
+                    item.get("group_id")
+                    or item.get("pallet_no")
+                    or item.get("box_no")
+                    or "1"
+                )
+                group_id = str(group_id)
+                if group_id not in pallet_groups:
+                    pallet_groups[group_id] = []
+                pallet_groups[group_id].append(item)
+
+            print(f"   Найдено групп (паллет/коробок): {len(pallet_groups)}")
 
             all_processed_items = []
             pending_items = []
 
-            # === ОБРАБОТКА КАЖДОЙ ПАЛЛЕТЫ ===
-            for pallet, pallet_items in pallet_groups.items():
-                pallet_weight = pallet_items[0].get("pallet_weight", 0)
+            # === ОБРАБОТКА КАЖДОЙ ГРУППЫ ===
+            for group_id, pallet_items in pallet_groups.items():
+                # Вес группы — ищем в первой непустой строке
+                pallet_weight = 0
+                for pi in pallet_items:
+                    pw = pi.get("pallet_weight")
+                    if pw:
+                        pallet_weight = float(pw)
+                        break
 
                 for item in pallet_items:
                     part_number = item.get("part_number")
@@ -411,7 +416,7 @@ def process_packing_list(session_id: str):
                             "model_number": model_number
                         })
 
-                if pallet_weight > 0:
+                if pallet_weight and pallet_weight > 0:
                     from app.services.packing_list_parser import redistribute_gross
                     pallet_items = redistribute_gross(pallet_items, pallet_weight)
 
@@ -466,7 +471,7 @@ def process_packing_list(session_id: str):
             session.result_file = output_path
             db.commit()
 
-            print(f"✅ Packing List {session_id} завершён, обработано паллет: {len(pallet_groups)}")
+            print(f"✅ Packing List {session_id} завершён, обработано групп: {len(pallet_groups)}")
             return {"status": "completed", "session_id": session_id, "pallets": len(pallet_groups)}
 
     except Exception as e:
@@ -559,6 +564,7 @@ def process_chestny_znak(session_id: str):
     finally:
         sync_engine.dispose()
 
+
 @celery_app.task(name="process_commercial_offer")
 def process_commercial_offer(session_id: str):
     print(f"🔄 Начинаем генерацию КП {session_id}")
@@ -617,6 +623,7 @@ def process_commercial_offer(session_id: str):
         raise e
     finally:
         sync_engine.dispose()
+
 
 @celery_app.task(name="process_cz_codes")
 def process_cz_codes(session_id: str):

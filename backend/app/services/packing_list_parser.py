@@ -14,12 +14,6 @@ def extract_part_number(description: str) -> Optional[str]:
         "Google Fitbit Air Berry (840353943414)" -> "840353943414"
         "Apple MacBook Air 15 (MDV94LL/A)"       -> "MDV94LL/A"
         "Some product (ABC-123) extra"           -> "ABC-123"
-
-    Логика:
-      1) Если есть скобки — берём содержимое последних скобок,
-         если оно похоже на артикул (буквы/цифры/дефис/слэш/точка).
-      2) Если вся строка — «чистый» артикул без пробелов — берём её.
-      3) Fallback — оставляем строку как есть.
     """
     if description is None:
         return None
@@ -32,7 +26,6 @@ def extract_part_number(description: str) -> Optional[str]:
     matches = re.findall(r'\(([^()]+)\)', s)
     if matches:
         candidate = matches[-1].strip()
-        # Артикул: буквы, цифры, дефис, слэш, точка. Без пробелов.
         if re.fullmatch(r'[A-Za-z0-9\-/.]+', candidate):
             return candidate
 
@@ -51,7 +44,30 @@ def extract_part_number(description: str) -> Optional[str]:
 
 def parse_packing_list(file_path: str) -> Dict[str, Any]:
     """
-    Парсинг файла Packing List
+    Парсинг файла Packing List.
+
+    Логика группировки (ключ — group_id):
+
+    1. Если в строке заполнен "Pallet no." — начинается НОВАЯ ПАЛЛЕТА.
+       Все последующие строки, пока не появится новый Pallet no. —
+       относятся к этой паллете. Коробки внутри неё (Box No.) — часть
+       паллеты, своего веса не имеют.
+
+    2. Если "Pallet no." пусто, а "Box No." заполнено:
+       - и в строке ЕСТЬ вес — это КОРОБКА ВНЕ ПАЛЛЕТЫ. Она становится
+         самостоятельной единицей (своя группа, свой вес).
+       - и в строке НЕТ веса — это КОРОБКА ВНУТРИ текущей паллеты.
+         Её группа — текущая паллета, вес берётся с паллеты.
+
+    3. Если и Pallet no., и Box No. пусто — строка относится к текущей
+       группе (паллете или коробке-как-единице).
+
+    Поля в каждом item:
+      - group_id:    ключ группировки (всегда заполнен)
+      - pallet_no:   для отображения в колонке A (может быть None)
+      - box_no:      для отображения в колонке B (может быть None)
+      - pallet_weight: вес группы (всегда число, не None)
+      - dimensions:  габариты группы (может быть None)
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
@@ -108,8 +124,12 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                 headers["dimensions"] = col
 
     items = []
-    current_pallet = None
-    current_box = None
+
+    current_group_id = None       # ключ группировки
+    current_pallet_no = None      # что показывать в колонке A
+    current_box_no = None         # что показывать в колонке B
+    current_weight = 0            # вес группы
+    current_dimensions = None     # габариты группы
 
     for row in range(header_row + 1, ws.max_row + 1):
         row_empty = True
@@ -128,35 +148,68 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
         weight_per_1 = ws.cell(row, headers.get("weight_per_1", 5)).value if "weight_per_1" in headers else None
         net = ws.cell(row, headers.get("net", 6)).value if "net" in headers else None
         gross = ws.cell(row, headers.get("gross", 7)).value if "gross" in headers else None
-        pallet_weight = ws.cell(row, headers.get("pallet_weight", 8)).value if "pallet_weight" in headers else None
+        pallet_weight_cell = ws.cell(row, headers.get("pallet_weight", 8)).value if "pallet_weight" in headers else None
         dimensions = ws.cell(row, headers.get("dimensions", 9)).value if "dimensions" in headers else None
 
+        # === Обновляем состояние группы ===
         if pallet_no:
-            current_pallet = pallet_no
+            # Начало новой паллеты
+            current_group_id = f"pallet:{pallet_no}"
+            current_pallet_no = pallet_no
+            current_box_no = None
+            if pallet_weight_cell:
+                current_weight = float(pallet_weight_cell)
+            if dimensions:
+                current_dimensions = str(dimensions)
+        elif box_no and pallet_weight_cell:
+            # Коробка с весом → самостоятельная единица вне паллеты
+            current_group_id = f"box:{box_no}"
+            current_pallet_no = None
+            current_box_no = box_no
+            current_weight = float(pallet_weight_cell)
+            if dimensions:
+                current_dimensions = str(dimensions)
         elif box_no:
-            # Если колонка Pallet no. пустая — используем Box No. как идентификатор группы
-            current_pallet = box_no
-        if box_no:
-            current_box = box_no
+            # Коробка без веса → часть текущей паллеты (если она есть)
+            current_box_no = box_no
+            # current_group_id не меняется — остаётся текущая паллета
+            if current_group_id is None:
+                # Нет активной паллеты — считаем коробку как единицу (на всякий случай)
+                current_group_id = f"box:{box_no}"
+                current_pallet_no = None
+                current_box_no = box_no
+        # иначе — продолжаем текущую группу, ничего не меняем
 
-        if description and not str(description).strip().isdigit():
-            part_number = extract_part_number(str(description))
+        # === Пропускаем итоговую строку ===
+        if description and str(description).strip().isdigit():
+            continue
+        if description and "TOTAL" in str(description).upper():
+            continue
 
-            if not part_number:
-                continue
+        if not description:
+            continue
 
-            items.append({
-                "part_number": part_number,
-                "description_raw": str(description).strip(),  # сохраняем исходник на всякий случай
-                "qty": int(qty) if qty else 0,
-                "weight_per_1": float(weight_per_1) if weight_per_1 else None,
-                "net": float(net) if net else None,
-                "gross": float(gross) if gross else None,
-                "pallet_weight": float(pallet_weight) if pallet_weight else None,
-                "dimensions": str(dimensions) if dimensions else None,
-                "pallet_no": current_pallet,
-                "box_no": current_box
-            })
+        if current_group_id is None:
+            # Не можем определить группу — пропускаем
+            continue
+
+        part_number = extract_part_number(str(description))
+        if not part_number:
+            continue
+
+        items.append({
+            "part_number": part_number,
+            "description_raw": str(description).strip(),
+            "qty": int(qty) if qty else 0,
+            "weight_per_1": float(weight_per_1) if weight_per_1 else None,
+            "net": float(net) if net else None,
+            "gross": float(gross) if gross else None,
+            "pallet_weight": current_weight or 0,
+            "dimensions": current_dimensions,
+            "group_id": current_group_id,
+            "pallet_no": current_pallet_no,
+            "box_no": current_box_no,
+        })
 
     return {"items": items}
 
@@ -171,18 +224,15 @@ def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Opt
     if not part_number:
         return None, None
 
-    # 1) Точное совпадение (с регистром)
     product = db.query(Product).filter(Product.part_number == part_number).first()
     if product:
         return product, product.model_number
 
-    # 2) Upper-case
     normalized = part_number.strip().upper()
     product = db.query(Product).filter(Product.part_number == normalized).first()
     if product:
         return product, product.model_number
 
-    # 3) Без учёта регистра через func.lower
     from sqlalchemy import func
     product = db.query(Product).filter(
         func.lower(Product.part_number) == normalized.lower()
@@ -190,7 +240,6 @@ def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Opt
     if product:
         return product, product.model_number
 
-    # 4) Попробовать артикул из скобок (если исходник «грязный»)
     m = re.findall(r'\(([^()]+)\)', str(part_number))
     if m:
         candidate = m[-1].strip()
