@@ -8,11 +8,6 @@ import re
 def extract_part_number(description: str) -> Optional[str]:
     """
     Извлекает артикул из описания.
-
-    Примеры:
-        "MDV94LL/A"                              -> "MDV94LL/A"
-        "Google Fitbit Air Berry (840353943414)" -> "840353943414"
-        "Apple MacBook Air 15 (MDV94LL/A)"       -> "MDV94LL/A"
     """
     if description is None:
         return None
@@ -32,26 +27,17 @@ def extract_part_number(description: str) -> Optional[str]:
     if re.fullmatch(r'[A-Za-z0-9\-/.]+', s):
         return s
 
-    # 3) Fallback: первое «похожее на артикул» слово длиной >= 4
+    # 3) Fallback
     m = re.search(r'[A-Za-z0-9\-/.]{4,}', s)
     if m:
         return m.group(0)
 
-    # 4) Совсем не распознали — вернуть как есть
     return s
 
 
 def parse_packing_list(file_path: str) -> Dict[str, Any]:
     """
-    Парсинг файла Packing List.
-
-    Логика группировки (ключ — group_id):
-
-    1. Если в строке заполнен "Pallet no." — начинается НОВАЯ ПАЛЛЕТА.
-    2. Если "Pallet no." пусто, а "Box No." заполнено:
-       - и в строке ЕСТЬ вес — это КОРОБКА ВНЕ ПАЛЛЕТЫ (своя единица).
-       - и в строке НЕТ веса — это КОРОБКА ВНУТРИ текущей паллеты.
-    3. Если и Pallet no., и Box No. пусто — строка относится к текущей группе.
+    Парсинг файла Packing List с группировкой по group_id.
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
@@ -59,7 +45,6 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
     header_row = None
     headers = {}
 
-    # Ищем строку заголовков
     for row in range(1, min(ws.max_row, 20)):
         for col in range(1, ws.max_column + 1):
             cell_value = ws.cell(row, col).value
@@ -108,7 +93,6 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                 headers["dimensions"] = col
 
     items = []
-
     current_group_id = None
     current_pallet_no = None
     current_box_no = None
@@ -135,7 +119,6 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
         pallet_weight_cell = ws.cell(row, headers.get("pallet_weight", 8)).value if "pallet_weight" in headers else None
         dimensions = ws.cell(row, headers.get("dimensions", 9)).value if "dimensions" in headers else None
 
-        # === Обновляем состояние группы ===
         if pallet_no:
             current_group_id = f"pallet:{pallet_no}"
             current_pallet_no = pallet_no
@@ -145,7 +128,6 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
             if dimensions:
                 current_dimensions = str(dimensions)
         elif box_no and pallet_weight_cell:
-            # Коробка с весом → самостоятельная единица вне паллеты
             current_group_id = f"box:{box_no}"
             current_pallet_no = None
             current_box_no = box_no
@@ -153,15 +135,12 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
             if dimensions:
                 current_dimensions = str(dimensions)
         elif box_no:
-            # Коробка без веса → часть текущей паллеты
             current_box_no = box_no
             if current_group_id is None:
                 current_group_id = f"box:{box_no}"
                 current_pallet_no = None
                 current_box_no = box_no
-        # иначе — продолжаем текущую группу
 
-        # === Пропускаем итоговую строку ===
         if description and str(description).strip().isdigit():
             continue
         if description and "TOTAL" in str(description).upper():
@@ -197,7 +176,6 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
 def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Optional[str]]:
     """
     Ищет продукт по part_number с несколькими уровнями нормализации.
-    Возвращает (product, model_number).
     """
     from app.models import Product
 
@@ -230,85 +208,101 @@ def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Opt
     return None, None
 
 
-def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
+def _distribute_proportional_with_cap(
+    items: List[Dict],
+    target_total_gross: float,
+    max_ratio: float = 1.19,
+) -> None:
     """
-    Распределяет вес паллеты между позициями с ограничением 19% на каждую.
-    Вспомогательная функция для одной паллеты (используется, если не задействован
-    distribute_gross_across_pallets).
-    """
-    if not items or pallet_weight <= 0:
-        return items
-
-    total_net = sum(item.get("net", 0) or 0 for item in items)
-    if total_net == 0:
-        return items
-
-    # Базовое распределение
-    for item in items:
-        net = item.get("net", 0) or 0
-        gross = (net / total_net) * pallet_weight
-        max_gross = net * 1.19
-        if gross > max_gross:
-            gross = max_gross
-        item["gross"] = gross
-
-    # Досчёт до целевого веса (в пределах 19%)
-    _rebalance_gross_to_target(items, pallet_weight, max_ratio=1.19)
-
-    # Финальный расчёт полей
-    for item in items:
-        net = item.get("net", 0) or 0
-        qty = item.get("qty", 0) or 0
-        gross = item.get("gross", 0) or 0
-
-        if qty > 0:
-            item["weight_per_item"] = net / qty
-            item["total_net"] = net
-            item["total_gross"] = gross
-            item["difference_percent"] = ((gross - net) / net * 100) if net > 0 else 0
-
-    return items
-
-
-def _rebalance_gross_to_target(items: List[Dict], target_weight: float, max_ratio: float = 1.19):
-    """
-    Доливает GROSS до target_weight, не превышая max_ratio по каждому артикулу.
+    Распределяет target_total_gross между items пропорционально NET,
+    но с ограничением gross ≤ net × max_ratio для каждого.
+    Если после ограничения сумма < target_total_gross — ошибка.
     Модифицирует items in-place.
     """
-    if not items or target_weight <= 0:
+    total_net = sum((it.get("net", 0) or 0) for it in items)
+    if total_net <= 0:
         return
 
-    for item in items:
-        net = item.get("net", 0) or 0
-        item["_max_gross"] = net * max_ratio
+    # Проверка: возможно ли вообще вписаться
+    max_total = sum((it.get("net", 0) or 0) * max_ratio for it in items)
 
+    if max_total < target_total_gross - 0.001:
+        raise Exception(
+            f"Невозможно собрать {target_total_gross:.2f} кг "
+            f"при лимите {((max_ratio - 1) * 100):.1f}%. "
+            f"Максимум: {max_total:.2f} кг. "
+            f"Сумма NET: {total_net:.2f}. "
+            f"Дефицит: {target_total_gross - max_total:.2f} кг."
+        )
+
+    # Итеративное распределение с ограничением
+    # 1. Сначала даём всем gross = net (базовый)
+    for it in items:
+        it["gross"] = it.get("net", 0) or 0
+
+    remaining = target_total_gross - sum(it["gross"] for it in items)
+
+    if remaining <= 0.001:
+        return
+
+    # 2. Раскидываем remaining пропорционально NET, ограничивая max_ratio
+    #    Итерациями: на каждой — распределяем пропорционально NET среди тех,
+    #    кто ещё не упёрся в cap.
     for _ in range(200):
-        current_total = sum(item.get("gross", 0) or 0 for item in items)
-        need = target_weight - current_total
-
-        if need <= 0.001:
+        if remaining <= 0.001:
             break
 
+        # Кто ещё может расти?
         available = []
-        for item in items:
-            net = item.get("net", 0) or 0
-            gross = item.get("gross", 0) or 0
-            max_g = item.get("_max_gross", net * max_ratio)
-            room = max_g - gross
+        for it in items:
+            net = it.get("net", 0) or 0
+            gross = it.get("gross", 0) or 0
+            cap = net * max_ratio
+            room = cap - gross
             if room > 0.001:
-                available.append((item, room, net))
+                available.append((it, room, net))
 
         if not available:
             break
 
-        total_room = sum(r for (_, r, _) in available)
-        step = min(need, total_room)
-        for item, room, net in available:
-            add = (room / total_room) * step
-            item["gross"] = (item.get("gross", 0) or 0) + add
+        # Распределяем пропорционально NET (только если net > 0)
+        total_net_avail = sum(net for (_, _, net) in available if net > 0)
 
-    for item in items:
-        item.pop("_max_gross", None)
+        if total_net_avail <= 0:
+            # Нет NET у доступных — раскидываем поровну
+            share = remaining / len(available)
+            for it, room, _ in available:
+                add = min(share, room)
+                it["gross"] = (it.get("gross", 0) or 0) + add
+                remaining -= add
+            continue
+
+        # Пропорционально NET
+        added_total = 0.0
+        for it, room, net in available:
+            if net <= 0:
+                continue
+            want = (net / total_net_avail) * remaining
+            add = min(want, room)
+            it["gross"] = (it.get("gross", 0) or 0) + add
+            added_total += add
+
+        remaining -= added_total
+
+        if added_total < 0.001:
+            # Не смогли продвинуться — распределяем поровну по оставшимся
+            share = remaining / len(available)
+            for it, room, _ in available:
+                add = min(share, room)
+                it["gross"] = (it.get("gross", 0) or 0) + add
+                remaining -= add
+            break
+
+    if remaining > 0.01:
+        raise Exception(
+            f"Не удалось распределить {remaining:.2f} кг "
+            f"при лимите {((max_ratio - 1) * 100):.1f}%"
+        )
 
 
 def distribute_gross_across_pallets(
@@ -317,18 +311,15 @@ def distribute_gross_across_pallets(
     max_ratio: float = 1.19,
 ) -> Dict[str, List[Dict]]:
     """
-    Трёхпроходное распределение веса паллет с учётом shared-артикулов.
+    Распределение GROSS по паллетам с учётом shared-артикулов.
 
     Правила:
-      - shared-артикул (встречается > 1 паллеты) — единый weight_per_item
-        во всех паллетах. Эталон берётся из паллеты, где доля артикула
-        в NET максимальна.
-      - gross ≤ net × 1.19 для каждого артикула.
-      - сумма gross стремится к весу паллеты.
-
-    Может бросить Exception, если не удаётся уложиться.
+      - shared-артикул (встречается > 1 паллеты) — единый weight_per_item.
+      - GROSS ≤ NET × max_ratio для каждого.
+      - Сумма GROSS = вес паллеты (если возможно).
+      - Если невозможно — Exception.
     """
-    # ==================== ПРОХОД 1 ====================
+    # ==================== ПРОХОД 1: базовый NET ====================
     part_pallet_stats: Dict[str, List[Dict]] = {}
 
     for group_id, items in pallet_groups.items():
@@ -347,7 +338,7 @@ def distribute_gross_across_pallets(
                 "weight_per_item": wp,
             })
 
-    # ==================== ПРОХОД 2 ====================
+    # ==================== ПРОХОД 2: shared ====================
     shared_parts = {p: s for p, s in part_pallet_stats.items() if len(s) > 1}
     fixed_weights: Dict[str, float] = {}
 
@@ -377,13 +368,13 @@ def distribute_gross_across_pallets(
     for part, w in list(fixed_weights.items())[:10]:
         print(f"      - {part}: эталонный вес {w}")
 
-    # ==================== ПРОХОД 3 ====================
+    # ==================== ПРОХОД 3: распределение ====================
     result_groups: Dict[str, List[Dict]] = {}
 
     for group_id, items in pallet_groups.items():
         pallet_weight = pallet_weights.get(group_id, 0) or 0
 
-        # 1) Shared — фиксированный вес
+        # Фиксируем вес shared
         for item in items:
             part = item.get("part_number")
             qty = item.get("qty", 0) or 0
@@ -393,93 +384,79 @@ def distribute_gross_across_pallets(
                 item["net"] = wp * qty
                 item["weight_per_item"] = wp
 
-        # 2) Сумма NET shared
-        net_shared = sum(
-            (it.get("net", 0) or 0)
-            for it in items
-            if it.get("part_number") in fixed_weights
-        )
-
-        # 3) Уникальные артикулы
-        unique_items = [
-            it for it in items
-            if it.get("part_number") not in fixed_weights
-        ]
-
-        # 4) Если все shared
-        if not unique_items:
-            total_net = net_shared
-            if total_net == 0:
-                result_groups[group_id] = items
-                continue
-
-            if pallet_weight < total_net:
-                raise Exception(
-                    f"Паллета {group_id}: сумма NET ({total_net:.2f}) > веса паллеты ({pallet_weight}). "
-                    f"Уменьшите веса shared-артикулов."
-                )
-
-            ratio = min(pallet_weight / total_net, max_ratio)
-            for item in items:
-                net = item.get("net", 0) or 0
-                item["gross"] = net * ratio
-
-            for item in items:
-                net = item.get("net", 0) or 0
-                qty = item.get("qty", 0) or 0
-                gross = item.get("gross", 0) or 0
-                if qty > 0:
-                    item["weight_per_item"] = net / qty
-                    item["total_net"] = net
-                    item["total_gross"] = gross
-                    item["difference_percent"] = ((gross - net) / net * 100) if net > 0 else 0
-
+        # Проверяем, что net не 0
+        total_net = sum((it.get("net", 0) or 0) for it in items)
+        if total_net <= 0:
             result_groups[group_id] = items
             continue
 
-        # 5) Остаток веса — на уникальные
-        net_unique_base = sum(it.get("net", 0) or 0 for it in unique_items)
-        target_unique_gross = pallet_weight - net_shared
+        # Если вес паллеты не задан — gross = net
+        if not pallet_weight or pallet_weight <= 0:
+            for item in items:
+                item["gross"] = item.get("net", 0) or 0
+            for item in items:
+                _finalize_item(item)
+            result_groups[group_id] = items
+            continue
 
-        if target_unique_gross < 0:
+        # Распределяем
+        try:
+            _distribute_proportional_with_cap(
+                items=items,
+                target_total_gross=pallet_weight,
+                max_ratio=max_ratio,
+            )
+        except Exception as e:
+            # Дополняем сообщение контекстом
             raise Exception(
-                f"Паллета {group_id}: shared-артикулы дают NET={net_shared:.2f}, "
-                f"это больше веса паллеты={pallet_weight}. Уменьшите фикс-вес."
+                f"Паллета {group_id}: {str(e)}"
             )
 
-        max_unique_gross = net_unique_base * max_ratio
-
-        if target_unique_gross > max_unique_gross:
-            raise Exception(
-                f"Паллета {group_id}: не вписаться в 19%. "
-                f"Нужно gross для уникальных = {target_unique_gross:.2f}, "
-                f"максимум = {max_unique_gross:.2f}. "
-                f"unique NET = {net_unique_base:.2f}, shared NET = {net_shared:.2f}, "
-                f"вес паллеты = {pallet_weight:.2f}."
-            )
-
-        if net_unique_base > 0:
-            ratio = target_unique_gross / net_unique_base
-            for it in unique_items:
-                net = it.get("net", 0) or 0
-                it["gross"] = net * ratio
-        else:
-            share = target_unique_gross / len(unique_items)
-            for it in unique_items:
-                it["gross"] = share
-
-        # 6) Финализация
+        # Финализация
         for item in items:
-            net = item.get("net", 0) or 0
-            qty = item.get("qty", 0) or 0
-            gross = item.get("gross", 0) or 0
-
-            if qty > 0:
-                item["weight_per_item"] = net / qty
-                item["total_net"] = net
-                item["total_gross"] = gross
-                item["difference_percent"] = ((gross - net) / net * 100) if net > 0 else 0
+            _finalize_item(item)
 
         result_groups[group_id] = items
 
     return result_groups
+
+
+def _finalize_item(item: Dict) -> None:
+    """
+    Пересчитывает weight_per_item, total_net, total_gross, difference_percent.
+    """
+    net = item.get("net", 0) or 0
+    qty = item.get("qty", 0) or 0
+    gross = item.get("gross", 0) or 0
+
+    if qty > 0:
+        item["weight_per_item"] = net / qty
+        item["total_net"] = net
+        item["total_gross"] = gross
+        if net > 0:
+            item["difference_percent"] = (gross - net) / net * 100
+        else:
+            item["difference_percent"] = 0
+
+
+def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
+    """
+    Устаревшая функция — распределение для одной паллеты без shared.
+    Оставлена для совместимости.
+    """
+    if not items or pallet_weight <= 0:
+        return items
+
+    for item in items:
+        item["net"] = item.get("net", 0) or 0
+
+    try:
+        _distribute_proportional_with_cap(items, pallet_weight, max_ratio=1.19)
+    except Exception as e:
+        print(f"⚠️ redistribute_gross: {e}")
+        return items
+
+    for item in items:
+        _finalize_item(item)
+
+    return items
