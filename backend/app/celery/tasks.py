@@ -17,7 +17,7 @@ def resolve_weight(db, part_number=None, model_number=None):
     """
     Единая точка поиска веса.
     1. Product.weight по part_number
-    2. Вес "сестринского" Product с тем же model_number
+    2. Вес 'сестринского' Product с тем же model_number
     3. История PendingWeight(approved) по part_number
     4. История PendingWeight(approved) по model_number
     """
@@ -324,6 +324,13 @@ def cleanup_old_files():
 
 @celery_app.task(name="process_packing_list")
 def process_packing_list(session_id: str):
+    """
+    Обработка Packing List.
+
+    Веса берутся ТОЛЬКО из БД (Product.weight или PendingWeight).
+    Если у какого-то part_number нет веса — сессия стопается,
+    пользователь вводит вес вручную через pending_weights.
+    """
     print(f"🔄 Начинаем обработку Packing List {session_id}")
 
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:apple_samsung_2024@postgres:5432/ved")
@@ -347,13 +354,13 @@ def process_packing_list(session_id: str):
                 get_product_by_part_number,
                 distribute_gross_across_pallets,
             )
+
             data = parse_packing_list(session.invoice_file)
             items = data.get("items", [])
-
             print(f"   Найдено позиций: {len(items)}")
 
             # Группируем по group_id (паллета или коробка-как-единица)
-            pallet_groups = {}
+            pallet_groups: Dict[str, List] = {}
             for item in items:
                 group_id = (
                     item.get("group_id")
@@ -362,105 +369,101 @@ def process_packing_list(session_id: str):
                     or "1"
                 )
                 group_id = str(group_id)
-                if group_id not in pallet_groups:
-                    pallet_groups[group_id] = []
-                pallet_groups[group_id].append(item)
+                pallet_groups.setdefault(group_id, []).append(item)
 
             print(f"   Найдено групп (паллет/коробок): {len(pallet_groups)}")
 
-            pending_items = []
-            pallet_weights = {}
+            # ============================================================
+            # Собираем веса ВСЕХ артикулов из БД
+            # ============================================================
+            all_part_numbers = set()
+            for item in items:
+                pn = item.get("part_number")
+                if pn:
+                    all_part_numbers.add(pn)
 
-            # === ПРОХОД 1: резолвим веса из БД ===
-            for group_id, pallet_items in pallet_groups.items():
-                # Вес группы — ищем в первой непустой строке
-                pallet_weight = 0
-                for pi in pallet_items:
-                    pw = pi.get("pallet_weight")
-                    if pw:
-                        pallet_weight = float(pw)
-                        break
-                pallet_weights[group_id] = pallet_weight
+            part_weights: Dict[str, float] = {}
+            missing_parts: List[str] = []
 
-                for item in pallet_items:
-                    part_number = item.get("part_number")
-                    qty = item.get("qty", 0)
+            for pn in sorted(all_part_numbers):
+                product, model_number = get_product_by_part_number(db, pn)
+                known_weight, source, _ = resolve_weight(
+                    db,
+                    part_number=pn,
+                    model_number=(product.model_number if product else None),
+                )
 
-                    product, model_number = get_product_by_part_number(db, part_number)
+                if known_weight and known_weight > 0:
+                    part_weights[pn] = float(known_weight)
+                    print(f"   ✓ {pn}: {known_weight:.4f} ← {source}")
+                else:
+                    missing_parts.append(pn)
+                    print(f"   ✗ {pn}: вес не найден в БД")
 
-                    known_weight, source, product = resolve_weight(
-                        db, part_number, model_number
-                    )
+            # ============================================================
+            # Если есть артикулы без веса — стопаемся, создаём pending_weights
+            # ============================================================
+            if missing_parts:
+                print(f"   ⚠️ Артикулов без веса: {len(missing_parts)}")
 
-                    if known_weight:
-                        if product and not product.weight:
-                            product.weight = known_weight
-                            print(f"   ♻️ Product {part_number}: вес {known_weight} ← {source}")
+                for pn in missing_parts:
+                    product, model_number = get_product_by_part_number(db, pn)
 
-                        item["net"] = known_weight * qty
-                        item["weight_per_item"] = known_weight
-                        item["model_number"] = (
-                            product.model_number if product and product.model_number
-                            else model_number
-                        )
-                        item["description"] = (
-                            product.description if product
-                            else item.get("description_raw")
-                        )
-                        item["category_name"] = (
-                            product.category.name
-                            if product and product.category else None
-                        )
-                        item["color_name"] = (
-                            product.color.rus
-                            if product and product.color else None
-                        )
-                    else:
-                        pending_items.append({
-                            **item,
-                            "model_number": model_number
-                        })
+                    # Собираем суммарное qty и pallet/box по этому артикулу
+                    total_qty = 0
+                    first_pallet = None
+                    first_box = None
+                    for item in items:
+                        if item.get("part_number") == pn:
+                            total_qty += item.get("qty", 0) or 0
+                            if first_pallet is None and item.get("pallet_no"):
+                                first_pallet = item.get("pallet_no")
+                            if first_box is None and item.get("box_no"):
+                                first_box = item.get("box_no")
 
-            # === ЕСЛИ ЕСТЬ ТОВАРЫ БЕЗ ВЕСА — ОСТАНАВЛИВАЕМСЯ ===
-            if pending_items:
-                seen_parts = set()
-                unique_pending = []
-                for item in pending_items:
-                    pn = item.get("part_number")
-                    if pn and pn not in seen_parts:
-                        seen_parts.add(pn)
-                        unique_pending.append(item)
-
-                for item in unique_pending:
                     pending_weight = PendingWeight(
                         session_id=session_id,
-                        part_number=item.get("part_number"),
-                        model_number=item.get("model_number"),
-                        qty=item.get("qty", 0),
-                        pallet_no=item.get("pallet_no"),
-                        box_no=item.get("box_no"),
-                        suggested_weight=item.get("weight_per_1"),
-                        status="pending"
+                        part_number=pn,
+                        model_number=(product.model_number if product else model_number),
+                        qty=total_qty,
+                        pallet_no=first_pallet,
+                        box_no=first_box,
+                        suggested_weight=None,
+                        status="pending",
                     )
                     db.add(pending_weight)
 
                 db.commit()
                 session.status = "pending_weights"
                 db.commit()
+
                 return {
                     "status": "pending_weights",
                     "session_id": session_id,
-                    "pending_count": len(unique_pending),
-                    "pending_items": [item.get("part_number") for item in unique_pending],
-                    "message": f"Найдено {len(unique_pending)} моделей без веса. Добавьте вес."
+                    "pending_count": len(missing_parts),
+                    "pending_items": missing_parts,
+                    "message": f"Найдено {len(missing_parts)} артикулов без веса. Добавьте вес."
                 }
 
-            # === ПРОХОД 2 + 3: распределяем вес с учётом shared-артикулов ===
+            # ============================================================
+            # Все веса есть — распределяем
+            # ============================================================
+            pallet_weights: Dict[str, float] = {}
+            for group_id, group_items in pallet_groups.items():
+                pw = 0
+                for it in group_items:
+                    if it.get("pallet_weight"):
+                        pw = float(it["pallet_weight"])
+                        break
+                pallet_weights[group_id] = pw
+
+            print(f"   📦 Веса паллет: {pallet_weights}")
+
             try:
                 pallet_groups = distribute_gross_across_pallets(
                     pallet_groups=pallet_groups,
                     pallet_weights=pallet_weights,
-                    max_ratio=1.19,
+                    part_weights=part_weights,
                 )
             except Exception as e:
                 session.status = "error"
@@ -469,20 +472,21 @@ def process_packing_list(session_id: str):
                 print(f"❌ Ошибка распределения веса {session_id}: {e}")
                 raise
 
-            # Собираем все items в один список
-            all_processed_items = []
-            for group_id, pallet_items in pallet_groups.items():
-                all_processed_items.extend(pallet_items)
-
-            # === ГЕНЕРИРУЕМ ФИНАЛЬНЫЙ PACKING LIST ===
+            # ============================================================
+            # Генерируем итоговый Packing List
+            # ============================================================
             from app.services.packing_list_generator import generate_packing_list
+
+            all_processed_items: List = []
+            for group_id, group_items in pallet_groups.items():
+                all_processed_items.extend(group_items)
 
             output_path = f"/app/output/{session_id}_packing_list.xlsx"
             generate_packing_list(
                 items=all_processed_items,
                 template_path=session.invoice_file,
                 output_path=output_path,
-                session_id=session_id
+                session_id=session_id,
             )
 
             session.status = "completed"
