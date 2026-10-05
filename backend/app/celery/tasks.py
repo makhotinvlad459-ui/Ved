@@ -342,7 +342,11 @@ def process_packing_list(session_id: str):
                 print(f"❌ Сессия {session_id} не найдена")
                 return {"error": "Session not found"}
 
-            from app.services.packing_list_parser import parse_packing_list, get_product_by_part_number
+            from app.services.packing_list_parser import (
+                parse_packing_list,
+                get_product_by_part_number,
+                distribute_gross_across_pallets,
+            )
             data = parse_packing_list(session.invoice_file)
             items = data.get("items", [])
 
@@ -364,10 +368,10 @@ def process_packing_list(session_id: str):
 
             print(f"   Найдено групп (паллет/коробок): {len(pallet_groups)}")
 
-            all_processed_items = []
             pending_items = []
+            pallet_weights = {}
 
-            # === ОБРАБОТКА КАЖДОЙ ГРУППЫ ===
+            # === ПРОХОД 1: резолвим веса из БД ===
             for group_id, pallet_items in pallet_groups.items():
                 # Вес группы — ищем в первой непустой строке
                 pallet_weight = 0
@@ -376,6 +380,7 @@ def process_packing_list(session_id: str):
                     if pw:
                         pallet_weight = float(pw)
                         break
+                pallet_weights[group_id] = pallet_weight
 
                 for item in pallet_items:
                     part_number = item.get("part_number")
@@ -416,12 +421,6 @@ def process_packing_list(session_id: str):
                             "model_number": model_number
                         })
 
-                if pallet_weight and pallet_weight > 0:
-                    from app.services.packing_list_parser import redistribute_gross
-                    pallet_items = redistribute_gross(pallet_items, pallet_weight)
-
-                all_processed_items.extend(pallet_items)
-
             # === ЕСЛИ ЕСТЬ ТОВАРЫ БЕЗ ВЕСА — ОСТАНАВЛИВАЕМСЯ ===
             if pending_items:
                 seen_parts = set()
@@ -455,6 +454,25 @@ def process_packing_list(session_id: str):
                     "pending_items": [item.get("part_number") for item in unique_pending],
                     "message": f"Найдено {len(unique_pending)} моделей без веса. Добавьте вес."
                 }
+
+            # === ПРОХОД 2 + 3: распределяем вес с учётом shared-артикулов ===
+            try:
+                pallet_groups = distribute_gross_across_pallets(
+                    pallet_groups=pallet_groups,
+                    pallet_weights=pallet_weights,
+                    max_ratio=1.19,
+                )
+            except Exception as e:
+                session.status = "error"
+                session.errors = f"Ошибка распределения веса: {str(e)}"
+                db.commit()
+                print(f"❌ Ошибка распределения веса {session_id}: {e}")
+                raise
+
+            # Собираем все items в один список
+            all_processed_items = []
+            for group_id, pallet_items in pallet_groups.items():
+                all_processed_items.extend(pallet_items)
 
             # === ГЕНЕРИРУЕМ ФИНАЛЬНЫЙ PACKING LIST ===
             from app.services.packing_list_generator import generate_packing_list
