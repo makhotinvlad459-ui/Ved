@@ -1,7 +1,7 @@
 # backend/app/api/v1/models.py
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from typing import Optional, List
 
 from app.database import get_db
@@ -24,6 +24,63 @@ async def get_all_products(
     stmt = select(Product).where(Product.is_active == True).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.get("/search")
+async def search_products(
+    q: str,
+    limit: int = 50,
+    include_inactive: bool = False,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Поиск товаров по part_number, model_number, description,
+    custom_name_ru, honest_code.
+    """
+    q = (q or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Параметр q обязателен")
+
+    if limit < 1:
+        limit = 1
+    if limit > 200:
+        limit = 200
+
+    pattern = f"%{q}%"
+
+    conditions = [
+        Product.part_number.ilike(pattern),
+        Product.model_number.ilike(pattern),
+        Product.description.ilike(pattern),
+        Product.custom_name_ru.ilike(pattern),
+        Product.honest_code.ilike(pattern),
+    ]
+
+    stmt = select(Product).where(or_(*conditions))
+
+    if not include_inactive:
+        stmt = stmt.where(Product.is_active == True)
+
+    stmt = stmt.limit(limit)
+
+    result = await db.execute(stmt)
+    products = result.scalars().all()
+
+    # Точное совпадение part_number — вперёд
+    q_upper = q.upper()
+    products = sorted(
+        products,
+        key=lambda p: (
+            0 if (p.part_number or "").upper() == q_upper else 1,
+            (p.part_number or "").upper(),
+        ),
+    )
+
+    return {
+        "total": len(products),
+        "query": q,
+        "products": [ProductResponse.model_validate(p) for p in products],
+    }
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
@@ -121,7 +178,6 @@ async def get_pending_models(
     
     new_models = []
     for p in pendings:
-        # Получаем категорию
         category_name = None
         if p.suggested_category_id:
             cat_stmt = select(Category).where(Category.id == p.suggested_category_id)
@@ -129,7 +185,6 @@ async def get_pending_models(
             cat = cat_result.scalar_one_or_none()
             category_name = cat.name if cat else None
         
-        # Получаем цвет
         color_name = None
         if p.suggested_color_id:
             col_stmt = select(Color).where(Color.id == p.suggested_color_id)
@@ -152,7 +207,6 @@ async def get_pending_models(
             "status": p.status
         })
     
-    # Получаем все категории и цвета для выпадающих списков
     categories = await db.execute(select(Category).where(Category.is_active == True))
     colors = await db.execute(select(Color).where(Color.is_active == True))
     
@@ -193,14 +247,12 @@ async def approve_pending_model(
     color_id = data.custom_color_id or pending.suggested_color_id
     name_ru = data.custom_name_ru or pending.suggested_name_ru
     
-    # Проверяем, что категория существует
     if category_id:
         cat_stmt = select(Category).where(Category.id == category_id)
         cat_result = await db.execute(cat_stmt)
         if not cat_result.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Указанная категория не найдена")
     
-    # Проверяем, что цвет существует
     if color_id:
         col_stmt = select(Color).where(Color.id == color_id)
         col_result = await db.execute(col_stmt)
@@ -227,7 +279,6 @@ async def approve_pending_model(
     await db.commit()
     await db.refresh(product)
     
-    # Проверяем остальные
     stmt = select(PendingModel).where(
         PendingModel.session_id == session_id,
         PendingModel.status == "pending"
@@ -235,7 +286,6 @@ async def approve_pending_model(
     result = await db.execute(stmt)
     remaining = result.scalars().all()
     
-    # Если больше нет новых моделей, возобновляем обработку
     if not remaining:
         stmt = select(ProcessingSession).where(ProcessingSession.session_id == session_id)
         result = await db.execute(stmt)

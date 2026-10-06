@@ -102,6 +102,16 @@ class HomeScreen extends StatelessWidget {
                 color: Colors.indigo,
                 onTap: () => Navigator.pushNamed(context, '/cz-codes'),
               ),
+
+              const SizedBox(height: 16),
+
+              _ServiceCard(
+                icon: Icons.inventory_2_outlined,
+                title: 'Товары',
+                subtitle: 'Поиск и редактирование товаров, весов, категорий',
+                color: Colors.blueGrey,
+                onTap: () => Navigator.pushNamed(context, '/products'),
+              ),
             ],
           ),
         ),

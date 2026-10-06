@@ -5,7 +5,7 @@ from sqlalchemy import select
 
 from app.database import get_db
 from app.models import Color
-from app.schemas import ColorCreate, ColorResponse
+from app.schemas import ColorCreate, ColorUpdate, ColorResponse
 
 router = APIRouter(prefix="/colors", tags=["Colors"])
 
@@ -35,3 +35,51 @@ async def get_all_colors(
     stmt = select(Color).where(Color.is_active == True)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.get("/{color_id}", response_model=ColorResponse)
+async def get_color(
+    color_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Color).where(Color.id == color_id)
+    result = await db.execute(stmt)
+    color = result.scalar_one_or_none()
+    
+    if not color:
+        raise HTTPException(status_code=404, detail="Цвет не найден")
+    
+    return color
+
+
+@router.put("/{color_id}", response_model=ColorResponse)
+async def update_color(
+    color_id: int,
+    data: ColorUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Color).where(Color.id == color_id)
+    result = await db.execute(stmt)
+    color = result.scalar_one_or_none()
+    
+    if not color:
+        raise HTTPException(status_code=404, detail="Цвет не найден")
+    
+    update_data = data.dict(exclude_unset=True)
+    
+    # Проверка уникальности eng
+    if "eng" in update_data and update_data["eng"] != color.eng:
+        stmt = select(Color).where(Color.eng == update_data["eng"])
+        result = await db.execute(stmt)
+        if result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=400,
+                detail="Цвет с таким eng-названием уже существует"
+            )
+    
+    for key, value in update_data.items():
+        setattr(color, key, value)
+    
+    await db.commit()
+    await db.refresh(color)
+    return color

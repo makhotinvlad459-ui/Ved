@@ -368,4 +368,90 @@ class ApiService {
       throw Exception('Ошибка скачивания: $e');
     }
   }
+
+    // ============================================================
+  // УПРАВЛЕНИЕ ТОВАРАМИ
+  // ============================================================
+
+  Future<Map<String, dynamic>> searchProducts(String query) async {
+    try {
+      final response = await _dio.get(
+        '/models/search',
+        queryParameters: {'q': query, 'limit': 50},
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка поиска: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getProduct(int id) async {
+    try {
+      final response = await _dio.get('/models/$id');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения товара: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProduct({
+    required int id,
+    double? weight,
+    int? categoryId,
+    int? colorId,
+    String? customNameRu,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (weight != null) body['weight'] = weight;
+      if (categoryId != null) body['category_id'] = categoryId;
+      if (colorId != null) body['color_id'] = colorId;
+      if (customNameRu != null) body['custom_name_ru'] = customNameRu;
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await _dio.put('/models/$id', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка обновления товара: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCategory(int id) async {
+    try {
+      final response = await _dio.get('/categories/$id');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения категории: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateCategory({
+    required int id,
+    String? name,
+    String? nameEng,
+    String? prefixRu,
+    String? prefixEng,
+    bool? collectSerials,
+    String? serialSource,
+    bool? cleanSerialPrefix,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (name != null) body['name'] = name;
+      if (nameEng != null) body['name_eng'] = nameEng;
+      if (prefixRu != null) body['prefix_ru'] = prefixRu;
+      if (prefixEng != null) body['prefix_eng'] = prefixEng;
+      if (collectSerials != null) body['collect_serials'] = collectSerials;
+      if (serialSource != null) body['serial_source'] = serialSource;
+      if (cleanSerialPrefix != null) body['clean_serial_prefix'] = cleanSerialPrefix;
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await _dio.put('/categories/$id', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка обновления категории: $e');
+    }
+  }
 }
