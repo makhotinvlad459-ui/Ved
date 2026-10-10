@@ -6,113 +6,145 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF5F6F8),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1100),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'V',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
+                  // ============ ЛОГОТИП ============
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.blue.shade700, Colors.blue.shade400],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.blue.shade100,
+                              blurRadius: 12,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'V',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'VED Processor',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  // ============ ЗАГОЛОВОК ============
+                  const Text(
+                    'Выберите сервис',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(height: 8),
                   const Text(
-                    'VED Processor',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w600),
+                    'Обработка документов и управление справочниками',
+                    style: TextStyle(fontSize: 15, color: Colors.grey),
                   ),
+
+                  const SizedBox(height: 32),
+
+                  // ============ ГРУППА: ОБРАБОТКА ДОКУМЕНТОВ ============
+                  _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
+                  const SizedBox(height: 12),
+                  _ResponsiveGrid(
+                    items: [
+                      _ServiceItem(
+                        icon: Icons.description_outlined,
+                        title: 'Спецификация',
+                        color: Colors.blue,
+                        route: '/upload',
+                      ),
+                      _ServiceItem(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'Packing List',
+                        color: Colors.orange,
+                        route: '/packing-list',
+                      ),
+                      _ServiceItem(
+                        icon: Icons.request_quote_outlined,
+                        title: 'КП',
+                        color: Colors.teal,
+                        route: '/commercial-offer',
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // ============ ГРУППА: ЧЕСТНЫЙ ЗНАК ============
+                  _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
+                  const SizedBox(height: 12),
+                  _ResponsiveGrid(
+                    items: [
+                      _ServiceItem(
+                        icon: Icons.qr_code_2,
+                        title: 'ЧЗ в спецификацию',
+                        color: Colors.purple,
+                        route: '/cz-upload',
+                      ),
+                      _ServiceItem(
+                        icon: Icons.qr_code_scanner,
+                        title: 'ЧЗ по странам',
+                        color: Colors.indigo,
+                        route: '/cz-codes',
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // ============ ГРУППА: СПРАВОЧНИКИ ============
+                  _GroupLabel(label: 'СПРАВОЧНИКИ'),
+                  const SizedBox(height: 12),
+                  _ResponsiveGrid(
+                    items: [
+                      _ServiceItem(
+                        icon: Icons.inventory_outlined,
+                        title: 'Товары',
+                        color: Colors.blueGrey,
+                        route: '/products',
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 40),
                 ],
               ),
-
-              const SizedBox(height: 32),
-
-              const Text(
-                'Выберите сервис',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Выберите тип обработки документов',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-
-              const SizedBox(height: 32),
-
-              _ServiceCard(
-                icon: Icons.description_outlined,
-                title: 'Генерация спецификации',
-                subtitle: 'Инвойс + Манифест → Готовая спецификация',
-                color: Colors.blue,
-                onTap: () => Navigator.pushNamed(context, '/upload'),
-              ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.inventory_outlined,
-                title: 'Генерация Packing List',
-                subtitle: 'Обработка упаковочного листа',
-                color: Colors.orange,
-                onTap: () => Navigator.pushNamed(context, '/packing-list'),
-              ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.qr_code_2,
-                title: 'Загрузка кодов ЧЗ',
-                subtitle: 'Инвойс + Спецификация + ЧЗ → Спецификация с кодами',
-                color: Colors.purple,
-                onTap: () => Navigator.pushNamed(context, '/cz-upload'),
-              ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.request_quote_outlined,
-                title: 'Коммерческое предложение',
-                subtitle: 'Спецификация → КП в Excel',
-                color: Colors.teal,
-                onTap: () => Navigator.pushNamed(context, '/commercial-offer'),
-              ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.qr_code_scanner,
-                title: 'Коды ЧЗ для ввода',
-                subtitle: 'ЧЗ-спецификация → Архив с кодами по странам',
-                color: Colors.indigo,
-                onTap: () => Navigator.pushNamed(context, '/cz-codes'),
-              ),
-
-              const SizedBox(height: 16),
-
-              _ServiceCard(
-                icon: Icons.inventory_2_outlined,
-                title: 'Товары',
-                subtitle: 'Поиск и редактирование товаров, весов, категорий',
-                color: Colors.blueGrey,
-                onTap: () => Navigator.pushNamed(context, '/products'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -120,65 +152,169 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _ServiceCard extends StatelessWidget {
+// ============================================================
+// МОДЕЛЬ СЕРВИСА
+// ============================================================
+class _ServiceItem {
   final IconData icon;
   final String title;
-  final String subtitle;
   final Color color;
-  final VoidCallback onTap;
+  final String route;
 
-  const _ServiceCard({
+  const _ServiceItem({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.color,
-    required this.onTap,
+    required this.route,
   });
+}
+
+// ============================================================
+// МЕТКА ГРУППЫ
+// ============================================================
+class _GroupLabel extends StatelessWidget {
+  final String label;
+
+  const _GroupLabel({required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Row(
+      children: [
+        Container(
+          width: 4,
+          height: 16,
+          decoration: BoxDecoration(
+            color: Colors.blue.shade400,
+            borderRadius: BorderRadius.circular(2),
+          ),
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey.shade700,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ============================================================
+// АДАПТИВНАЯ СЕТКА
+// ============================================================
+class _ResponsiveGrid extends StatelessWidget {
+  final List<_ServiceItem> items;
+
+  const _ResponsiveGrid({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        int columns;
+        if (width < 500) {
+          columns = 1;
+        } else if (width < 900) {
+          columns = 2;
+        } else {
+          columns = 3;
+        }
+
+        // Если элементов меньше, чем колонок — уменьшаем колонки
+        final effectiveColumns = items.length < columns ? items.length : columns;
+
+        const spacing = 12.0;
+        final itemWidth =
+            (width - spacing * (effectiveColumns - 1)) / effectiveColumns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: items.map((item) {
+            return SizedBox(
+              width: itemWidth,
+              child: _CompactCard(item: item),
+            );
+          }).toList(),
+        );
+      },
+    );
+  }
+}
+
+// ============================================================
+// КОМПАКТНАЯ КАРТОЧКА
+// ============================================================
+class _CompactCard extends StatelessWidget {
+  final _ServiceItem item;
+
+  const _CompactCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      elevation: 0,
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(context, item.route),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200, width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.03),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              child: Icon(icon, color: color, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 4),
-                  Text(subtitle,
-                      style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                ],
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      item.color.withOpacity(0.15),
+                      item.color.withOpacity(0.05),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(item.icon, color: item.color, size: 24),
               ),
-            ),
-            Icon(Icons.chevron_right, color: Colors.grey[400], size: 24),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  item.title,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey.shade400,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
