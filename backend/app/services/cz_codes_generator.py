@@ -13,6 +13,7 @@ def detect_group(description: str) -> Optional[str]:
       MacBook  → "MacBook"
       iPad     → "iPad"
       iPhone   → "Smartphone"
+      Samsung  → "Samsung"
       Остальное → None (пропускаем)
     """
     if not description:
@@ -24,6 +25,8 @@ def detect_group(description: str) -> Optional[str]:
         return "iPad"
     if "iphone" in d:
         return "Smartphone"
+    if "samsung" in d:
+        return "Samsung"
     return None
 
 
