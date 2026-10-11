@@ -224,3 +224,69 @@ class PendingGtin(Base):
     
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, onupdate=func.now())
+
+
+# ============================================================
+# ЧЕСТНЫЙ ЗНАК — КАРТОЧКИ ТОВАРОВ (K3)
+# ============================================================
+
+class CzCardProduct(Base):
+    """
+    Справочник атрибутов для карточек ЧЗ.
+    Заполняется только для iPhone и Samsung (по part_number).
+    Для iPad/MacBook атрибуты берутся из описания инвойса.
+    """
+    __tablename__ = "cz_card_products"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    part_number = Column(String(50), unique=True, nullable=False, index=True)
+    brand = Column(String(50), nullable=False)          # APPLE / Samsung
+    model_name = Column(String(100), nullable=False)    # iPhone 17 Pro Max
+
+    screen_size = Column(Float, nullable=True)          # 6.9
+    ram_gb = Column(Integer, nullable=True)             # 12
+    cpu_vendor = Column(String(50), nullable=True)      # Apple / Qualcomm
+    cpu_model = Column(String(50), nullable=True)       # A20 Pro / Snapdragon 8 Elite
+
+    is_estimated = Column(Boolean, default=False)       # True для предположительных данных
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+
+
+class CzColorMapping(Base):
+    """
+    Маппинг англ. названия цвета → значение из справочника ЧЗ.
+    Пример: 'Space Black' → 'ЧЕРНЫЙ'
+    """
+    __tablename__ = "cz_color_mappings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    eng = Column(String(100), unique=True, nullable=False, index=True)   # Space Black
+    cz_value = Column(String(50), nullable=False)                        # ЧЕРНЫЙ
+
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
+
+
+class CzCategoryMapping(Base):
+    """
+    Категория ЧЗ: k3, ТНВЭД, ОКПД2, вид товара.
+    Пример: Смартфоны → k3=30514, ТНВЭД=8517130000.
+    """
+    __tablename__ = "cz_category_mappings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(50), unique=True, nullable=False)   # Смартфоны
+    k3 = Column(String(20), nullable=False)                  # 30514
+    tnved = Column(String(20), nullable=False)               # 8517130000
+    okpd2 = Column(String(30), nullable=False)               # 26.30.22.110
+    vid_tovara = Column(String(50), nullable=False)          # СМАРТФОН
+    keywords = Column(String(255), nullable=False)           # iphone,samsung,galaxy
+
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, onupdate=func.now())
