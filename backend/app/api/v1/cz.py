@@ -50,7 +50,6 @@ async def get_card_products(
             pattern = f"%{q}%"
             stmt = stmt.where(
                 or_(
-                    CzCardProduct.part_number.ilike(pattern),
                     CzCardProduct.model_name.ilike(pattern),
                     CzCardProduct.brand.ilike(pattern),
                 )
@@ -58,7 +57,6 @@ async def get_card_products(
     stmt = stmt.order_by(
         CzCardProduct.brand,
         CzCardProduct.model_name,
-        CzCardProduct.part_number,
     ).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
@@ -74,21 +72,23 @@ async def get_card_product(product_id: int, db: AsyncSession = Depends(get_db)):
     return product
 
 
+
 @router.post("/card-products", response_model=CzCardProductResponse)
 async def create_card_product(
     data: CzCardProductCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(CzCardProduct).where(CzCardProduct.part_number == data.part_number)
+    stmt = select(CzCardProduct).where(CzCardProduct.model_name == data.model_name)
     result = await db.execute(stmt)
     if result.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Товар с таким part_number уже существует")
+        raise HTTPException(status_code=400, detail="Модель с таким именем уже существует")
 
     product = CzCardProduct(**data.dict())
     db.add(product)
     await db.commit()
     await db.refresh(product)
     return product
+
 
 
 @router.put("/card-products/{product_id}", response_model=CzCardProductResponse)
@@ -105,15 +105,15 @@ async def update_card_product(
 
     update_data = data.dict(exclude_unset=True)
 
-    if "part_number" in update_data and update_data["part_number"] != product.part_number:
+    if "model_name" in update_data and update_data["model_name"] != product.model_name:
         stmt = select(CzCardProduct).where(
-            CzCardProduct.part_number == update_data["part_number"]
+            CzCardProduct.model_name == update_data["model_name"]
         )
         result = await db.execute(stmt)
         if result.scalar_one_or_none():
             raise HTTPException(
                 status_code=400,
-                detail="Товар с таким part_number уже существует",
+                detail="Модель с таким именем уже существует",
             )
 
     for key, value in update_data.items():
@@ -131,10 +131,10 @@ async def delete_card_product(product_id: int, db: AsyncSession = Depends(get_db
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(status_code=404, detail="Товар не найден")
-
     product.is_active = False
     await db.commit()
     return {"message": "Товар удалён"}
+
 
 
 # ============================================================

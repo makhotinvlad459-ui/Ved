@@ -1,7 +1,7 @@
 # backend/init_cz_data.py
 """
-Заполнение справочников ЧЗ дефолтными данными.
-Запускать один раз: docker exec excel_backend python init_cz_data.py
+Заполнение справочников ЧЗ: категории, цвета, модели iPhone/Samsung.
+Запускать: docker exec excel_backend python init_cz_data.py
 Повторный запуск безопасен — дубликаты не создаются.
 """
 import asyncio
@@ -16,7 +16,7 @@ from app.models import CzCardProduct, CzColorMapping, CzCategoryMapping
 
 
 # ============================================================
-# КАТЕГОРИИ ЧЗ
+# КАТЕГОРИИ
 # ============================================================
 CATEGORIES = [
     {
@@ -47,10 +47,9 @@ CATEGORIES = [
 
 
 # ============================================================
-# ЦВЕТА (eng → значение ЧЗ)
+# ЦВЕТА
 # ============================================================
 COLORS = [
-    # Apple цвета
     ("Space Black", "ЧЕРНЫЙ"),
     ("Black", "ЧЕРНЫЙ"),
     ("Jet Black", "ЧЕРНЫЙ"),
@@ -74,7 +73,7 @@ COLORS = [
     ("Charcoal Gray", "СЕРЫЙ"),
     ("Burgundy", "БОРДОВЫЙ"),
     ("Glacier", "ГОЛУБОЙ"),
-    # Samsung цвета
+    ("Blush", "РОЗОВЫЙ"),
     ("Cobalt Violet", "ФИОЛЕТОВЫЙ"),
     ("Sky Blue", "ГОЛУБОЙ"),
     ("Pink Gold", "РОЗОВЫЙ"),
@@ -85,7 +84,6 @@ COLORS = [
     ("Navy", "ТЕМНО-СИНИЙ"),
     ("Icy Blue", "СВЕТЛО-СИНИЙ"),
     ("Silver Shadow", "СЕРЕБРЯНЫЙ"),
-    # Beats цвета
     ("Hyper Purple", "ФИОЛЕТОВЫЙ"),
     ("Quick Sand", "СВЕТЛО-БЕЖЕВЫЙ"),
     ("Power Pink", "РОЗОВЫЙ"),
@@ -93,101 +91,44 @@ COLORS = [
 
 
 # ============================================================
-# ТОВАРЫ (iPhone + Samsung)
+# МОДЕЛИ (ключ — НАЗВАНИЕ МОДЕЛИ, не part_number)
 # ============================================================
 PRODUCTS = [
-    # === iPhone 15 ===
-    {"part_number": "MTP03", "brand": "APPLE", "model_name": "iPhone 15", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP13", "brand": "APPLE", "model_name": "iPhone 15", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP23", "brand": "APPLE", "model_name": "iPhone 15", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP33", "brand": "APPLE", "model_name": "iPhone 15", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP43", "brand": "APPLE", "model_name": "iPhone 15", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP63", "brand": "APPLE", "model_name": "iPhone 15", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP73", "brand": "APPLE", "model_name": "iPhone 15 Plus", "screen_size": 6.7, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTP83", "brand": "APPLE", "model_name": "iPhone 15 Plus", "screen_size": 6.7, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTQR3", "brand": "APPLE", "model_name": "iPhone 15 Plus", "screen_size": 6.7, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    {"part_number": "MTQT3", "brand": "APPLE", "model_name": "iPhone 15 Plus", "screen_size": 6.7, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
-    # iPhone 15 Pro
-    {"part_number": "MTUX3", "brand": "APPLE", "model_name": "iPhone 15 Pro", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTV03", "brand": "APPLE", "model_name": "iPhone 15 Pro", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTV13", "brand": "APPLE", "model_name": "iPhone 15 Pro", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTV23", "brand": "APPLE", "model_name": "iPhone 15 Pro", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTV33", "brand": "APPLE", "model_name": "iPhone 15 Pro", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTV43", "brand": "APPLE", "model_name": "iPhone 15 Pro", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    # iPhone 15 Pro Max
-    {"part_number": "MTU63", "brand": "APPLE", "model_name": "iPhone 15 Pro Max", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTU73", "brand": "APPLE", "model_name": "iPhone 15 Pro Max", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTU83", "brand": "APPLE", "model_name": "iPhone 15 Pro Max", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTU93", "brand": "APPLE", "model_name": "iPhone 15 Pro Max", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
-    {"part_number": "MTUA3", "brand": "APPLE", "model_name": "iPhone 15 Pro Max", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
+    # iPhone 15
+    {"model_name": "iPhone 15", "brand": "APPLE", "screen_size": 6.1, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
+    {"model_name": "iPhone 15 Plus", "brand": "APPLE", "screen_size": 6.7, "ram_gb": 6, "cpu_vendor": "Apple", "cpu_model": "A16 Bionic"},
+    {"model_name": "iPhone 15 Pro", "brand": "APPLE", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
+    {"model_name": "iPhone 15 Pro Max", "brand": "APPLE", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A17 Pro"},
 
-    # === iPhone 16 ===
-    {"part_number": "MTP03", "brand": "APPLE", "model_name": "iPhone 16", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP13", "brand": "APPLE", "model_name": "iPhone 16", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP23", "brand": "APPLE", "model_name": "iPhone 16", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP33", "brand": "APPLE", "model_name": "iPhone 16", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP43", "brand": "APPLE", "model_name": "iPhone 16", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP63", "brand": "APPLE", "model_name": "iPhone 16", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP73", "brand": "APPLE", "model_name": "iPhone 16 Plus", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP83", "brand": "APPLE", "model_name": "iPhone 16 Plus", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTP93", "brand": "APPLE", "model_name": "iPhone 16 Plus", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    {"part_number": "MTPA3", "brand": "APPLE", "model_name": "iPhone 16 Plus", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
-    # iPhone 16 Pro
-    {"part_number": "MTQ03", "brand": "APPLE", "model_name": "iPhone 16 Pro", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ13", "brand": "APPLE", "model_name": "iPhone 16 Pro", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ23", "brand": "APPLE", "model_name": "iPhone 16 Pro", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ33", "brand": "APPLE", "model_name": "iPhone 16 Pro", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ43", "brand": "APPLE", "model_name": "iPhone 16 Pro", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    # iPhone 16 Pro Max
-    {"part_number": "MTQ53", "brand": "APPLE", "model_name": "iPhone 16 Pro Max", "screen_size": 6.9, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ63", "brand": "APPLE", "model_name": "iPhone 16 Pro Max", "screen_size": 6.9, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ73", "brand": "APPLE", "model_name": "iPhone 16 Pro Max", "screen_size": 6.9, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ83", "brand": "APPLE", "model_name": "iPhone 16 Pro Max", "screen_size": 6.9, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
-    {"part_number": "MTQ93", "brand": "APPLE", "model_name": "iPhone 16 Pro Max", "screen_size": 6.9, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
+    # iPhone 16
+    {"model_name": "iPhone 16", "brand": "APPLE", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
+    {"model_name": "iPhone 16 Plus", "brand": "APPLE", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18"},
+    {"model_name": "iPhone 16 Pro", "brand": "APPLE", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
+    {"model_name": "iPhone 16 Pro Max", "brand": "APPLE", "screen_size": 6.9, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A18 Pro"},
 
-    # === iPhone 17 ===
-    {"part_number": "MJQ04", "brand": "APPLE", "model_name": "iPhone 17", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    {"part_number": "MJQ14", "brand": "APPLE", "model_name": "iPhone 17", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    {"part_number": "MJQ24", "brand": "APPLE", "model_name": "iPhone 17", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    {"part_number": "MJQ34", "brand": "APPLE", "model_name": "iPhone 17", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    {"part_number": "MJQ44", "brand": "APPLE", "model_name": "iPhone 17", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    # iPhone 17 Air
-    {"part_number": "MJQ54", "brand": "APPLE", "model_name": "iPhone 17 Air", "screen_size": 6.6, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    {"part_number": "MJQ64", "brand": "APPLE", "model_name": "iPhone 17 Air", "screen_size": 6.6, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
-    # iPhone 17 Pro
-    {"part_number": "MJQ74", "brand": "APPLE", "model_name": "iPhone 17 Pro", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
-    {"part_number": "MJQ84", "brand": "APPLE", "model_name": "iPhone 17 Pro", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
-    {"part_number": "MJQ94", "brand": "APPLE", "model_name": "iPhone 17 Pro", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
-    # iPhone 17 Pro Max
-    {"part_number": "MJQA4", "brand": "APPLE", "model_name": "iPhone 17 Pro Max", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
-    {"part_number": "MJQB4", "brand": "APPLE", "model_name": "iPhone 17 Pro Max", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
-    {"part_number": "MJQC4", "brand": "APPLE", "model_name": "iPhone 17 Pro Max", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
+    # iPhone 17
+    {"model_name": "iPhone 17", "brand": "APPLE", "screen_size": 6.3, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
+    {"model_name": "iPhone 17 Air", "brand": "APPLE", "screen_size": 6.6, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A19"},
+    {"model_name": "iPhone 17 Pro", "brand": "APPLE", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
+    {"model_name": "iPhone 17 Pro Max", "brand": "APPLE", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A19 Pro"},
 
-    # === Samsung Galaxy S25 ===
-    {"part_number": "SM-S931B", "brand": "Samsung", "model_name": "Galaxy S25", "screen_size": 6.2, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    {"part_number": "SM-S931B/DS", "brand": "Samsung", "model_name": "Galaxy S25", "screen_size": 6.2, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    # Galaxy S25+
-    {"part_number": "SM-S936B", "brand": "Samsung", "model_name": "Galaxy S25+", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    {"part_number": "SM-S936B/DS", "brand": "Samsung", "model_name": "Galaxy S25+", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    # Galaxy S25 Ultra
-    {"part_number": "SM-S938B", "brand": "Samsung", "model_name": "Galaxy S25 Ultra", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    {"part_number": "SM-S938B/DS", "brand": "Samsung", "model_name": "Galaxy S25 Ultra", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    # Galaxy S25 Edge
-    {"part_number": "SM-S937B", "brand": "Samsung", "model_name": "Galaxy S25 Edge", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    {"part_number": "SM-S937B/DS", "brand": "Samsung", "model_name": "Galaxy S25 Edge", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
-    # Galaxy S25 FE
-    {"part_number": "SM-S731B", "brand": "Samsung", "model_name": "Galaxy S25 FE", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Samsung", "cpu_model": "Exynos 2400"},
-    {"part_number": "SM-S731B/DS", "brand": "Samsung", "model_name": "Galaxy S25 FE", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Samsung", "cpu_model": "Exynos 2400"},
+    # iPhone 18
+    {"model_name": "iPhone 18", "brand": "APPLE", "screen_size": 6.1, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A20"},
+    {"model_name": "iPhone 18 Plus", "brand": "APPLE", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Apple", "cpu_model": "A20"},
+    {"model_name": "iPhone 18 Pro", "brand": "APPLE", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A20 Pro"},
+    {"model_name": "iPhone 18 Pro Max", "brand": "APPLE", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Apple", "cpu_model": "A20 Pro"},
 
-    # === Samsung Galaxy S26 ===
-    {"part_number": "SM-S942B", "brand": "Samsung", "model_name": "Galaxy S26", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
-    {"part_number": "SM-S942B/DS", "brand": "Samsung", "model_name": "Galaxy S26", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
-    # Galaxy S26+
-    {"part_number": "SM-S947B", "brand": "Samsung", "model_name": "Galaxy S26+", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
-    {"part_number": "SM-S947B/DS", "brand": "Samsung", "model_name": "Galaxy S26+", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
-    # Galaxy S26 Ultra
-    {"part_number": "SM-S948B", "brand": "Samsung", "model_name": "Galaxy S26 Ultra", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
-    {"part_number": "SM-S948B/DS", "brand": "Samsung", "model_name": "Galaxy S26 Ultra", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
+    # Samsung Galaxy S25
+    {"model_name": "Galaxy S25", "brand": "Samsung", "screen_size": 6.2, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
+    {"model_name": "Galaxy S25+", "brand": "Samsung", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
+    {"model_name": "Galaxy S25 Ultra", "brand": "Samsung", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
+    {"model_name": "Galaxy S25 Edge", "brand": "Samsung", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite"},
+    {"model_name": "Galaxy S25 FE", "brand": "Samsung", "screen_size": 6.7, "ram_gb": 8, "cpu_vendor": "Samsung", "cpu_model": "Exynos 2400"},
+
+    # Samsung Galaxy S26
+    {"model_name": "Galaxy S26", "brand": "Samsung", "screen_size": 6.3, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
+    {"model_name": "Galaxy S26+", "brand": "Samsung", "screen_size": 6.7, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
+    {"model_name": "Galaxy S26 Ultra", "brand": "Samsung", "screen_size": 6.9, "ram_gb": 12, "cpu_vendor": "Qualcomm", "cpu_model": "Snapdragon 8 Elite Gen 5"},
 ]
 
 
@@ -219,16 +160,16 @@ async def main():
             else:
                 print(f"  ⏭️ {eng} (уже есть)")
 
-        # Товары
-        print("\n📱 Товары (iPhone + Samsung):")
+        # Модели
+        print("\n📱 Модели:")
         for prod in PRODUCTS:
-            stmt = select(CzCardProduct).where(CzCardProduct.part_number == prod["part_number"])
+            stmt = select(CzCardProduct).where(CzCardProduct.model_name == prod["model_name"])
             result = await db.execute(stmt)
             if not result.scalar_one_or_none():
                 db.add(CzCardProduct(**prod))
-                print(f"  ✅ {prod['part_number']} — {prod['model_name']}")
+                print(f"  ✅ {prod['model_name']}")
             else:
-                print(f"  ⏭️ {prod['part_number']} (уже есть)")
+                print(f"  ⏭️ {prod['model_name']} (уже есть)")
 
         await db.commit()
 
