@@ -589,4 +589,63 @@ class ApiService {
       throw Exception('Ошибка удаления модели: $e');
     }
   }
+    // ============================================================
+  // СПРАВОЧНИК ЧЗ — ЦВЕТА
+  // ============================================================
+
+  Future<List<dynamic>> getCzColorMappings({String query = ''}) async {
+    try {
+      final response = await _dio.get(
+        '/cz/color-mappings',
+        queryParameters: {
+          if (query.trim().isNotEmpty) 'q': query.trim(),
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка загрузки цветов: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> createCzColorMapping({
+    required String eng,
+    required String czValue,
+  }) async {
+    try {
+      final response = await _dio.post('/cz/color-mappings', data: {
+        'eng': eng,
+        'cz_value': czValue,
+      });
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка создания цвета: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateCzColorMapping({
+    required int id,
+    String? eng,
+    String? czValue,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (eng != null) body['eng'] = eng;
+      if (czValue != null) body['cz_value'] = czValue;
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await _dio.put('/cz/color-mappings/$id', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка обновления цвета: $e');
+    }
+  }
+
+  Future<void> deleteCzColorMapping(int id) async {
+    try {
+      await _dio.delete('/cz/color-mappings/$id');
+    } catch (e) {
+      throw Exception('Ошибка удаления цвета: $e');
+    }
+  }
 }

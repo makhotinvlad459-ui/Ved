@@ -145,6 +145,12 @@ class HomeScreen extends StatelessWidget {
                         color: Colors.deepPurple,
                         route: '/cz-products',
                       ),
+                      _ServiceItem(
+                        icon: Icons.palette_outlined,
+                        title: 'Цвета ЧЗ',
+                        color: Colors.deepPurple,
+                        route: '/cz-colors',
+                      ),
                     ],
                   ),
 
