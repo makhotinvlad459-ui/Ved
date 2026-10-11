@@ -134,6 +134,7 @@ class ProcessingSessionResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class PendingModelBase(BaseModel):
     part_number: str
     model_number: Optional[str] = None
@@ -160,7 +161,8 @@ class PendingModelResponse(PendingModelBase):
 class PendingModelApprove(BaseModel):
     custom_name_ru: Optional[str] = None
     custom_category_id: Optional[int] = None
-    custom_color_id: Optional[int] = None        
+    custom_color_id: Optional[int] = None
+
 
 class PendingWeightBase(BaseModel):
     part_number: str
@@ -186,7 +188,8 @@ class PendingWeightResponse(PendingWeightBase):
 
 
 class PendingWeightApprove(BaseModel):
-    custom_weight: float    
+    custom_weight: float
+
 
 # ============================================================
 # ПОСТАВКИ (SHIPMENTS)
@@ -250,8 +253,8 @@ class ShipmentTaskResponse(ShipmentTaskBase):
         from_attributes = True
 
 
-# Обновляем forward references
-ShipmentResponse.model_rebuild()   
+ShipmentResponse.model_rebuild()
+
 
 # ============================================================
 # ЧЕСТНЫЙ ЗНАК (GTIN)
@@ -288,6 +291,7 @@ class GtinProductResponse(GtinProductBase):
     class Config:
         from_attributes = True
 
+
 class PendingGtinBase(BaseModel):
     gtin: str
     code_count: int
@@ -314,14 +318,17 @@ class PendingGtinApprove(BaseModel):
     model_number: str
     coo: str
     product_name: str
-    category_name: Optional[str] = None        
-
+    category_name: Optional[str] = None
 
 
 # ============================================================
 # ЧЕСТНЫЙ ЗНАК — КАРТОЧКИ ТОВАРОВ (K3)
 # ============================================================
+
+# === CzCardProduct ===
 class CzCardProductBase(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     model_name: str
     brand: str
     screen_size: Optional[float] = None
@@ -336,6 +343,8 @@ class CzCardProductCreate(CzCardProductBase):
 
 
 class CzCardProductUpdate(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
     model_name: Optional[str] = None
     brand: Optional[str] = None
     screen_size: Optional[float] = None
@@ -354,3 +363,106 @@ class CzCardProductResponse(CzCardProductBase):
 
     class Config:
         from_attributes = True
+
+
+# === CzColorMapping ===
+class CzColorMappingBase(BaseModel):
+    eng: str
+    cz_value: str
+
+
+class CzColorMappingCreate(CzColorMappingBase):
+    pass
+
+
+class CzColorMappingUpdate(BaseModel):
+    eng: Optional[str] = None
+    cz_value: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CzColorMappingResponse(CzColorMappingBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# === CzCategoryMapping ===
+class CzCategoryMappingBase(BaseModel):
+    name: str
+    k3: str
+    tnved: str
+    okpd2: str
+    vid_tovara: str
+    keywords: str
+
+
+class CzCategoryMappingCreate(CzCategoryMappingBase):
+    pass
+
+
+class CzCategoryMappingUpdate(BaseModel):
+    name: Optional[str] = None
+    k3: Optional[str] = None
+    tnved: Optional[str] = None
+    okpd2: Optional[str] = None
+    vid_tovara: Optional[str] = None
+    keywords: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CzCategoryMappingResponse(CzCategoryMappingBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# ЧЕСТНЫЙ ЗНАК — ПАРСИНГ ИНВОЙСА
+# ============================================================
+
+class CzParsedItem(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    num: Optional[int] = None
+    part_number: str
+    model_number: Optional[str] = None
+    description: str
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    qty: int = 0
+    coo: Optional[str] = None
+    upc: Optional[str] = None
+    gtin: str
+
+    screen_size: Optional[float] = None
+    ram_gb: Optional[int] = None
+    rom_gb: Optional[int] = None
+    cpu_vendor: Optional[str] = None
+    cpu_model: Optional[str] = None
+
+
+class CzParseResponse(BaseModel):
+    session_id: str
+    total: int
+    items: List[CzParsedItem]
+
+
+class CzGenerateRequest(BaseModel):
+    session_id: str
+    part_numbers: List[str]
+
+
+class CzGenerateResponse(BaseModel):
+    session_id: str
+    status: str
+    files: dict
+    zip_name: str
