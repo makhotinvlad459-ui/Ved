@@ -9,6 +9,7 @@ import 'screens/cz_upload_screen.dart';
 import 'screens/commercial_offer_screen.dart';
 import 'screens/cz_codes_screen.dart';
 import 'screens/products_screen.dart';
+import 'screens/cz_cards_screen.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -40,6 +41,7 @@ class MyApp extends StatelessWidget {
           '/commercial-offer': (context) => const CommercialOfferScreen(),
           '/cz-codes': (context) => const CzCodesScreen(),
           '/products': (context) => const ProductsScreen(),
+          '/cz-cards': (context) => const CzCardsScreen(),
         },
       ),
     );

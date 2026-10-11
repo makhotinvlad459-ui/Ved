@@ -454,4 +454,52 @@ class ApiService {
       throw Exception('Ошибка обновления категории: $e');
     }
   }
+
+    // ============================================================
+  // КАРТОЧКИ ЧЗ
+  // ============================================================
+
+  Future<Map<String, dynamic>> parseCzInvoice({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'invoice': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final response = await _dio.post('/cz/cards/parse-invoice', data: formData);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка парсинга: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> generateCzCards({
+    required String sessionId,
+    required List<String> partNumbers,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/cz/cards/generate',
+        data: {
+          'session_id': sessionId,
+          'part_numbers': partNumbers,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка генерации: $e');
+    }
+  }
+
+  Future<Response> downloadCzCards(String sessionId) async {
+    try {
+      return await _dio.get(
+        '/cz/cards/download/$sessionId',
+        options: Options(responseType: ResponseType.bytes),
+      );
+    } catch (e) {
+      throw Exception('Ошибка скачивания: $e');
+    }
+  }
 }

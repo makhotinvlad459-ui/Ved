@@ -16,7 +16,6 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ============ ЛОГОТИП ============
                   Row(
                     children: [
                       Container(
@@ -61,7 +60,6 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  // ============ ЗАГОЛОВОК ============
                   const Text(
                     'Выберите сервис',
                     style: TextStyle(
@@ -77,7 +75,6 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  // ============ ГРУППА: ОБРАБОТКА ДОКУМЕНТОВ ============
                   _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
                   const SizedBox(height: 12),
                   _ResponsiveGrid(
@@ -105,7 +102,6 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  // ============ ГРУППА: ЧЕСТНЫЙ ЗНАК ============
                   _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
                   const SizedBox(height: 12),
                   _ResponsiveGrid(
@@ -122,12 +118,17 @@ class HomeScreen extends StatelessWidget {
                         color: Colors.indigo,
                         route: '/cz-codes',
                       ),
+                      _ServiceItem(
+                        icon: Icons.credit_card_outlined,
+                        title: 'Карточки ЧЗ',
+                        color: Colors.deepPurple,
+                        route: '/cz-cards',
+                      ),
                     ],
                   ),
 
                   const SizedBox(height: 32),
 
-                  // ============ ГРУППА: СПРАВОЧНИКИ ============
                   _GroupLabel(label: 'СПРАВОЧНИКИ'),
                   const SizedBox(height: 12),
                   _ResponsiveGrid(
@@ -152,9 +153,6 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-// ============================================================
-// МОДЕЛЬ СЕРВИСА
-// ============================================================
 class _ServiceItem {
   final IconData icon;
   final String title;
@@ -169,9 +167,6 @@ class _ServiceItem {
   });
 }
 
-// ============================================================
-// МЕТКА ГРУППЫ
-// ============================================================
 class _GroupLabel extends StatelessWidget {
   final String label;
 
@@ -204,9 +199,6 @@ class _GroupLabel extends StatelessWidget {
   }
 }
 
-// ============================================================
-// АДАПТИВНАЯ СЕТКА
-// ============================================================
 class _ResponsiveGrid extends StatelessWidget {
   final List<_ServiceItem> items;
 
@@ -226,7 +218,6 @@ class _ResponsiveGrid extends StatelessWidget {
           columns = 3;
         }
 
-        // Если элементов меньше, чем колонок — уменьшаем колонки
         final effectiveColumns = items.length < columns ? items.length : columns;
 
         const spacing = 12.0;
@@ -248,9 +239,6 @@ class _ResponsiveGrid extends StatelessWidget {
   }
 }
 
-// ============================================================
-// КОМПАКТНАЯ КАРТОЧКА
-// ============================================================
 class _CompactCard extends StatelessWidget {
   final _ServiceItem item;
 
