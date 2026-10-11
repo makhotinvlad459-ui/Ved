@@ -1,7 +1,10 @@
 # backend/app/api/v1/cz.py
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 from typing import List, Optional
 import os
 import uuid
@@ -17,6 +20,7 @@ from app.schemas import (
     CzColorMappingCreate, CzColorMappingUpdate, CzColorMappingResponse,
     CzCategoryMappingCreate, CzCategoryMappingUpdate, CzCategoryMappingResponse,
     CzParseResponse, CzParsedItem,
+    CzGenerateRequest, CzGenerateResponse,
 )
 
 router = APIRouter(prefix="/cz", tags=["Chestny Znak — Card Data"])
@@ -26,7 +30,7 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
 # ============================================================
-# CZ CARD PRODUCTS (товары)
+# CZ CARD PRODUCTS
 # ============================================================
 
 @router.get("/card-products", response_model=List[CzCardProductResponse])
@@ -38,10 +42,8 @@ async def get_card_products(
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(CzCardProduct)
-
     if not include_inactive:
         stmt = stmt.where(CzCardProduct.is_active == True)
-
     if q:
         q = q.strip()
         if q:
@@ -53,14 +55,11 @@ async def get_card_products(
                     CzCardProduct.brand.ilike(pattern),
                 )
             )
-
     stmt = stmt.order_by(
         CzCardProduct.brand,
         CzCardProduct.model_name,
         CzCardProduct.part_number,
-    )
-    stmt = stmt.offset(skip).limit(limit)
-
+    ).offset(skip).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -139,7 +138,7 @@ async def delete_card_product(product_id: int, db: AsyncSession = Depends(get_db
 
 
 # ============================================================
-# CZ COLOR MAPPINGS (цвета)
+# CZ COLOR MAPPINGS
 # ============================================================
 
 @router.get("/color-mappings", response_model=List[CzColorMappingResponse])
@@ -149,10 +148,8 @@ async def get_color_mappings(
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(CzColorMapping)
-
     if not include_inactive:
         stmt = stmt.where(CzColorMapping.is_active == True)
-
     if q:
         q = q.strip()
         if q:
@@ -163,7 +160,6 @@ async def get_color_mappings(
                     CzColorMapping.cz_value.ilike(pattern),
                 )
             )
-
     stmt = stmt.order_by(CzColorMapping.eng)
     result = await db.execute(stmt)
     return result.scalars().all()
@@ -199,7 +195,6 @@ async def update_color_mapping(
         raise HTTPException(status_code=404, detail="Цвет не найден")
 
     update_data = data.dict(exclude_unset=True)
-
     if "eng" in update_data and update_data["eng"] != color.eng:
         stmt = select(CzColorMapping).where(CzColorMapping.eng == update_data["eng"])
         result = await db.execute(stmt)
@@ -221,14 +216,13 @@ async def delete_color_mapping(color_id: int, db: AsyncSession = Depends(get_db)
     color = result.scalar_one_or_none()
     if not color:
         raise HTTPException(status_code=404, detail="Цвет не найден")
-
     color.is_active = False
     await db.commit()
     return {"message": "Цвет удалён"}
 
 
 # ============================================================
-# CZ CATEGORY MAPPINGS (категории)
+# CZ CATEGORY MAPPINGS
 # ============================================================
 
 @router.get("/category-mappings", response_model=List[CzCategoryMappingResponse])
@@ -274,7 +268,6 @@ async def update_category_mapping(
         raise HTTPException(status_code=404, detail="Категория не найдена")
 
     update_data = data.dict(exclude_unset=True)
-
     if "name" in update_data and update_data["name"] != cat.name:
         stmt = select(CzCategoryMapping).where(CzCategoryMapping.name == update_data["name"])
         result = await db.execute(stmt)
@@ -296,7 +289,6 @@ async def delete_category_mapping(cat_id: int, db: AsyncSession = Depends(get_db
     cat = result.scalar_one_or_none()
     if not cat:
         raise HTTPException(status_code=404, detail="Категория не найдена")
-
     cat.is_active = False
     await db.commit()
     return {"message": "Категория удалена"}
@@ -311,10 +303,6 @@ async def parse_cz_invoice(
     invoice: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Принимает инвойс, парсит позиции, сохраняет файл.
-    Возвращает session_id + список позиций.
-    """
     from app.services.cz_invoice_parser import parse_invoice_for_cz
 
     session_id = str(uuid.uuid4())
@@ -342,3 +330,87 @@ async def parse_cz_invoice(
         "total": len(items),
         "items": [CzParsedItem(**it) for it in items],
     }
+
+
+# ============================================================
+# ГЕНЕРАЦИЯ K3-ФАЙЛОВ
+# ============================================================
+
+@router.post("/cards/generate", response_model=CzGenerateResponse)
+async def generate_cz_cards(
+    data: CzGenerateRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.cz_invoice_parser import parse_invoice_for_cz
+    from app.services.cz_card_generator import generate_cz_cards_zip
+
+    stmt = select(ProcessingSession).where(
+        ProcessingSession.session_id == data.session_id
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    if not session.invoice_file or not os.path.exists(session.invoice_file):
+        raise HTTPException(status_code=404, detail="Файл инвойса не найден")
+
+    try:
+        parsed_items = parse_invoice_for_cz(session.invoice_file)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка парсинга: {e}")
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    sync_engine = create_engine(DATABASE_URL)
+    SyncSession = sync_sessionmaker(bind=sync_engine)
+
+    try:
+        with SyncSession() as sync_db:
+            zip_path, files_info = generate_cz_cards_zip(
+                session_id=data.session_id,
+                parsed_items=parsed_items,
+                selected_part_numbers=data.part_numbers,
+                db=sync_db,
+            )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Ошибка генерации: {e}")
+    finally:
+        sync_engine.dispose()
+
+    session.status = "completed"
+    session.result_file = zip_path
+    await db.commit()
+
+    return {
+        "session_id": data.session_id,
+        "status": "completed",
+        "files": files_info,
+        "zip_name": os.path.basename(zip_path),
+    }
+
+
+@router.get("/cards/download/{session_id}")
+async def download_cz_cards(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(ProcessingSession).where(
+        ProcessingSession.session_id == session_id
+    )
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Сессия не найдена")
+
+    if not session.result_file or not os.path.exists(session.result_file):
+        raise HTTPException(status_code=404, detail="Файл результата не найден")
+
+    filename = os.path.basename(session.result_file)
+
+    return FileResponse(
+        path=session.result_file,
+        filename=filename,
+        media_type="application/zip",
+    )

@@ -452,3 +452,9 @@ class CzParseResponse(BaseModel):
 class CzGenerateRequest(BaseModel):
     session_id: str
     part_numbers: List[str]
+
+class CzGenerateResponse(BaseModel):
+    session_id: str
+    status: str
+    files: dict
+    zip_name: str
