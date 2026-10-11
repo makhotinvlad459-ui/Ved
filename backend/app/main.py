@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1 import (
     upload, models, categories, colors, packing_list,
-    chestny_znak, commercial_offer, cz_codes,
+    chestny_znak, commercial_offer, cz_codes, cz,
 )
 
 from app.database import get_db
@@ -34,6 +34,7 @@ app.include_router(packing_list.router, prefix="/api/v1")
 app.include_router(chestny_znak.router, prefix="/api/v1")
 app.include_router(commercial_offer.router, prefix="/api/v1")
 app.include_router(cz_codes.router, prefix="/api/v1")
+app.include_router(cz.router, prefix="/api/v1")
 
 
 @app.get("/")

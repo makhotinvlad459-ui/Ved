@@ -315,3 +315,140 @@ class PendingGtinApprove(BaseModel):
     coo: str
     product_name: str
     category_name: Optional[str] = None        
+
+
+
+# ============================================================
+# ЧЕСТНЫЙ ЗНАК — КАРТОЧКИ ТОВАРОВ (K3)
+# ============================================================
+
+# === CzCardProduct ===
+class CzCardProductBase(BaseModel):
+    part_number: str
+    brand: str
+    model_name: str
+    screen_size: Optional[float] = None
+    ram_gb: Optional[int] = None
+    cpu_vendor: Optional[str] = None
+    cpu_model: Optional[str] = None
+    is_estimated: bool = False
+
+
+class CzCardProductCreate(CzCardProductBase):
+    pass
+
+
+class CzCardProductUpdate(BaseModel):
+    part_number: Optional[str] = None
+    brand: Optional[str] = None
+    model_name: Optional[str] = None
+    screen_size: Optional[float] = None
+    ram_gb: Optional[int] = None
+    cpu_vendor: Optional[str] = None
+    cpu_model: Optional[str] = None
+    is_estimated: Optional[bool] = None
+    is_active: Optional[bool] = None
+
+
+class CzCardProductResponse(CzCardProductBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# === CzColorMapping ===
+class CzColorMappingBase(BaseModel):
+    eng: str
+    cz_value: str
+
+
+class CzColorMappingCreate(CzColorMappingBase):
+    pass
+
+
+class CzColorMappingUpdate(BaseModel):
+    eng: Optional[str] = None
+    cz_value: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CzColorMappingResponse(CzColorMappingBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# === CzCategoryMapping ===
+class CzCategoryMappingBase(BaseModel):
+    name: str
+    k3: str
+    tnved: str
+    okpd2: str
+    vid_tovara: str
+    keywords: str
+
+
+class CzCategoryMappingCreate(CzCategoryMappingBase):
+    pass
+
+
+class CzCategoryMappingUpdate(BaseModel):
+    name: Optional[str] = None
+    k3: Optional[str] = None
+    tnved: Optional[str] = None
+    okpd2: Optional[str] = None
+    vid_tovara: Optional[str] = None
+    keywords: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class CzCategoryMappingResponse(CzCategoryMappingBase):
+    id: int
+    is_active: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+# ============================================================
+# ЧЕСТНЫЙ ЗНАК — ПАРСИНГ ИНВОЙСА
+# ============================================================
+
+class CzParsedItem(BaseModel):
+    num: Optional[int] = None
+    part_number: str
+    model_number: Optional[str] = None
+    description: str
+    brand: Optional[str] = None
+    category: Optional[str] = None
+    qty: int = 0
+    coo: Optional[str] = None
+    upc: Optional[str] = None
+    gtin: str
+
+    screen_size: Optional[float] = None
+    ram_gb: Optional[int] = None
+    rom_gb: Optional[int] = None
+    cpu_vendor: Optional[str] = None
+    cpu_model: Optional[str] = None
+
+
+class CzParseResponse(BaseModel):
+    session_id: str
+    total: int
+    items: List[CzParsedItem]
+
+
+class CzGenerateRequest(BaseModel):
+    session_id: str
+    part_numbers: List[str]
