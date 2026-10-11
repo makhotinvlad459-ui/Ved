@@ -502,4 +502,91 @@ class ApiService {
       throw Exception('Ошибка скачивания: $e');
     }
   }
+
+    // ============================================================
+  // СПРАВОЧНИК ЧЗ — МОДЕЛИ
+  // ============================================================
+
+  Future<List<dynamic>> getCzCardProducts({String query = ''}) async {
+    try {
+      final response = await _dio.get(
+        '/cz/card-products',
+        queryParameters: {
+          if (query.trim().isNotEmpty) 'q': query.trim(),
+          'limit': 500,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка загрузки моделей: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getCzCardProduct(int id) async {
+    try {
+      final response = await _dio.get('/cz/card-products/$id');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка загрузки модели: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> createCzCardProduct({
+    required String modelName,
+    required String brand,
+    double? screenSize,
+    int? ramGb,
+    String? cpuVendor,
+    String? cpuModel,
+  }) async {
+    try {
+      final response = await _dio.post('/cz/card-products', data: {
+        'model_name': modelName,
+        'brand': brand,
+        'screen_size': screenSize,
+        'ram_gb': ramGb,
+        'cpu_vendor': cpuVendor,
+        'cpu_model': cpuModel,
+        'is_estimated': false,
+      });
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка создания модели: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateCzCardProduct({
+    required int id,
+    String? modelName,
+    String? brand,
+    double? screenSize,
+    int? ramGb,
+    String? cpuVendor,
+    String? cpuModel,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (modelName != null) body['model_name'] = modelName;
+      if (brand != null) body['brand'] = brand;
+      body['screen_size'] = screenSize;
+      body['ram_gb'] = ramGb;
+      body['cpu_vendor'] = cpuVendor;
+      body['cpu_model'] = cpuModel;
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await _dio.put('/cz/card-products/$id', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка обновления модели: $e');
+    }
+  }
+
+  Future<void> deleteCzCardProduct(int id) async {
+    try {
+      await _dio.delete('/cz/card-products/$id');
+    } catch (e) {
+      throw Exception('Ошибка удаления модели: $e');
+    }
+  }
 }

@@ -139,6 +139,12 @@ class HomeScreen extends StatelessWidget {
                         color: Colors.blueGrey,
                         route: '/products',
                       ),
+                      _ServiceItem(
+                        icon: Icons.phone_iphone,
+                        title: 'Модели ЧЗ',
+                        color: Colors.deepPurple,
+                        route: '/cz-products',
+                      ),
                     ],
                   ),
 

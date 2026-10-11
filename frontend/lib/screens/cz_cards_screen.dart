@@ -74,10 +74,7 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
         _items = result['items'] ?? [];
         _showItems = true;
         _isLoading = false;
-        // По умолчанию все выбраны
-        _selectedParts.addAll(
-          _items.map((it) => it['part_number'] as String).toSet().cast<String>(),
-        );
+        // По умолчанию НИЧЕГО не выбрано
       });
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -138,14 +135,17 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
     }
   }
 
-  void _toggleAll(bool value) {
+  void _toggleAll() {
     setState(() {
-      if (value) {
-        _selectedParts.addAll(
-          _items.map((it) => it['part_number'] as String).toSet().cast<String>(),
-        );
+      final allParts = _items
+          .map((it) => it['part_number'] as String)
+          .toSet()
+          .cast<String>();
+      if (_selectedParts.length == allParts.length && allParts.isNotEmpty) {
+        _selectedParts.clear();
       } else {
         _selectedParts.clear();
+        _selectedParts.addAll(allParts);
       }
     });
   }
@@ -293,7 +293,9 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
   }
 
   Widget _buildItemsList() {
-    final allSelected = _selectedParts.length == _items.length && _items.isNotEmpty;
+    final allParts = _items.map((it) => it['part_number'] as String).toSet();
+    final allSelected =
+        allParts.isNotEmpty && _selectedParts.length == allParts.length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -318,7 +320,7 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
           children: [
             Checkbox(
               value: allSelected,
-              onChanged: (v) => _toggleAll(v ?? false),
+              onChanged: (_) => _toggleAll(),
             ),
             const Text('Выбрать все'),
             const Spacer(),
