@@ -471,7 +471,7 @@ class _CzCardsResultScreenState extends State<CzCardsResultScreen> {
       final anchor = html.AnchorElement(href: url)
         ..setAttribute('download', 'cz_cards_${widget.sessionId.substring(0, 8)}.zip')
         ..click();
-      html.Url.revokeObjectURL(url);
+      html.Url.revokeObjectUrl(url);
 
       if (!mounted) return;
       setState(() => _isDownloading = false);
