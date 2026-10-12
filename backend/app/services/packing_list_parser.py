@@ -1,23 +1,67 @@
 # backend/app/services/packing_list_parser.py
 import openpyxl
+import re
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
-import re
 
 
-# Максимальный коэффициент подъёма веса при недоборе
 MAX_RAISE_FACTOR = 2.0
-
-# Жёсткий лимит GROSS/NET по каждой позиции
 MAX_GROSS_RATIO = 1.19
 
 
+def extract_model_from_description(description: str) -> Optional[str]:
+    """Извлекает название модели из описания (для fallback-поиска веса)."""
+    if not description:
+        return None
+    d = description
+
+    # iPhone (Pro Max → Pro → Plus → Air → Mini → e → без суффикса)
+    m = re.search(
+        r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|e))?',
+        d, re.IGNORECASE
+    )
+    if m:
+        return m.group(0).strip()
+
+    # Samsung Galaxy (S26 Ultra, S26+, A55 и т.д.)
+    m = re.search(
+        r'Galaxy\s+[A-Z]\d+(?:\s+(?:Ultra|Plus))?(?:\+)?',
+        d
+    )
+    if m:
+        return m.group(0).strip()
+
+    # MacBook Pro/Air/Neo + размер
+    m = re.search(
+        r'MacBook\s+(?:Pro|Air|Neo)(?:\s+\d+(?:\.\d+)?["\u201d\u2033]?)?',
+        d
+    )
+    if m:
+        return m.group(0).strip()
+
+    # iPad Pro/Air/Mini + размер
+    m = re.search(
+        r'iPad\s+(?:Pro|Air|Mini)?(?:\s+\d+(?:\.\d+)?["\u201d\u2033]?)?',
+        d
+    )
+    if m:
+        return m.group(0).strip()
+
+    # Apple Watch
+    m = re.search(r'Apple Watch\s+(?:Series|SE|Ultra)\s+\d+', d)
+    if m:
+        return m.group(0).strip()
+
+    # AirPods
+    m = re.search(r'AirPods(?:\s+Pro)?(?:\s+\(\d[^)]*\))?', d)
+    if m:
+        return m.group(0).strip()
+
+    return None
+
+
 def extract_part_number(description: str) -> Optional[str]:
-    """
-    Извлекает артикул из описания и нормализует: strip + upper.
-    Это критично: без нормализации 'MKFC4FE/A ' и 'mkfc4fe/a' считаются
-    разными артикулами, и shared-логика ломается.
-    """
+    """Извлекает артикул из описания с нормализацией: strip + upper."""
     if description is None:
         return None
 
@@ -30,7 +74,7 @@ def extract_part_number(description: str) -> Optional[str]:
     matches = re.findall(r'\(([^()]+)\)', s)
     if matches:
         candidate = matches[-1].strip()
-        if not re.fullmatch(r'[A-Za-z0-9\-/.]+', candidate):
+        if not re.fullmatch(r'[A-Za-z0-9\-/. ]+', candidate):
             candidate = None
 
     if candidate is None:
@@ -50,10 +94,7 @@ def extract_part_number(description: str) -> Optional[str]:
 
 
 def parse_packing_list(file_path: str) -> Dict[str, Any]:
-    """
-    Парсинг файла Packing List с группировкой по group_id.
-    Веса НЕ читаются (в исходном файле их нет) — только part_number, qty, group.
-    """
+    """Парсинг файла Packing List с группировкой по group_id."""
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
 
@@ -185,9 +226,7 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
 
 
 def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Optional[str]]:
-    """
-    Ищет продукт по part_number с нормализацией (upper + strip).
-    """
+    """Ищет продукт по part_number с нормализацией."""
     from app.models import Product
     from sqlalchemy import func
 
@@ -213,16 +252,79 @@ def get_product_by_part_number(db, part_number: str) -> Tuple[Optional[Any], Opt
     return None, None
 
 
+def resolve_weight_extended(db, part_number=None, model_number=None, description=None):
+    """
+    Расширенный поиск веса:
+    1. Product.weight по part_number
+    2. Sibling по model_number
+    3. PendingWeight по part_number
+    4. PendingWeight по model_number
+    5. По имени модели из описания (новая логика)
+    """
+    from app.models import Product, PendingWeight
+
+    product = None
+    if part_number:
+        product = db.query(Product).filter(Product.part_number == part_number).first()
+
+    # 1. По part_number
+    if product and product.weight:
+        return float(product.weight), "product", product
+
+    effective_model = (product.model_number if product and product.model_number else None) or model_number
+
+    # 2. Sibling по model_number
+    if effective_model:
+        sibling = db.query(Product).filter(
+            Product.model_number == effective_model,
+            Product.weight.isnot(None),
+            Product.weight > 0,
+        ).first()
+        if sibling:
+            return float(sibling.weight), f"model:{effective_model}", product
+
+    # 3. PendingWeight по part_number
+    if part_number:
+        pw = db.query(PendingWeight).filter(
+            PendingWeight.part_number == part_number,
+            PendingWeight.status == "approved",
+            PendingWeight.custom_weight.isnot(None),
+        ).order_by(PendingWeight.updated_at.desc()).first()
+        if pw:
+            return float(pw.custom_weight), "pending_part", product
+
+    # 4. PendingWeight по model_number
+    if effective_model:
+        pw = db.query(PendingWeight).filter(
+            PendingWeight.model_number == effective_model,
+            PendingWeight.status == "approved",
+            PendingWeight.custom_weight.isnot(None),
+        ).order_by(PendingWeight.updated_at.desc()).first()
+        if pw:
+            return float(pw.custom_weight), "pending_model", product
+
+    # 5. НОВОЕ: по имени модели из описания
+    if description:
+        model_name = extract_model_from_description(description)
+        if model_name:
+            pattern = f"%{model_name}%"
+            sibling = db.query(Product).filter(
+                Product.description.ilike(pattern),
+                Product.weight.isnot(None),
+                Product.weight > 0,
+            ).first()
+            if sibling:
+                return float(sibling.weight), f"model_name:{model_name}", sibling
+
+    return None, None, product
+
+
 def _distribute_proportional_with_cap(
     items: List[Dict],
     target_total_gross: float,
     max_ratio: float = MAX_GROSS_RATIO,
 ) -> None:
-    """
-    Распределяет target_total_gross между items пропорционально NET,
-    с ограничением gross ≤ net × max_ratio для каждого.
-    Модифицирует items in-place.
-    """
+    """Распределяет target_total_gross между items пропорционально NET с cap."""
     total_net = sum((it.get("net", 0) or 0) for it in items)
     if total_net <= 0:
         return
@@ -314,10 +416,6 @@ def _finalize_item(item: Dict) -> None:
 
 
 def _compute_free_space(items: List[Dict], target: float, max_ratio: float) -> float:
-    """
-    Сколько ещё NET можно накинуть в паллете, чтобы Σ GROSS ≤ target
-    при cap max_ratio. Если < 0 — перебор.
-    """
     sum_net = sum((it.get("net", 0) or 0) for it in items)
     max_gross = sum_net * max_ratio
     return target - max_gross
@@ -330,26 +428,7 @@ def distribute_gross_across_pallets(
     max_ratio: float = MAX_GROSS_RATIO,
     max_raise_factor: float = MAX_RAISE_FACTOR,
 ) -> Dict[str, List[Dict]]:
-    """
-    Гибридное распределение GROSS по паллетам.
-
-    Веса берутся ТОЛЬКО из part_weights (из БД).
-
-    Алгоритм:
-      1. Считаем базовые NET по каждой паллете (weight × qty).
-      2. Этап 1 — глобальный подъём shared-артикулов:
-         shared можно поднять, только если во ВСЕХ паллетах, где он есть,
-         хватает свободного места (Σ GROSS ≤ target при подъёме).
-      3. Этап 2 — локальный подъём уникальных артикулов:
-         если после Этапа 1 в паллете всё ещё недобор — поднимаем
-         weight_per_item у уникальных (только этой паллеты).
-      4. Этап 3 — распределение GROSS через _distribute_proportional_with_cap.
-      5. Финальные проверки: Σ GROSS == target, GROSS ≤ NET × max_ratio,
-         weight shared одинаков во всех паллетах.
-    """
-    # ============================================================
-    # ПРОХОД 1: базовая структура + резолв веса из part_weights
-    # ============================================================
+    """Гибридное распределение GROSS по паллетам."""
     print(f"   📊 Паллет: {len(pallet_groups)}")
     print(f"   📦 Артикулов с весом в БД: {len(part_weights)}")
 
@@ -387,9 +466,6 @@ def distribute_gross_across_pallets(
     print(f"   🔗 Shared-артикулов: {len(shared_parts)}")
     print(f"   🎯 Уникальных: {len(unique_parts)}")
 
-    # ============================================================
-    # ПРОХОД 2: Этап 1 — глобальный подъём shared
-    # ============================================================
     for group_id, items in pallet_groups.items():
         target = pallet_weights.get(group_id, 0) or 0
         sum_net = sum((it.get("net", 0) or 0) for it in items)
@@ -400,7 +476,6 @@ def distribute_gross_across_pallets(
         )
 
     def recompute_all():
-        """Пересчитывает NET и свободное место для всех паллет."""
         for gid, its in pallet_groups.items():
             for it in its:
                 part = it.get("part_number")
@@ -415,27 +490,22 @@ def distribute_gross_across_pallets(
         iteration += 1
         progress = False
 
-        # Пересчёт free_space по всем паллетам
         free_spaces: Dict[str, float] = {}
         for gid, its in pallet_groups.items():
             target = pallet_weights.get(gid, 0) or 0
             free_spaces[gid] = _compute_free_space(its, target, max_ratio)
 
-        # Паллеты с недобором
         need_groups = {gid for gid, f in free_spaces.items() if f > 0.01}
 
         if not need_groups:
             break
 
-        # Ищем shared, которые можно поднять
         for part in sorted(shared_parts):
             groups_with_part = part_to_groups[part]
 
-            # Проверяем, есть ли смысл — паллета с этим part в need_groups
             if not any(g in need_groups for g in groups_with_part):
                 continue
 
-            # Проверяем, что во ВСЕХ паллетах, где есть part, есть запас
             all_have_room = True
             min_factor = float("inf")
 
@@ -445,8 +515,6 @@ def distribute_gross_across_pallets(
                     all_have_room = False
                     break
 
-                # Насколько можно поднять вес part в этой паллете:
-                # qty * (w_new - w_old) * max_ratio ≤ free
                 qty_in_group = sum(
                     it.get("qty", 0) or 0
                     for it in pallet_groups[gid]
@@ -470,7 +538,6 @@ def distribute_gross_across_pallets(
             if min_factor <= 1.0001:
                 continue
 
-            # Ограничение сверху
             if min_factor > max_raise_factor:
                 min_factor = max_raise_factor
 
@@ -485,7 +552,7 @@ def distribute_gross_across_pallets(
                 f"   ⬆️ shared {part}: {w_old:.4f} → {w_new:.4f} "
                 f"(x{min_factor:.4f})"
             )
-            break  # пересчитали — выходим из for, заново оценим free_space
+            break
 
         if not progress:
             break
@@ -494,9 +561,6 @@ def distribute_gross_across_pallets(
             print("   ⚠️ Достигнут лимит итераций подъёма shared")
             break
 
-    # ============================================================
-    # ПРОХОД 3: Этап 2 — локальный подъём уникальных
-    # ============================================================
     for group_id, items in pallet_groups.items():
         target = pallet_weights.get(group_id, 0) or 0
         free = _compute_free_space(items, target, max_ratio)
@@ -508,7 +572,6 @@ def distribute_gross_across_pallets(
             if it.get("part_number") in unique_parts
         ]
         if not uniques_in_group:
-            # Нет уникальных — все shared, но места не хватило
             sum_net = sum((it.get("net", 0) or 0) for it in items)
             raise Exception(
                 f"Паллета {group_id}: нет уникальных артикулов, "
@@ -525,9 +588,6 @@ def distribute_gross_across_pallets(
                 f"но нужно добрать {free:.2f} кг"
             )
 
-        # Нужный фактор: чтобы Σ GROSS всех items = target
-        # Σ GROSS = (sum_net_uniq_new + sum_net_shared) * ... — проще:
-        # поднимаем NET уникальных так, чтобы суммарный NET * max_ratio >= target
         sum_net_all = sum((it.get("net", 0) or 0) for it in items)
         target_net_all = target / max_ratio
         needed_extra_net = target_net_all - sum_net_all
@@ -535,7 +595,6 @@ def distribute_gross_across_pallets(
         if needed_extra_net <= 0.01:
             continue
 
-        # Проверяем порог
         factor = (sum_net_uniq + needed_extra_net) / sum_net_uniq
 
         if factor > max_raise_factor:
@@ -557,9 +616,6 @@ def distribute_gross_across_pallets(
             f"(добрали {needed_extra_net:.2f} кг NET)"
         )
 
-    # ============================================================
-    # ПРОХОД 4: Этап 3 — распределение GROSS через cap
-    # ============================================================
     result_groups: Dict[str, List[Dict]] = {}
 
     for group_id, items in pallet_groups.items():
@@ -588,9 +644,6 @@ def distribute_gross_across_pallets(
 
         result_groups[group_id] = items
 
-    # ============================================================
-    # ПРОХОД 5: финальные проверки
-    # ============================================================
     print(f"   ✅ Распределение завершено")
     _verify_result(result_groups, pallet_weights, max_ratio)
 
@@ -602,12 +655,6 @@ def _verify_result(
     pallet_weights: Dict[str, float],
     max_ratio: float,
 ) -> None:
-    """
-    Проверки:
-      - Σ GROSS == target (по паллете)
-      - GROSS ≤ NET × max_ratio (по каждой позиции)
-      - weight_per_item shared одинаков во всех паллетах
-    """
     shared_weights: Dict[str, List[Tuple[str, float]]] = {}
 
     for gid, items in result_groups.items():
@@ -644,7 +691,7 @@ def _verify_result(
 
 
 def redistribute_gross(items: List[Dict], pallet_weight: float) -> List[Dict]:
-    """Устаревшая функция — оставлена для совместимости."""
+    """Устаревшая функция."""
     if not items or pallet_weight <= 0:
         return items
 

@@ -11,55 +11,17 @@ from app.services.parser import parse_invoice, parse_manifest
 from app.services.transformer import transform_product_name, clean_serial
 from app.services.generator import generate_specification
 from app.services.model_detector import save_pending_models, get_pending_models_by_session
+from app.services.packing_list_parser import resolve_weight_extended
 
 
-def resolve_weight(db, part_number=None, model_number=None):
-    """
-    Единая точка поиска веса.
-    1. Product.weight по part_number
-    2. Вес 'сестринского' Product с тем же model_number
-    3. История PendingWeight(approved) по part_number
-    4. История PendingWeight(approved) по model_number
-    """
-    from app.models import Product, PendingWeight
-
-    product = None
-    if part_number:
-        product = db.query(Product).filter(Product.part_number == part_number).first()
-
-    if product and product.weight:
-        return float(product.weight), "product", product
-
-    effective_model = (product.model_number if product and product.model_number else None) or model_number
-
-    if effective_model:
-        sibling = db.query(Product).filter(
-            Product.model_number == effective_model,
-            Product.weight.isnot(None),
-            Product.weight > 0,
-        ).first()
-        if sibling:
-            return float(sibling.weight), f"model:{effective_model}", product
-
-    if part_number:
-        pw = db.query(PendingWeight).filter(
-            PendingWeight.part_number == part_number,
-            PendingWeight.status == "approved",
-            PendingWeight.custom_weight.isnot(None),
-        ).order_by(PendingWeight.updated_at.desc()).first()
-        if pw:
-            return float(pw.custom_weight), "pending_part", product
-
-    if effective_model:
-        pw = db.query(PendingWeight).filter(
-            PendingWeight.model_number == effective_model,
-            PendingWeight.status == "approved",
-            PendingWeight.custom_weight.isnot(None),
-        ).order_by(PendingWeight.updated_at.desc()).first()
-        if pw:
-            return float(pw.custom_weight), "pending_model", product
-
-    return None, None, product
+def resolve_weight(db, part_number=None, model_number=None, description=None):
+    """Обратная совместимость — вызывает расширенную версию."""
+    return resolve_weight_extended(
+        db,
+        part_number=part_number,
+        model_number=model_number,
+        description=description,
+    )
 
 
 @celery_app.task(name="process_invoice")
@@ -324,13 +286,6 @@ def cleanup_old_files():
 
 @celery_app.task(name="process_packing_list")
 def process_packing_list(session_id: str):
-    """
-    Обработка Packing List.
-
-    Веса берутся ТОЛЬКО из БД (Product.weight или PendingWeight).
-    Если у какого-то part_number нет веса — сессия стопается,
-    пользователь вводит вес вручную через pending_weights.
-    """
     print(f"🔄 Начинаем обработку Packing List {session_id}")
 
     DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:apple_samsung_2024@postgres:5432/ved")
@@ -359,7 +314,6 @@ def process_packing_list(session_id: str):
             items = data.get("items", [])
             print(f"   Найдено позиций: {len(items)}")
 
-            # Группируем по group_id (паллета или коробка-как-единица)
             pallet_groups: Dict[str, List] = {}
             for item in items:
                 group_id = (
@@ -373,9 +327,6 @@ def process_packing_list(session_id: str):
 
             print(f"   Найдено групп (паллет/коробок): {len(pallet_groups)}")
 
-            # ============================================================
-            # Собираем веса ВСЕХ артикулов из БД
-            # ============================================================
             all_part_numbers = set()
             for item in items:
                 pn = item.get("part_number")
@@ -384,13 +335,22 @@ def process_packing_list(session_id: str):
 
             part_weights: Dict[str, float] = {}
             missing_parts: List[str] = []
+            missing_info: Dict[str, Dict] = {}
 
             for pn in sorted(all_part_numbers):
                 product, model_number = get_product_by_part_number(db, pn)
-                known_weight, source, _ = resolve_weight(
+
+                description = None
+                for item in items:
+                    if item.get("part_number") == pn:
+                        description = item.get("description_raw")
+                        break
+
+                known_weight, source, _ = resolve_weight_extended(
                     db,
                     part_number=pn,
                     model_number=(product.model_number if product else None),
+                    description=description,
                 )
 
                 if known_weight and known_weight > 0:
@@ -398,18 +358,18 @@ def process_packing_list(session_id: str):
                     print(f"   ✓ {pn}: {known_weight:.4f} ← {source}")
                 else:
                     missing_parts.append(pn)
+                    missing_info[pn] = {
+                        "model_number": product.model_number if product else model_number,
+                        "description": description,
+                    }
                     print(f"   ✗ {pn}: вес не найден в БД")
 
-            # ============================================================
-            # Если есть артикулы без веса — стопаемся, создаём pending_weights
-            # ============================================================
             if missing_parts:
                 print(f"   ⚠️ Артикулов без веса: {len(missing_parts)}")
 
                 for pn in missing_parts:
                     product, model_number = get_product_by_part_number(db, pn)
 
-                    # Собираем суммарное qty и pallet/box по этому артикулу
                     total_qty = 0
                     first_pallet = None
                     first_box = None
@@ -445,9 +405,6 @@ def process_packing_list(session_id: str):
                     "message": f"Найдено {len(missing_parts)} артикулов без веса. Добавьте вес."
                 }
 
-            # ============================================================
-            # Все веса есть — распределяем
-            # ============================================================
             pallet_weights: Dict[str, float] = {}
             for group_id, group_items in pallet_groups.items():
                 pw = 0
@@ -472,9 +429,6 @@ def process_packing_list(session_id: str):
                 print(f"❌ Ошибка распределения веса {session_id}: {e}")
                 raise
 
-            # ============================================================
-            # Генерируем итоговый Packing List
-            # ============================================================
             from app.services.packing_list_generator import generate_packing_list
 
             all_processed_items: List = []
