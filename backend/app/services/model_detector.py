@@ -33,6 +33,7 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
         "Стилус": ["pencil", "stylus"],
         "Полировочная ткань": ["polishing cloth"],
         "Адаптеры": ["adapter", "thunderbolt"],
+        "Ноутбуки Lenovo": ["lenovo", "thinkpad", "thinkbook", "legion", "ideapad", "yoga", "loq"],
     }
 
     # Сначала проверяем Samsung — он должен идти раньше общего "Телефон"

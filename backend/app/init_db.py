@@ -150,6 +150,15 @@ async def init_db():
                 "serial_source": None,
                 "clean_serial_prefix": False
             },
+            {
+                "name": "Ноутбуки Lenovo",
+                "name_eng": "Lenovo Laptop",
+                "prefix_ru": "Портативный персональный компьютер торговой марки Lenovo",
+                "prefix_eng": "Portable personal computer brand Lenovo",
+                "collect_serials": True,
+                "serial_source": "serial_number",
+                "clean_serial_prefix": False
+            },
         ]
         
         for cat_data in categories_data:
