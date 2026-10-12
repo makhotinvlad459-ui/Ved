@@ -8,14 +8,6 @@ from typing import Optional, List, Dict, Tuple
 
 
 def detect_group(description: str) -> Optional[str]:
-    """
-    Определяет группу по описанию.
-      MacBook  → "MacBook"
-      iPad     → "iPad"
-      iPhone   → "Smartphone"
-      Samsung  → "Samsung"
-      Остальное → None (пропускаем)
-    """
     if not description:
         return None
     d = description.lower()
@@ -27,6 +19,8 @@ def detect_group(description: str) -> Optional[str]:
         return "Smartphone"
     if "samsung" in d:
         return "Samsung"
+    if "lenovo" in d or "thinkpad" in d or "thinkbook" in d or "legion" in d or "ideapad" in d or "yoga" in d or "loq" in d:
+        return "Lenovo"
     return None
 
 
