@@ -1,181 +1,198 @@
-# backend/app/services/for_alice_generator.py
-"""
-Генератор xlsx для сервиса For Alice.
-"""
+# backend/app/api/v1/for_alice.py
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import FileResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import sessionmaker as sync_sessionmaker
+from typing import List, Optional
+from pydantic import BaseModel
 import os
-from typing import Dict, Any, List
-from decimal import Decimal, ROUND_HALF_UP
+import uuid
 
-import openpyxl
-from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-from openpyxl.utils import get_column_letter
+from app.database import get_db
+from app.models import Product, ProcessingSession
 
+
+router = APIRouter(prefix="/for-alice", tags=["For Alice"])
 
 OUTPUT_DIR = "/app/output"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def _round2(v):
-    if v is None:
-        return None
-    return float(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+# ============================================================
+# СХЕМЫ
+# ============================================================
+
+class ForAliceItem(BaseModel):
+    name: str
+    qty: int
+    price: float
 
 
-def generate_for_alice_xlsx(
-    result: Dict[str, Any],
-    session_id: str,
-) -> str:
+class ForAliceRequest(BaseModel):
+    items: List[ForAliceItem]
+    logistics_rate_usd: float
+    usd_to_aed: float = 3.674
+    documents_cost_aed: float
+
+
+class SaveWeightRequest(BaseModel):
+    part_number: Optional[str] = None
+    name: Optional[str] = None
+    weight: float
+
+
+# ============================================================
+# РАСЧЁТ
+# ============================================================
+
+@router.post("/process")
+async def process_for_alice(
+    data: ForAliceRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.for_alice_calculator import calculate_for_alice
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    sync_engine = create_engine(DATABASE_URL)
+    SyncSession = sync_sessionmaker(bind=sync_engine)
+
+    try:
+        with SyncSession() as sync_db:
+            result = calculate_for_alice(
+                items=[it.dict() for it in data.items],
+                logistics_rate_usd=data.logistics_rate_usd,
+                usd_to_aed=data.usd_to_aed,
+                documents_cost_aed=data.documents_cost_aed,
+                db=sync_db,
+            )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Ошибка расчёта: {e}")
+    finally:
+        sync_engine.dispose()
+
+    return result
+
+
+# ============================================================
+# СОХРАНЕНИЕ ВЕСА (с автосозданием товара)
+# ============================================================
+
+@router.post("/save-weight")
+async def save_weight(
+    data: SaveWeightRequest,
+    db: AsyncSession = Depends(get_db),
+):
     """
-    Генерирует xlsx с 14 колонками.
+    Сохраняет вес для Product по part_number.
+    Если товара нет — создаёт новый с указанным весом.
     """
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    if not data.part_number:
+        raise HTTPException(status_code=400, detail="part_number обязателен")
+    if data.weight is None or data.weight <= 0:
+        raise HTTPException(status_code=400, detail="Вес должен быть > 0")
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Расчёт"
+    stmt = select(Product).where(Product.part_number == data.part_number)
+    result = await db.execute(stmt)
+    product = result.scalar_one_or_none()
 
-    # === Стили ===
-    header_font = Font(bold=True, size=10)
-    header_fill = PatternFill(start_color="D3D3D3", end_color="D3D3D3", fill_type="solid")
-    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    cell_align = Alignment(horizontal="center", vertical="center")
-    left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
-    border = Border(
-        left=Side(style="thin"),
-        right=Side(style="thin"),
-        top=Side(style="thin"),
-        bottom=Side(style="thin"),
+    if product:
+        # Обновляем существующий
+        product.weight = data.weight
+        if data.name and not product.description:
+            product.description = data.name
+        await db.commit()
+        return {
+            "message": "Вес обновлён",
+            "created": False,
+            "part_number": data.part_number,
+            "weight": data.weight,
+            "product_id": product.id,
+        }
+    else:
+        # Создаём новый товар
+        new_product = Product(
+            part_number=data.part_number,
+            model_number="",
+            description=data.name or data.part_number,
+            weight=data.weight,
+            is_active=True,
+        )
+        db.add(new_product)
+        await db.commit()
+        await db.refresh(new_product)
+        return {
+            "message": "Товар создан",
+            "created": True,
+            "part_number": data.part_number,
+            "weight": data.weight,
+            "product_id": new_product.id,
+        }
+
+
+# ============================================================
+# ГЕНЕРАЦИЯ XLSX
+# ============================================================
+
+@router.post("/generate")
+async def generate_for_alice(
+    data: ForAliceRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    from app.services.for_alice_calculator import calculate_for_alice
+    from app.services.for_alice_generator import generate_for_alice_xlsx
+
+    session_id = str(uuid.uuid4())
+
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    sync_engine = create_engine(DATABASE_URL)
+    SyncSession = sync_sessionmaker(bind=sync_engine)
+
+    try:
+        with SyncSession() as sync_db:
+            result = calculate_for_alice(
+                items=[it.dict() for it in data.items],
+                logistics_rate_usd=data.logistics_rate_usd,
+                usd_to_aed=data.usd_to_aed,
+                documents_cost_aed=data.documents_cost_aed,
+                db=sync_db,
+            )
+
+            if result["missing"]:
+                return {
+                    "status": "missing_weights",
+                    "missing": result["missing"],
+                    "rows": result["rows"],
+                    "totals": result["totals"],
+                }
+
+            xlsx_path = generate_for_alice_xlsx(result, session_id)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail=f"Ошибка генерации: {e}")
+    finally:
+        sync_engine.dispose()
+
+    return {
+        "status": "completed",
+        "session_id": session_id,
+        "rows": result["rows"],
+        "totals": result["totals"],
+    }
+
+
+@router.get("/download/{session_id}")
+async def download_for_alice(session_id: str):
+    path = os.path.join(OUTPUT_DIR, f"for_alice_{session_id[:8]}.xlsx")
+
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Файл не найден")
+
+    return FileResponse(
+        path=path,
+        filename=f"For_Alice_{session_id[:8]}.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-
-    # === Заголовки ===
-    headers = [
-        "Код модели",
-        "P/N",
-        "Наименование",
-        "Кол-во",
-        "Вес",
-        "Вес +15%",
-        "Общий вес",
-        "Цена (AED)",
-        "Стоимость партии",
-        "Логистика/ед",
-        "Цена + логистика",
-        "Стоимость с логистикой",
-        "+ЧЗ (AED)",
-        "Итог",
-    ]
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(1, col)
-        cell.value = h
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_align
-        cell.border = border
-
-    # === Данные ===
-    row = 2
-    for r in result["rows"]:
-        values = [
-            r.get("model_number") or "",
-            r.get("part_number") or "",
-            r.get("name") or "",
-            r.get("qty") or 0,
-            _round2(r.get("weight")),
-            _round2(r.get("g")),
-            _round2(r.get("h")),
-            _round2(r.get("price")),
-            _round2((r.get("price") or 0) * (r.get("qty") or 0)),
-            _round2(r.get("l")),
-            _round2(r.get("m")),
-            _round2(r.get("n")),
-            _round2(r.get("o")),
-            _round2(r.get("p")),
-        ]
-        for col, v in enumerate(values, 1):
-            cell = ws.cell(row, col)
-            cell.value = v
-            cell.border = border
-            if col == 3:
-                cell.alignment = left_align
-            else:
-                cell.alignment = cell_align
-            if col in (5, 6, 7, 8, 9, 10, 11, 12, 13, 14):
-                cell.number_format = "#,##0.00"
-            if col == 4:
-                cell.number_format = "#,##0"
-        row += 1
-
-    # === Итоги по таблице ===
-    row += 1
-    ws.cell(row, 1).value = "Итого вес:"
-    ws.cell(row, 1).font = Font(bold=True)
-    ws.cell(row, 2).value = _round2(result["totals"]["total_weight"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    ws.cell(row, 1).value = "Итого сумма:"
-    ws.cell(row, 1).font = Font(bold=True)
-    ws.cell(row, 2).value = _round2(result["totals"]["total_sum"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 2
-
-    # === Параметры расчёта (ввод) ===
-    ws.cell(row, 1).value = "Параметры расчёта:"
-    ws.cell(row, 1).font = Font(bold=True)
-    row += 1
-
-    ws.cell(row, 1).value = "Ставка логистики (USD/кг)"
-    ws.cell(row, 2).value = result["totals"]["logistics_rate_usd"]
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    ws.cell(row, 1).value = "Курс USD → AED"
-    ws.cell(row, 2).value = result["totals"]["usd_to_aed"]
-    ws.cell(row, 2).number_format = "#,##0.000"
-    row += 1
-
-    ws.cell(row, 1).value = "Расходы на документы (AED)"
-    ws.cell(row, 2).value = result["totals"]["documents_cost_aed"]
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 2
-
-    # === Расчёт логистики ===
-    ws.cell(row, 1).value = "Расчёт логистики:"
-    ws.cell(row, 1).font = Font(bold=True)
-    row += 1
-
-    ws.cell(row, 1).value = "Логистика всего (USD)"
-    ws.cell(row, 2).value = _round2(result["totals"]["logistics_total_usd"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    ws.cell(row, 1).value = "Логистика всего (AED)"
-    ws.cell(row, 2).value = _round2(result["totals"]["logistics_total_aed"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    ws.cell(row, 1).value = "Итого логистика (AED)"
-    ws.cell(row, 2).value = _round2(result["totals"]["total_logistics_aed"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    ws.cell(row, 1).value = "Ставка AED/кг (с документами)"
-    ws.cell(row, 2).value = _round2(result["totals"]["rate_aed_per_kg"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    ws.cell(row, 1).value = "Ставка USD/кг (с документами)"
-    ws.cell(row, 2).value = _round2(result["totals"]["rate_usd_per_kg"])
-    ws.cell(row, 2).number_format = "#,##0.00"
-
-    # === Ширины колонок ===
-    ws.column_dimensions["A"].width = 32
-    ws.column_dimensions["B"].width = 16
-    ws.column_dimensions["C"].width = 60
-    ws.column_dimensions["D"].width = 8
-    for col in range(5, 15):
-        ws.column_dimensions[get_column_letter(col)].width = 14
-
-    output_path = os.path.join(OUTPUT_DIR, f"for_alice_{session_id[:8]}.xlsx")
-    wb.save(output_path)
-
-    return output_path

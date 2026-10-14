@@ -755,12 +755,17 @@ class ApiService {
   Future<Map<String, dynamic>> forAliceSaveWeight({
     required String partNumber,
     required double weight,
+    String? name,
   }) async {
     try {
-      final response = await _dio.post('/for-alice/save-weight', data: {
+      final body = <String, dynamic>{
         'part_number': partNumber,
         'weight': weight,
-      });
+      };
+      if (name != null && name.isNotEmpty) {
+        body['name'] = name;
+      }
+      final response = await _dio.post('/for-alice/save-weight', data: body);
       return response.data;
     } catch (e) {
       throw Exception('Ошибка сохранения веса: $e');

@@ -39,7 +39,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   bool _isProcessing = false;
   String _error = '';
 
-  // Результаты
   List<dynamic> _resultRows = [];
   List<dynamic> _missing = [];
   Map<String, dynamic>? _totals;
@@ -84,8 +83,9 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   }
 
   // ============================================================
-  // ВСТАВКА: НАЗВАНИЯ
+  // ВСТАВКА
   // ============================================================
+
   Future<void> _pasteNames() async {
     final controller = TextEditingController();
     final result = await _showPasteDialog(
@@ -96,7 +96,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     if (result == true) {
       final lines = _splitLines(controller.text);
       setState(() {
-        // Дополняем существующие строки или создаём новые
         for (int i = 0; i < lines.length; i++) {
           if (i < _rows.length) {
             _rows[i].name.text = lines[i];
@@ -109,9 +108,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     }
   }
 
-  // ============================================================
-  // ВСТАВКА: КОЛИЧЕСТВА
-  // ============================================================
   Future<void> _pasteQtys() async {
     final controller = TextEditingController();
     final result = await _showPasteDialog(
@@ -135,9 +131,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     }
   }
 
-  // ============================================================
-  // ВСТАВКА: ЦЕНЫ
-  // ============================================================
   Future<void> _pastePrices() async {
     final controller = TextEditingController();
     final result = await _showPasteDialog(
@@ -221,10 +214,13 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   void _showSnack(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.green,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -299,15 +295,11 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
-    );
-  }
-
   Future<void> _saveWeightAndRecalculate(int index) async {
     final m = _missing[index];
     final partNumber = m['part_number'];
+    final name = m['name'] ?? '';
+
     if (partNumber == null) {
       _showError('Не удалось извлечь part_number из названия');
       return;
@@ -353,13 +345,17 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      await api.forAliceSaveWeight(
+      final res = await api.forAliceSaveWeight(
         partNumber: partNumber,
+        name: name,
         weight: weight,
       );
 
       if (!mounted) return;
-      _showSnack('✅ Вес сохранён. Пересчитываем...');
+      final created = res['created'] == true;
+      _showSnack(created
+          ? '✅ Товар создан. Пересчитываем...'
+          : '✅ Вес обновлён. Пересчитываем...');
 
       await _process();
     } catch (e) {
@@ -433,7 +429,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // === Параметры ===
           const Text(
             'Параметры расчёта',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -478,7 +473,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
           const SizedBox(height: 24),
 
-          // === Кнопки вставки ===
           const Text(
             'Позиции',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
@@ -526,7 +520,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
           const SizedBox(height: 16),
 
-          // === Кнопки управления строками ===
           Row(
             children: [
               OutlinedButton.icon(
@@ -546,7 +539,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
           const SizedBox(height: 12),
 
-          // === Заголовки таблицы ===
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             child: Row(
@@ -563,7 +555,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ),
           ),
 
-          // === Строки ===
           ...List.generate(_rows.length, (idx) {
             final r = _rows[idx];
             return Padding(
@@ -683,7 +674,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // === Missing weights ===
           if (_hasMissing) ...[
             Container(
               padding: const EdgeInsets.all(16),
@@ -711,7 +701,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Введите вес — он сохранится в БД и пересчитается автоматически',
+                    'Введите вес — товар создастся автоматически и пересчитается',
                     style: TextStyle(fontSize: 12, color: Colors.black87),
                   ),
                   const SizedBox(height: 12),
@@ -760,7 +750,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             const SizedBox(height: 16),
           ],
 
-          // === Итоги ===
           if (!_hasMissing && _totals != null) ...[
             Card(
               color: Colors.teal.shade50,
@@ -788,7 +777,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             const SizedBox(height: 16),
           ],
 
-          // === Таблица результатов ===
           if (_resultRows.isNotEmpty) ...[
             const Text(
               'Результаты',
