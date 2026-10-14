@@ -82,14 +82,15 @@ def extract_model_from_name(name: str) -> Optional[str]:
     if m:
         return m.group(0).strip()
 
+    m = re.search(r'Beats\s+Powerbeats\s+(?:Pro|Fit)', d)
+    if m:
+        return m.group(0).strip()
+
     return None
 
 
 def resolve_weight(db: Session, part_number: Optional[str], name: Optional[str]) -> Tuple[Optional[float], Optional[str], Optional[Product]]:
-    """
-    Ищет вес по part_number и названию.
-    Возвращает (weight, source, product).
-    """
+    """Ищет вес по part_number и названию."""
     if not part_number and not name:
         return None, None, None
 
@@ -222,10 +223,25 @@ def calculate_for_alice(
     # === 3. Ставка логистики в AED за кг (с учётом документов) ===
     if total_weight <= 0:
         rate_aed_per_kg = 0.0
+        logistics_total_usd = 0.0
+        logistics_total_aed = 0.0
+        total_logistics_aed = 0.0
+        rate_usd_per_kg = 0.0
     else:
-        rate_aed_per_kg = (
-            logistics_rate_usd * usd_to_aed * total_weight + documents_cost_aed
-        ) / total_weight
+        # F66: логистика в USD (ставка × общий вес)
+        logistics_total_usd = logistics_rate_usd * total_weight
+
+        # F67: логистика в AED (F66 × курс)
+        logistics_total_aed = logistics_total_usd * usd_to_aed
+
+        # F68: итого логистика AED (F67 + документы)
+        total_logistics_aed = logistics_total_aed + documents_cost_aed
+
+        # E69: ставка AED/кг (F68 / общий вес)
+        rate_aed_per_kg = total_logistics_aed / total_weight
+
+        # F69: ставка USD/кг (E69 / курс)
+        rate_usd_per_kg = rate_aed_per_kg / usd_to_aed
 
     # === 4. Второй проход: все формулы ===
     total_sum = 0.0
@@ -243,7 +259,7 @@ def calculate_for_alice(
         qty = row["qty"]
         price = row["price"]
 
-        # Логистика за единицу
+        # Логистика за единицу (K, округлено)
         l = round2(g * rate_aed_per_kg)
         # Цена + логистика
         m = price + l
@@ -269,8 +285,12 @@ def calculate_for_alice(
             "total_weight": total_weight,
             "total_sum": total_sum,
             "rate_aed_per_kg": rate_aed_per_kg,
+            "rate_usd_per_kg": rate_usd_per_kg,
             "logistics_rate_usd": logistics_rate_usd,
             "usd_to_aed": usd_to_aed,
             "documents_cost_aed": documents_cost_aed,
+            "logistics_total_usd": logistics_total_usd,
+            "logistics_total_aed": logistics_total_aed,
+            "total_logistics_aed": total_logistics_aed,
         },
     }

@@ -104,7 +104,7 @@ def generate_for_alice_xlsx(
                 cell.number_format = "#,##0"
         row += 1
 
-    # === Итоги ===
+    # === Итоги по таблице ===
     row += 1
     ws.cell(row, 1).value = "Итого вес:"
     ws.cell(row, 1).font = Font(bold=True)
@@ -118,6 +118,7 @@ def generate_for_alice_xlsx(
     ws.cell(row, 2).number_format = "#,##0.00"
     row += 2
 
+    # === Параметры расчёта (ввод) ===
     ws.cell(row, 1).value = "Параметры расчёта:"
     ws.cell(row, 1).font = Font(bold=True)
     row += 1
@@ -135,14 +136,39 @@ def generate_for_alice_xlsx(
     ws.cell(row, 1).value = "Расходы на документы (AED)"
     ws.cell(row, 2).value = result["totals"]["documents_cost_aed"]
     ws.cell(row, 2).number_format = "#,##0.00"
+    row += 2
+
+    # === Расчёт логистики ===
+    ws.cell(row, 1).value = "Расчёт логистики:"
+    ws.cell(row, 1).font = Font(bold=True)
+    row += 1
+
+    ws.cell(row, 1).value = "Логистика всего (USD)"
+    ws.cell(row, 2).value = _round2(result["totals"]["logistics_total_usd"])
+    ws.cell(row, 2).number_format = "#,##0.00"
+    row += 1
+
+    ws.cell(row, 1).value = "Логистика всего (AED)"
+    ws.cell(row, 2).value = _round2(result["totals"]["logistics_total_aed"])
+    ws.cell(row, 2).number_format = "#,##0.00"
+    row += 1
+
+    ws.cell(row, 1).value = "Итого логистика (AED)"
+    ws.cell(row, 2).value = _round2(result["totals"]["total_logistics_aed"])
+    ws.cell(row, 2).number_format = "#,##0.00"
     row += 1
 
     ws.cell(row, 1).value = "Ставка AED/кг (с документами)"
     ws.cell(row, 2).value = _round2(result["totals"]["rate_aed_per_kg"])
     ws.cell(row, 2).number_format = "#,##0.00"
+    row += 1
+
+    ws.cell(row, 1).value = "Ставка USD/кг (с документами)"
+    ws.cell(row, 2).value = _round2(result["totals"]["rate_usd_per_kg"])
+    ws.cell(row, 2).number_format = "#,##0.00"
 
     # === Ширины колонок ===
-    ws.column_dimensions["A"].width = 14
+    ws.column_dimensions["A"].width = 32
     ws.column_dimensions["B"].width = 16
     ws.column_dimensions["C"].width = 60
     ws.column_dimensions["D"].width = 8
