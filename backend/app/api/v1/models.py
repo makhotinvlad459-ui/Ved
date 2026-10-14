@@ -35,39 +35,33 @@ async def get_all_products(
 
 @router.get("/search")
 async def search_products(
-    q: str,
+    q: str = "",
     limit: int = 50,
     include_inactive: bool = False,
     db: AsyncSession = Depends(get_db)
 ):
-    """
-    Поиск товаров по part_number, model_number, description,
-    custom_name_ru, honest_code.
-    """
     q = (q or "").strip()
-    if not q:
-        raise HTTPException(status_code=400, detail="Параметр q обязателен")
 
     if limit < 1:
         limit = 1
     if limit > 200:
         limit = 200
 
-    pattern = f"%{q}%"
-
-    conditions = [
-        Product.part_number.ilike(pattern),
-        Product.model_number.ilike(pattern),
-        Product.description.ilike(pattern),
-        Product.custom_name_ru.ilike(pattern),
-        Product.honest_code.ilike(pattern),
-    ]
-
     stmt = (
         select(Product)
         .options(selectinload(Product.category), selectinload(Product.color))
-        .where(or_(*conditions))
     )
+
+    if q:
+        pattern = f"%{q}%"
+        conditions = [
+            Product.part_number.ilike(pattern),
+            Product.model_number.ilike(pattern),
+            Product.description.ilike(pattern),
+            Product.custom_name_ru.ilike(pattern),
+            Product.honest_code.ilike(pattern),
+        ]
+        stmt = stmt.where(or_(*conditions))
 
     if not include_inactive:
         stmt = stmt.where(Product.is_active == True)
