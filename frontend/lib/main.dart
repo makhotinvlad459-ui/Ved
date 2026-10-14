@@ -12,6 +12,7 @@ import 'screens/products_screen.dart';
 import 'screens/cz_cards_screen.dart';
 import 'screens/cz_products_screen.dart';
 import 'screens/cz_colors_screen.dart';
+import 'screens/for_alice_screen.dart';
 import 'services/api_service.dart';
 
 void main() {
@@ -46,6 +47,7 @@ class MyApp extends StatelessWidget {
           '/cz-cards': (context) => const CzCardsScreen(),
           '/cz-products': (context) => const CzProductsScreen(),
           '/cz-colors': (context) => const CzColorsScreen(),
+          '/for-alice': (context) => const ForAliceScreen(),
         },
       ),
     );

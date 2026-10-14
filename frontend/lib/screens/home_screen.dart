@@ -97,6 +97,12 @@ class HomeScreen extends StatelessWidget {
                         color: Colors.teal,
                         route: '/commercial-offer',
                       ),
+                      _ServiceItem(
+                        icon: Icons.calculate_outlined,
+                        title: 'For Alice',
+                        color: Colors.green,
+                        route: '/for-alice',
+                      ),
                     ],
                   ),
 

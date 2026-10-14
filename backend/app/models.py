@@ -44,7 +44,7 @@ class Product(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     model_number = Column(String(50), nullable=False)
-    part_number = Column(String(50), nullable=False, index=True)
+    part_number = Column(String(50), unique=True, nullable=False, index=True)
     description = Column(Text)
     model_name = Column(String(255))
     weight = Column(Float, nullable=True)

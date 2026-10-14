@@ -709,4 +709,72 @@ class ApiService {
       throw Exception('Ошибка удаления цвета: $e');
     }
   }
+
+    // ============================================================
+  // FOR ALICE
+  // ============================================================
+
+  Future<Map<String, dynamic>> forAliceProcess({
+    required List<Map<String, dynamic>> items,
+    required double logisticsRateUsd,
+    required double usdToAed,
+    required double documentsCostAed,
+  }) async {
+    try {
+      final response = await _dio.post('/for-alice/process', data: {
+        'items': items,
+        'logistics_rate_usd': logisticsRateUsd,
+        'usd_to_aed': usdToAed,
+        'documents_cost_aed': documentsCostAed,
+      });
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка расчёта: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> forAliceGenerate({
+    required List<Map<String, dynamic>> items,
+    required double logisticsRateUsd,
+    required double usdToAed,
+    required double documentsCostAed,
+  }) async {
+    try {
+      final response = await _dio.post('/for-alice/generate', data: {
+        'items': items,
+        'logistics_rate_usd': logisticsRateUsd,
+        'usd_to_aed': usdToAed,
+        'documents_cost_aed': documentsCostAed,
+      });
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка генерации: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> forAliceSaveWeight({
+    required String partNumber,
+    required double weight,
+  }) async {
+    try {
+      final response = await _dio.post('/for-alice/save-weight', data: {
+        'part_number': partNumber,
+        'weight': weight,
+      });
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка сохранения веса: $e');
+    }
+  }
+
+  Future<Response> forAliceDownload(String sessionId) async {
+    try {
+      return await _dio.get(
+        '/for-alice/download/$sessionId',
+        options: Options(responseType: ResponseType.bytes),
+      );
+    } catch (e) {
+      throw Exception('Ошибка скачивания: $e');
+    }
+  }
 }
