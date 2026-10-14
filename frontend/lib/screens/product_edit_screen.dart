@@ -6,8 +6,9 @@ import '../services/api_service.dart';
 import 'category_edit_screen.dart';
 
 class ProductEditScreen extends StatefulWidget {
-  final int productId;
-  const ProductEditScreen({super.key, required this.productId});
+  final int? productId;
+
+  const ProductEditScreen({super.key, this.productId});
 
   @override
   State<ProductEditScreen> createState() => _ProductEditScreenState();
@@ -16,29 +17,41 @@ class ProductEditScreen extends StatefulWidget {
 class _ProductEditScreenState extends State<ProductEditScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isNew = false;
   String _error = '';
 
-  Map<String, dynamic>? _product;
-  List<dynamic> _categories = [];
-  List<dynamic> _colors = [];
-
-  final TextEditingController _weightController = TextEditingController();
-  final TextEditingController _nameRuController = TextEditingController();
+  // Контроллеры полей
+  final _partNumberController = TextEditingController();
+  final _modelNumberController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _cooController = TextEditingController();
+  final _weightController = TextEditingController();
+  final _nameRuController = TextEditingController();
+  final _upcController = TextEditingController();
 
   int? _selectedCategoryId;
   int? _selectedColorId;
   bool _isActive = true;
 
+  List<dynamic> _categories = [];
+  List<dynamic> _colors = [];
+
   @override
   void initState() {
     super.initState();
+    _isNew = widget.productId == null;
     _load();
   }
 
   @override
   void dispose() {
+    _partNumberController.dispose();
+    _modelNumberController.dispose();
+    _descriptionController.dispose();
+    _cooController.dispose();
     _weightController.dispose();
     _nameRuController.dispose();
+    _upcController.dispose();
     super.dispose();
   }
 
@@ -46,22 +59,28 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
 
-      final product = await api.getProduct(widget.productId);
+      // Загружаем категории и цвета
       final catsColors = await api.getCategoriesAndColors();
+      _categories = catsColors['categories'] ?? [];
+      _colors = catsColors['colors'] ?? [];
+
+      if (!_isNew) {
+        final p = await api.getProduct(widget.productId!);
+        _partNumberController.text = p['part_number'] ?? '';
+        _modelNumberController.text = p['model_number'] ?? '';
+        _descriptionController.text = p['description'] ?? '';
+        _cooController.text = p['coo'] ?? '';
+        _weightController.text =
+            p['weight'] != null ? p['weight'].toString() : '';
+        _nameRuController.text = p['custom_name_ru'] ?? '';
+        _upcController.text = p['upc'] ?? '';
+        _selectedCategoryId = p['category_id'];
+        _selectedColorId = p['color_id'];
+        _isActive = p['is_active'] ?? true;
+      }
 
       if (!mounted) return;
       setState(() {
-        _product = product;
-        _categories = catsColors['categories'] ?? [];
-        _colors = catsColors['colors'] ?? [];
-
-        _weightController.text =
-            product['weight'] != null ? product['weight'].toString() : '';
-        _nameRuController.text = product['custom_name_ru'] ?? '';
-        _selectedCategoryId = product['category_id'];
-        _selectedColorId = product['color_id'];
-        _isActive = product['is_active'] ?? true;
-
         _isLoading = false;
       });
     } catch (e) {
@@ -73,7 +92,46 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     }
   }
 
+  Future<void> _reloadCategoriesAndColors() async {
+    try {
+      final api = Provider.of<ApiService>(context, listen: false);
+      final catsColors = await api.getCategoriesAndColors();
+      if (!mounted) return;
+      setState(() {
+        _categories = catsColors['categories'] ?? [];
+        _colors = catsColors['colors'] ?? [];
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка обновления списков: $e')),
+      );
+    }
+  }
+
   Future<void> _save() async {
+    final partNumber = _partNumberController.text.trim();
+    final modelNumber = _modelNumberController.text.trim();
+
+    if (partNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите артикул (part_number)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (modelNumber.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите модель (model_number)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -82,20 +140,53 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
       final weightText = _weightController.text.trim();
       double? weight;
       if (weightText.isNotEmpty) {
-        weight = double.tryParse(weightText);
-        if (weight == null) {
-          throw Exception('Неверный формат веса');
-        }
+        weight = double.tryParse(weightText.replaceAll(',', '.'));
+        if (weight == null) throw Exception('Неверный формат веса');
       }
 
-      await api.updateProduct(
-        id: widget.productId,
-        weight: weight,
-        categoryId: _selectedCategoryId,
-        colorId: _selectedColorId,
-        customNameRu: _nameRuController.text.trim(),
-        isActive: _isActive,
-      );
+      if (_isNew) {
+        await api.createProduct(
+          partNumber: partNumber,
+          modelNumber: modelNumber,
+          description: _descriptionController.text.trim().isEmpty
+              ? null
+              : _descriptionController.text.trim(),
+          coo: _cooController.text.trim().isEmpty
+              ? null
+              : _cooController.text.trim(),
+          upc: _upcController.text.trim().isEmpty
+              ? null
+              : _upcController.text.trim(),
+          weight: weight,
+          categoryId: _selectedCategoryId,
+          colorId: _selectedColorId,
+          customNameRu: _nameRuController.text.trim().isEmpty
+              ? null
+              : _nameRuController.text.trim(),
+        );
+      } else {
+        await api.updateProduct(
+          id: widget.productId!,
+          partNumber: partNumber,
+          modelNumber: modelNumber,
+          description: _descriptionController.text.trim().isEmpty
+              ? null
+              : _descriptionController.text.trim(),
+          coo: _cooController.text.trim().isEmpty
+              ? null
+              : _cooController.text.trim(),
+          upc: _upcController.text.trim().isEmpty
+              ? null
+              : _upcController.text.trim(),
+          weight: weight,
+          categoryId: _selectedCategoryId,
+          colorId: _selectedColorId,
+          customNameRu: _nameRuController.text.trim().isEmpty
+              ? null
+              : _nameRuController.text.trim(),
+          isActive: _isActive,
+        );
+      }
 
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -106,33 +197,76 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
           backgroundColor: Colors.green,
         ),
       );
+
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('❌ Ошибка: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('❌ Ошибка: $e'), backgroundColor: Colors.red),
       );
     }
   }
 
-  Future<void> _openCategoryEdit() async {
-    if (_selectedCategoryId == null) return;
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CategoryEditScreen(
-          categoryId: _selectedCategoryId!,
-        ),
+  Future<void> _delete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить товар?'),
+        content: Text('Товар «${_partNumberController.text}» будет скрыт.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Удалить', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
 
+    if (confirmed != true) return;
+
+    try {
+      final api = Provider.of<ApiService>(context, listen: false);
+      await api.deleteProduct(widget.productId!);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🗑️ Товар удалён'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('❌ Ошибка: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  Future<void> _openCategoryEditor({int? categoryId}) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CategoryEditScreen(categoryId: categoryId),
+      ),
+    );
     if (result == true) {
-      // Перезагружаем, чтобы подтянуть обновлённый префикс
-      _load();
+      await _reloadCategoriesAndColors();
+    }
+  }
+
+  Future<void> _openColorEditor() async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => _QuickColorDialog(),
+    );
+    if (result == true) {
+      await _reloadCategoriesAndColors();
     }
   }
 
@@ -140,234 +274,349 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Товар'),
+        title: Text(_isNew ? 'Новый товар' : 'Товар'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context, true),
+          onPressed: () => Navigator.pop(context, false),
         ),
+        actions: [
+          if (!_isNew)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: Colors.red),
+              onPressed: _delete,
+            ),
+        ],
       ),
-      body: _buildBody(),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error.isNotEmpty
+              ? Center(
+                  child:
+                      Text(_error, style: const TextStyle(color: Colors.red)),
+                )
+              : ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    TextField(
+                      controller: _partNumberController,
+                      decoration: const InputDecoration(
+                        labelText: 'Артикул (part_number) *',
+                        hintText: 'MGEA4LL/A',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: _modelNumberController,
+                      decoration: const InputDecoration(
+                        labelText: 'Модель / артикул модели (model_number) *',
+                        hintText: 'A3428',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: _descriptionController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Описание (description)',
+                        hintText:
+                            'Apple MacBook Pro 16" Space Black (M5 Pro 18C CPU, 20C GPU/24Gb/1Tb SSD) (MGEA4LL/A)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _cooController,
+                            decoration: const InputDecoration(
+                              labelText: 'Страна (COO)',
+                              hintText: 'China',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: TextField(
+                            controller: _weightController,
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
+                            decoration: const InputDecoration(
+                              labelText: 'Вес, кг',
+                              hintText: '3.9',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    TextField(
+                      controller: _upcController,
+                      decoration: const InputDecoration(
+                        labelText: 'UPC',
+                        hintText: '195950714746',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // === КАТЕГОРИЯ ===
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int?>(
+                            value: _selectedCategoryId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Категория',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text('Без категории'),
+                              ),
+                              ..._categories.map((c) {
+                                return DropdownMenuItem<int?>(
+                                  value: c['id'] as int,
+                                  child: Text(c['name'] ?? ''),
+                                );
+                              }),
+                            ],
+                            onChanged: (value) {
+                              setState(() => _selectedCategoryId = value);
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline,
+                              color: Colors.blueGrey),
+                          tooltip: 'Создать категорию',
+                          onPressed: () => _openCategoryEditor(),
+                        ),
+                      ],
+                    ),
+                    if (_selectedCategoryId != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4, left: 4),
+                        child: TextButton.icon(
+                          onPressed: () => _openCategoryEditor(
+                              categoryId: _selectedCategoryId),
+                          icon: const Icon(Icons.edit, size: 14),
+                          label: const Text(
+                            'Редактировать категорию',
+                            style: TextStyle(fontSize: 12),
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 12),
+
+                    // === ЦВЕТ ===
+                    Row(
+                      children: [
+                        Expanded(
+                          child: DropdownButtonFormField<int?>(
+                            value: _selectedColorId,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Цвет',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: [
+                              const DropdownMenuItem<int?>(
+                                value: null,
+                                child: Text('Без цвета'),
+                              ),
+                              ..._colors.map((c) {
+                                return DropdownMenuItem<int?>(
+                                  value: c['id'] as int,
+                                  child: Text('${c['rus']} (${c['eng']})'),
+                                );
+                              }),
+                            ],
+                            onChanged: (value) {
+                              setState(() => _selectedColorId = value);
+                            },
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.add_circle_outline,
+                              color: Colors.blueGrey),
+                          tooltip: 'Создать цвет',
+                          onPressed: _openColorEditor,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // === CUSTOM NAME RU ===
+                    TextField(
+                      controller: _nameRuController,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Название (рус)',
+                        hintText: 'Apple MacBook Pro 16" "Черный"',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    if (!_isNew)
+                      SwitchListTile(
+                        value: _isActive,
+                        onChanged: (v) => setState(() => _isActive = v),
+                        title: const Text('Активен'),
+                        subtitle:
+                            const Text('Неактивные не участвуют в обработке'),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    const SizedBox(height: 16),
+
+                    ElevatedButton(
+                      onPressed: _isSaving ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueGrey,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              height: 24,
+                              width: 24,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              _isNew ? 'Создать' : 'Сохранить',
+                              style: const TextStyle(fontSize: 16),
+                            ),
+                    ),
+                  ],
+                ),
     );
   }
+}
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const Center(child: CircularProgressIndicator());
+// ============================================================
+// ДИАЛОГ БЫСТРОГО СОЗДАНИЯ ЦВЕТА
+// ============================================================
+
+class _QuickColorDialog extends StatefulWidget {
+  @override
+  State<_QuickColorDialog> createState() => _QuickColorDialogState();
+}
+
+class _QuickColorDialogState extends State<_QuickColorDialog> {
+  final _engController = TextEditingController();
+  final _rusController = TextEditingController();
+  bool _isSaving = false;
+  String _error = '';
+
+  @override
+  void dispose() {
+    _engController.dispose();
+    _rusController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final eng = _engController.text.trim();
+    final rus = _rusController.text.trim();
+
+    if (eng.isEmpty || rus.isEmpty) {
+      setState(() => _error = 'Заполните оба поля');
+      return;
     }
-    if (_error.isNotEmpty) {
-      return Center(
-        child: Text(_error, style: const TextStyle(color: Colors.red)),
-      );
+
+    setState(() {
+      _isSaving = true;
+      _error = '';
+    });
+
+    try {
+      final api = Provider.of<ApiService>(context, listen: false);
+      await api.createColor(eng: eng, rus: rus);
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+        _error = '$e';
+      });
     }
-    if (_product == null) {
-      return const Center(child: Text('Товар не найден'));
-    }
+  }
 
-    final p = _product!;
-    final partNumber = p['part_number'] ?? '';
-    final modelNumber = p['model_number'] ?? '';
-    final description = p['description'] ?? '';
-    final coo = p['coo'] ?? '';
-    final categoryPrefix = p['category']?['prefix_ru'] ?? '';
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // === ИНФО (readonly) ===
-        _readonlyBlock('Артикул', partNumber),
-        _readonlyBlock('Модель', modelNumber),
-        _readonlyBlock('Описание', description),
-        _readonlyBlock('Страна', coo),
-
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 8),
-        const Text(
-          'Редактирование',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 16),
-
-        // === ВЕС ===
-        TextField(
-          controller: _weightController,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(
-            labelText: 'Вес (кг)',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.scale),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // === КАТЕГОРИЯ ===
-        DropdownButtonFormField<int?>(
-          value: _selectedCategoryId,
-          decoration: const InputDecoration(
-            labelText: 'Категория',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.category),
-          ),
-          items: [
-            const DropdownMenuItem<int?>(
-              value: null,
-              child: Text('Без категории'),
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Новый цвет'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _engController,
+            decoration: const InputDecoration(
+              labelText: 'Название (eng)',
+              hintText: 'Magenta',
+              border: OutlineInputBorder(),
             ),
-            ..._categories.map((c) {
-              return DropdownMenuItem<int?>(
-                value: c['id'] as int,
-                child: Text(c['name'] ?? ''),
-              );
-            }),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _rusController,
+            decoration: const InputDecoration(
+              labelText: 'Название (рус)',
+              hintText: 'Пурпурный',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          if (_error.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(_error,
+                style: const TextStyle(color: Colors.red, fontSize: 13)),
           ],
-          onChanged: (value) {
-            setState(() {
-              _selectedCategoryId = value;
-              // Обновляем префикс из выбранной категории
-              final cat = _categories.firstWhere(
-                (c) => c['id'] == value,
-                orElse: () => null,
-              );
-              if (cat != null) {
-                _product!['category'] = cat;
-              }
-            });
-          },
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isSaving ? null : () => Navigator.pop(context, false),
+          child: const Text('Отмена'),
         ),
-        const SizedBox(height: 8),
-
-        // === ПРЕФИКС (readonly) ===
-        if (categoryPrefix.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.label_outline, size: 18, color: Colors.grey),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Префикс категории',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
-                      ),
-                      Text(
-                        categoryPrefix,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                    ],
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _openCategoryEdit,
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: const Text('Изменить'),
-                ),
-              ],
-            ),
-          ),
-        const SizedBox(height: 16),
-
-        // === ЦВЕТ ===
-        DropdownButtonFormField<int?>(
-          value: _selectedColorId,
-          decoration: const InputDecoration(
-            labelText: 'Цвет',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.palette),
-          ),
-          items: [
-            const DropdownMenuItem<int?>(
-              value: null,
-              child: Text('Без цвета'),
-            ),
-            ..._colors.map((c) {
-              return DropdownMenuItem<int?>(
-                value: c['id'] as int,
-                child: Text('${c['rus']} (${c['eng']})'),
-              );
-            }),
-          ],
-          onChanged: (value) {
-            setState(() => _selectedColorId = value);
-          },
-        ),
-        const SizedBox(height: 16),
-
-        // === CUSTOM NAME ===
-        TextField(
-          controller: _nameRuController,
-          maxLines: 2,
-          decoration: const InputDecoration(
-            labelText: 'Название (рус)',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.text_fields),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // === is_active ===
-        SwitchListTile(
-          value: _isActive,
-          onChanged: (value) => setState(() => _isActive = value),
-          title: const Text('Активен'),
-          subtitle: const Text('Неактивные товары не участвуют в обработке'),
-          contentPadding: EdgeInsets.zero,
-        ),
-        const SizedBox(height: 24),
-
-        // === КНОПКА ===
         ElevatedButton(
           onPressed: _isSaving ? null : _save,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.blueGrey,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
           ),
           child: _isSaving
               ? const SizedBox(
-                  height: 24,
-                  width: 24,
+                  height: 20,
+                  width: 20,
                   child: CircularProgressIndicator(
                     color: Colors.white,
                     strokeWidth: 2,
                   ),
                 )
-              : const Text(
-                  'Сохранить',
-                  style: TextStyle(fontSize: 16),
-                ),
+              : const Text('Создать'),
         ),
       ],
-    );
-  }
-
-  Widget _readonlyBlock(String label, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-          const SizedBox(height: 2),
-          Text(value, style: const TextStyle(fontSize: 15)),
-        ],
-      ),
     );
   }
 }

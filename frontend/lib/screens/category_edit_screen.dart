@@ -5,8 +5,9 @@ import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 
 class CategoryEditScreen extends StatefulWidget {
-  final int categoryId;
-  const CategoryEditScreen({super.key, required this.categoryId});
+  final int? categoryId;
+
+  const CategoryEditScreen({super.key, this.categoryId});
 
   @override
   State<CategoryEditScreen> createState() => _CategoryEditScreenState();
@@ -15,11 +16,11 @@ class CategoryEditScreen extends StatefulWidget {
 class _CategoryEditScreenState extends State<CategoryEditScreen> {
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _isNew = false;
   String _error = '';
 
-  Map<String, dynamic>? _category;
-
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _nameEngController = TextEditingController();
   final TextEditingController _prefixRuController = TextEditingController();
   final TextEditingController _prefixEngController = TextEditingController();
 
@@ -30,12 +31,18 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _isNew = widget.categoryId == null;
+    if (_isNew) {
+      _isLoading = false;
+    } else {
+      _load();
+    }
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nameEngController.dispose();
     _prefixRuController.dispose();
     _prefixEngController.dispose();
     super.dispose();
@@ -44,12 +51,12 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   Future<void> _load() async {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      final cat = await api.getCategory(widget.categoryId);
+      final cat = await api.getCategory(widget.categoryId!);
 
       if (!mounted) return;
       setState(() {
-        _category = cat;
         _nameController.text = cat['name'] ?? '';
+        _nameEngController.text = cat['name_eng'] ?? '';
         _prefixRuController.text = cat['prefix_ru'] ?? '';
         _prefixEngController.text = cat['prefix_eng'] ?? '';
         _collectSerials = cat['collect_serials'] ?? true;
@@ -67,27 +74,63 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   }
 
   Future<void> _save() async {
+    final name = _nameController.text.trim();
+    final prefixRu = _prefixRuController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите название категории'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (prefixRu.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Введите префикс (рус)'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
 
-      await api.updateCategory(
-        id: widget.categoryId,
-        name: _nameController.text.trim(),
-        prefixRu: _prefixRuController.text.trim(),
-        prefixEng: _prefixEngController.text.trim(),
-        collectSerials: _collectSerials,
-        serialSource: _serialSource,
-        cleanSerialPrefix: _cleanSerialPrefix,
-      );
+      if (_isNew) {
+        await api.createFullCategory(
+          name: name,
+          nameEng: _nameEngController.text.trim(),
+          prefixRu: prefixRu,
+          prefixEng: _prefixEngController.text.trim(),
+          collectSerials: _collectSerials,
+          serialSource: _serialSource,
+          cleanSerialPrefix: _cleanSerialPrefix,
+        );
+      } else {
+        await api.updateCategory(
+          id: widget.categoryId!,
+          name: name,
+          nameEng: _nameEngController.text.trim(),
+          prefixRu: prefixRu,
+          prefixEng: _prefixEngController.text.trim(),
+          collectSerials: _collectSerials,
+          serialSource: _serialSource,
+          cleanSerialPrefix: _cleanSerialPrefix,
+        );
+      }
 
       if (!mounted) return;
       setState(() => _isSaving = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Категория сохранена'),
+        SnackBar(
+          content: Text(_isNew ? '✅ Категория создана' : '✅ Категория сохранена'),
           backgroundColor: Colors.green,
         ),
       );
@@ -106,36 +149,36 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   }
 
   Future<void> _confirmAndSave() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Подтверждение'),
-        content: const Text(
-          'Смена префикса затронет ВСЕ товары этой категории. Продолжить?',
+    if (!_isNew) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Подтверждение'),
+          content: const Text(
+            'Смена префикса затронет ВСЕ товары этой категории. Продолжить?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Отмена'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Продолжить'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Отмена'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Продолжить'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      await _save();
+      );
+      if (confirmed != true) return;
     }
+    await _save();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Категория'),
+        title: Text(_isNew ? 'Новая категория' : 'Категория'),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -164,7 +207,18 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
         TextField(
           controller: _nameController,
           decoration: const InputDecoration(
-            labelText: 'Название (рус)',
+            labelText: 'Название (рус) *',
+            hintText: 'Ноутбуки Lenovo',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        TextField(
+          controller: _nameEngController,
+          decoration: const InputDecoration(
+            labelText: 'Название (англ)',
+            hintText: 'Lenovo Laptop',
             border: OutlineInputBorder(),
           ),
         ),
@@ -174,8 +228,8 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
           controller: _prefixRuController,
           maxLines: 2,
           decoration: const InputDecoration(
-            labelText: 'Префикс (рус)',
-            hintText: 'Например: Портативный персональный компьютер торговой марки',
+            labelText: 'Префикс (рус) *',
+            hintText: 'Портативный персональный компьютер торговой марки Lenovo',
             border: OutlineInputBorder(),
           ),
         ),
@@ -186,6 +240,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
           maxLines: 2,
           decoration: const InputDecoration(
             labelText: 'Префикс (англ)',
+            hintText: 'Portable personal computer brand Lenovo',
             border: OutlineInputBorder(),
           ),
         ),
@@ -227,6 +282,10 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
           value: _cleanSerialPrefix,
           onChanged: (v) => setState(() => _cleanSerialPrefix = v),
           title: const Text('Убирать префикс "S" у серийников'),
+          subtitle: const Text(
+            'Для Apple — да. Для Lenovo/Samsung — нет.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
           contentPadding: EdgeInsets.zero,
         ),
         const SizedBox(height: 24),
@@ -234,7 +293,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
         ElevatedButton(
           onPressed: _isSaving ? null : _confirmAndSave,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.blueGrey,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 16),
             shape: RoundedRectangleBorder(
@@ -250,9 +309,9 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
                     strokeWidth: 2,
                   ),
                 )
-              : const Text(
-                  'Сохранить',
-                  style: TextStyle(fontSize: 16),
+              : Text(
+                  _isNew ? 'Создать' : 'Сохранить',
+                  style: const TextStyle(fontSize: 16),
                 ),
         ),
       ],

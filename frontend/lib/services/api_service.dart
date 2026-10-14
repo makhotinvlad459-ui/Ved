@@ -14,7 +14,10 @@ class ApiService {
     _dio.options.receiveTimeout = const Duration(seconds: 120);
   }
 
-  // 1. Загрузка файлов (спецификация)
+  // ============================================================
+  // 1. СПЕЦИФИКАЦИЯ
+  // ============================================================
+
   Future<Map<String, dynamic>> uploadFiles({
     required List<int> invoiceBytes,
     required String invoiceName,
@@ -31,7 +34,6 @@ class ApiService {
         'template': MultipartFile.fromBytes(templateBytes, filename: templateName),
         'spec_number': specNumber,
       });
-
       final response = await _dio.post('/upload/', data: formData);
       return response.data;
     } catch (e) {
@@ -39,7 +41,6 @@ class ApiService {
     }
   }
 
-  // 2. Получение статуса
   Future<Map<String, dynamic>> getStatus(String sessionId) async {
     try {
       final response = await _dio.get('/upload/status/$sessionId');
@@ -49,7 +50,6 @@ class ApiService {
     }
   }
 
-  // 3. Скачивание результата
   Future<Response> downloadResult(String sessionId) async {
     try {
       return await _dio.get(
@@ -61,7 +61,10 @@ class ApiService {
     }
   }
 
-  // 4. Получение списка новых моделей
+  // ============================================================
+  // 2. PENDING MODELS
+  // ============================================================
+
   Future<List<dynamic>> getPendingModels(String sessionId) async {
     try {
       final response = await _dio.get('/models/pending/$sessionId');
@@ -71,7 +74,6 @@ class ApiService {
     }
   }
 
-  // 5. Подтверждение модели
   Future<Map<String, dynamic>> approveModel({
     required String sessionId,
     required int pendingId,
@@ -94,7 +96,6 @@ class ApiService {
     }
   }
 
-  // 6. Подтверждение всех моделей
   Future<Map<String, dynamic>> approveAllModels(String sessionId) async {
     try {
       final response = await _dio.post(
@@ -106,7 +107,10 @@ class ApiService {
     }
   }
 
-  // 7. Получение категорий
+  // ============================================================
+  // 3. КАТЕГОРИИ И ЦВЕТА
+  // ============================================================
+
   Future<List<dynamic>> getCategories() async {
     try {
       final response = await _dio.get('/categories/');
@@ -116,7 +120,6 @@ class ApiService {
     }
   }
 
-  // 8. Получение цветов
   Future<List<dynamic>> getColors() async {
     try {
       final response = await _dio.get('/colors/');
@@ -126,65 +129,211 @@ class ApiService {
     }
   }
 
-  // 9. Получение всех категорий и цветов для выпадающих списков
   Future<Map<String, dynamic>> getCategoriesAndColors() async {
     try {
-      final categories = await _dio.get('/categories/');
-      final colors = await _dio.get('/colors/');
-      return {
-        'categories': categories.data,
-        'colors': colors.data,
-      };
+      final categories = await getCategories();
+      final colors = await getColors();
+      return {'categories': categories, 'colors': colors};
     } catch (e) {
       throw Exception('Ошибка получения категорий и цветов: $e');
     }
   }
 
-  // 10. Создание новой категории
-  Future<Map<String, dynamic>> createCategory({
+  Future<Map<String, dynamic>> getCategory(int id) async {
+    try {
+      final response = await _dio.get('/categories/$id');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения категории: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> createFullCategory({
     required String name,
-    required String prefixRu,
     String? nameEng,
+    required String prefixRu,
+    String? prefixEng,
+    bool collectSerials = true,
+    String serialSource = 'serial_number',
+    bool cleanSerialPrefix = true,
   }) async {
     try {
-      final response = await _dio.post(
-        '/categories/',
-        data: {
-          'name': name,
-          'name_eng': nameEng ?? name,
-          'prefix_ru': prefixRu,
-          'prefix_eng': '',
-          'collect_serials': true,
-          'serial_source': 'serial_number',
-          'clean_serial_prefix': true,
-        },
-      );
+      final response = await _dio.post('/categories/', data: {
+        'name': name,
+        'name_eng': nameEng,
+        'prefix_ru': prefixRu,
+        'prefix_eng': prefixEng,
+        'collect_serials': collectSerials,
+        'serial_source': serialSource,
+        'clean_serial_prefix': cleanSerialPrefix,
+      });
       return response.data;
     } catch (e) {
       throw Exception('Ошибка создания категории: $e');
     }
   }
 
-  // 11. Создание нового цвета
+  Future<Map<String, dynamic>> createCategory({
+    required String name,
+    required String prefixRu,
+    String? nameEng,
+  }) async {
+    return createFullCategory(
+      name: name,
+      nameEng: nameEng,
+      prefixRu: prefixRu,
+    );
+  }
+
+  Future<Map<String, dynamic>> updateCategory({
+    required int id,
+    String? name,
+    String? nameEng,
+    String? prefixRu,
+    String? prefixEng,
+    bool? collectSerials,
+    String? serialSource,
+    bool? cleanSerialPrefix,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (name != null) body['name'] = name;
+      if (nameEng != null) body['name_eng'] = nameEng;
+      if (prefixRu != null) body['prefix_ru'] = prefixRu;
+      if (prefixEng != null) body['prefix_eng'] = prefixEng;
+      if (collectSerials != null) body['collect_serials'] = collectSerials;
+      if (serialSource != null) body['serial_source'] = serialSource;
+      if (cleanSerialPrefix != null) body['clean_serial_prefix'] = cleanSerialPrefix;
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await _dio.put('/categories/$id', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка обновления категории: $e');
+    }
+  }
+
   Future<Map<String, dynamic>> createColor({
     required String eng,
     required String rus,
   }) async {
     try {
-      final response = await _dio.post(
-        '/colors/',
-        data: {
-          'eng': eng,
-          'rus': rus,
-        },
-      );
+      final response = await _dio.post('/colors/', data: {
+        'eng': eng,
+        'rus': rus,
+      });
       return response.data;
     } catch (e) {
       throw Exception('Ошибка создания цвета: $e');
     }
   }
 
-  // 12. Загрузка Packing List
+  // ============================================================
+  // 4. ТОВАРЫ (Products)
+  // ============================================================
+
+  Future<Map<String, dynamic>> searchProducts(String query) async {
+    try {
+      final response = await _dio.get(
+        '/models/search',
+        queryParameters: {
+          if (query.trim().isNotEmpty) 'q': query.trim(),
+          'limit': 500,
+        },
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка поиска: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> getProduct(int id) async {
+    try {
+      final response = await _dio.get('/models/$id');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения товара: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> createProduct({
+    required String partNumber,
+    required String modelNumber,
+    String? description,
+    String? coo,
+    String? upc,
+    double? weight,
+    int? categoryId,
+    int? colorId,
+    String? customNameRu,
+  }) async {
+    try {
+      final body = <String, dynamic>{
+        'part_number': partNumber,
+        'model_number': modelNumber,
+        'is_active': true,
+      };
+      if (description != null) body['description'] = description;
+      if (coo != null) body['coo'] = coo;
+      if (upc != null) body['upc'] = upc;
+      if (weight != null) body['weight'] = weight;
+      if (categoryId != null) body['category_id'] = categoryId;
+      if (colorId != null) body['color_id'] = colorId;
+      if (customNameRu != null) body['custom_name_ru'] = customNameRu;
+
+      final response = await _dio.post('/models/', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка создания товара: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> updateProduct({
+    required int id,
+    String? partNumber,
+    String? modelNumber,
+    String? description,
+    String? coo,
+    String? upc,
+    double? weight,
+    int? categoryId,
+    int? colorId,
+    String? customNameRu,
+    bool? isActive,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (partNumber != null) body['part_number'] = partNumber;
+      if (modelNumber != null) body['model_number'] = modelNumber;
+      if (description != null) body['description'] = description;
+      if (coo != null) body['coo'] = coo;
+      if (upc != null) body['upc'] = upc;
+      body['weight'] = weight;
+      body['category_id'] = categoryId;
+      body['color_id'] = colorId;
+      if (customNameRu != null) body['custom_name_ru'] = customNameRu;
+      if (isActive != null) body['is_active'] = isActive;
+
+      final response = await _dio.put('/models/$id', data: body);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка обновления товара: $e');
+    }
+  }
+
+  Future<void> deleteProduct(int id) async {
+    try {
+      await _dio.delete('/models/$id');
+    } catch (e) {
+      throw Exception('Ошибка удаления товара: $e');
+    }
+  }
+
+  // ============================================================
+  // 5. PACKING LIST
+  // ============================================================
+
   Future<Map<String, dynamic>> uploadPackingList({
     required List<int> bytes,
     required String fileName,
@@ -200,7 +349,6 @@ class ApiService {
     }
   }
 
-  // 13. Статус Packing List
   Future<Map<String, dynamic>> getPackingListStatus(String sessionId) async {
     try {
       final response = await _dio.get('/packing-list/status/$sessionId');
@@ -210,7 +358,6 @@ class ApiService {
     }
   }
 
-  // 14. Получение pending весов
   Future<Map<String, dynamic>> getPendingWeights(String sessionId) async {
     try {
       final response = await _dio.get('/packing-list/pending/$sessionId');
@@ -220,7 +367,6 @@ class ApiService {
     }
   }
 
-  // 15. Подтверждение веса
   Future<Map<String, dynamic>> approveWeight(int pendingId, double weight) async {
     try {
       final response = await _dio.post(
@@ -233,7 +379,6 @@ class ApiService {
     }
   }
 
-  // 16. Скачивание Packing List
   Future<Response> downloadPackingList(String sessionId) async {
     try {
       return await _dio.get(
@@ -245,7 +390,8 @@ class ApiService {
     }
   }
 
-  // ЧЕСТНЫЙ ЗНАК (ЧЗ)
+  // ============================================================
+  // 6. ЧЕСТНЫЙ ЗНАК — в спецификацию
   // ============================================================
 
   Future<Map<String, dynamic>> uploadCzFiles({
@@ -289,8 +435,8 @@ class ApiService {
     }
   }
 
-    // ============================================================
-  // КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ
+  // ============================================================
+  // 7. КОММЕРЧЕСКОЕ ПРЕДЛОЖЕНИЕ
   // ============================================================
 
   Future<Map<String, dynamic>> uploadCommercialOffer({
@@ -330,8 +476,8 @@ class ApiService {
     }
   }
 
-    // ============================================================
-  // КОДЫ ЧЗ ДЛЯ ВВОДА В ОБОРОТ
+  // ============================================================
+  // 8. КОДЫ ЧЗ ДЛЯ ВВОДА
   // ============================================================
 
   Future<Map<String, dynamic>> uploadCzCodes({
@@ -369,94 +515,8 @@ class ApiService {
     }
   }
 
-    // ============================================================
-  // УПРАВЛЕНИЕ ТОВАРАМИ
   // ============================================================
-
-  Future<Map<String, dynamic>> searchProducts(String query) async {
-    try {
-      final response = await _dio.get(
-        '/models/search',
-        queryParameters: {'q': query, 'limit': 50},
-      );
-      return response.data;
-    } catch (e) {
-      throw Exception('Ошибка поиска: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>> getProduct(int id) async {
-    try {
-      final response = await _dio.get('/models/$id');
-      return response.data;
-    } catch (e) {
-      throw Exception('Ошибка получения товара: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>> updateProduct({
-    required int id,
-    double? weight,
-    int? categoryId,
-    int? colorId,
-    String? customNameRu,
-    bool? isActive,
-  }) async {
-    try {
-      final body = <String, dynamic>{};
-      if (weight != null) body['weight'] = weight;
-      if (categoryId != null) body['category_id'] = categoryId;
-      if (colorId != null) body['color_id'] = colorId;
-      if (customNameRu != null) body['custom_name_ru'] = customNameRu;
-      if (isActive != null) body['is_active'] = isActive;
-
-      final response = await _dio.put('/models/$id', data: body);
-      return response.data;
-    } catch (e) {
-      throw Exception('Ошибка обновления товара: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>> getCategory(int id) async {
-    try {
-      final response = await _dio.get('/categories/$id');
-      return response.data;
-    } catch (e) {
-      throw Exception('Ошибка получения категории: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>> updateCategory({
-    required int id,
-    String? name,
-    String? nameEng,
-    String? prefixRu,
-    String? prefixEng,
-    bool? collectSerials,
-    String? serialSource,
-    bool? cleanSerialPrefix,
-    bool? isActive,
-  }) async {
-    try {
-      final body = <String, dynamic>{};
-      if (name != null) body['name'] = name;
-      if (nameEng != null) body['name_eng'] = nameEng;
-      if (prefixRu != null) body['prefix_ru'] = prefixRu;
-      if (prefixEng != null) body['prefix_eng'] = prefixEng;
-      if (collectSerials != null) body['collect_serials'] = collectSerials;
-      if (serialSource != null) body['serial_source'] = serialSource;
-      if (cleanSerialPrefix != null) body['clean_serial_prefix'] = cleanSerialPrefix;
-      if (isActive != null) body['is_active'] = isActive;
-
-      final response = await _dio.put('/categories/$id', data: body);
-      return response.data;
-    } catch (e) {
-      throw Exception('Ошибка обновления категории: $e');
-    }
-  }
-
-    // ============================================================
-  // КАРТОЧКИ ЧЗ
+  // 9. КАРТОЧКИ ЧЗ (K3)
   // ============================================================
 
   Future<Map<String, dynamic>> parseCzInvoice({
@@ -503,8 +563,8 @@ class ApiService {
     }
   }
 
-    // ============================================================
-  // СПРАВОЧНИК ЧЗ — МОДЕЛИ
+  // ============================================================
+  // 10. СПРАВОЧНИК ЧЗ — МОДЕЛИ
   // ============================================================
 
   Future<List<dynamic>> getCzCardProducts({String query = ''}) async {
@@ -589,8 +649,9 @@ class ApiService {
       throw Exception('Ошибка удаления модели: $e');
     }
   }
-    // ============================================================
-  // СПРАВОЧНИК ЧЗ — ЦВЕТА
+
+  // ============================================================
+  // 11. СПРАВОЧНИК ЧЗ — ЦВЕТА
   // ============================================================
 
   Future<List<dynamic>> getCzColorMappings({String query = ''}) async {

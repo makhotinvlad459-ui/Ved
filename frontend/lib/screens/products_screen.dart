@@ -18,9 +18,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
   Timer? _debounce;
 
   List<dynamic> _products = [];
-  bool _isLoading = false;
+  bool _isLoading = true;
   bool _hasSearched = false;
   String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Загрузим сразу всё (пустой запрос — все товары)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _load();
+    });
+  }
 
   @override
   void dispose() {
@@ -32,21 +41,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
   void _onSearchChanged(String value) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
-      _search(value);
+      _load(query: value);
     });
   }
 
-  Future<void> _search(String query) async {
-    final q = query.trim();
-    if (q.isEmpty) {
-      setState(() {
-        _products = [];
-        _hasSearched = false;
-        _error = '';
-      });
-      return;
-    }
-
+  Future<void> _load({String query = ''}) async {
     setState(() {
       _isLoading = true;
       _error = '';
@@ -54,7 +53,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      final data = await api.searchProducts(q);
+      final data = await api.searchProducts(query);
       if (!mounted) return;
       setState(() {
         _products = data['products'] ?? [];
@@ -65,7 +64,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _error = 'Ошибка поиска: $e';
+        _error = 'Ошибка: $e';
         _hasSearched = true;
       });
     }
@@ -78,10 +77,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
         builder: (context) => ProductEditScreen(productId: id),
       ),
     );
-    // После возврата — перезапустить поиск, чтобы обновить данные
-    if (result == true) {
-      _search(_searchController.text);
-    }
+    if (result == true) _load(query: _searchController.text);
+  }
+
+  Future<void> _createNew() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const ProductEditScreen(productId: null),
+      ),
+    );
+    if (result == true) _load(query: _searchController.text);
   }
 
   @override
@@ -108,15 +114,6 @@ class _ProductsScreenState extends State<ProductsScreen> {
               decoration: InputDecoration(
                 hintText: 'Поиск: артикул, модель, описание, GTIN...',
                 prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          _search('');
-                        },
-                      )
-                    : null,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -126,7 +123,27 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Найдено: ${_products.length}',
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _createNew,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Добавить'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blueGrey,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
             Expanded(child: _buildBody()),
           ],
         ),
@@ -138,49 +155,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
-
     if (_error.isNotEmpty) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error, color: Colors.red, size: 48),
-            const SizedBox(height: 12),
-            Text(_error, textAlign: TextAlign.center),
-          ],
-        ),
+        child: Text(_error, style: const TextStyle(color: Colors.red)),
       );
     }
-
     if (!_hasSearched) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.search, color: Colors.grey, size: 64),
-            SizedBox(height: 16),
-            Text(
-              'Введите запрос для поиска',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          ],
+        child: Text(
+          'Введите запрос для поиска',
+          style: TextStyle(color: Colors.grey, fontSize: 16),
         ),
       );
     }
-
     if (_products.isEmpty) {
       return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.inbox, color: Colors.grey, size: 64),
-            SizedBox(height: 16),
-            Text(
-              'Ничего не найдено',
-              style: TextStyle(color: Colors.grey, fontSize: 16),
-            ),
-          ],
-        ),
+        child: Text('Ничего не найдено', style: TextStyle(color: Colors.grey)),
       );
     }
 
@@ -193,6 +183,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
         final desc = p['description'] ?? '';
         final weight = p['weight'];
         final category = p['category']?['name'];
+        final colorRus = p['color']?['rus'];
         final isActive = p['is_active'] ?? true;
 
         return Card(
@@ -209,7 +200,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          model.isNotEmpty ? model : part,
+                          part,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
@@ -228,23 +219,22 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           ),
                           child: const Text(
                             'удалён',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.red,
-                            ),
+                            style: TextStyle(fontSize: 10, color: Colors.red),
                           ),
                         ),
                     ],
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    part,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.blue.shade700,
-                      fontWeight: FontWeight.w500,
+                  if (model.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      model,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.blue.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
+                  ],
                   if (desc.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
@@ -255,22 +245,19 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  Row(
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
                     children: [
                       if (weight != null)
-                        _chip(
-                          '⚖️ ${weight.toString()} кг',
-                          Colors.orange.shade50,
-                          Colors.orange.shade700,
-                        ),
-                      if (category != null) ...[
-                        const SizedBox(width: 6),
-                        _chip(
-                          category,
-                          Colors.purple.shade50,
-                          Colors.purple.shade700,
-                        ),
-                      ],
+                        _chip('⚖️ ${weight.toString()} кг',
+                            Colors.orange.shade50, Colors.orange.shade700),
+                      if (category != null)
+                        _chip(category, Colors.purple.shade50,
+                            Colors.purple.shade700),
+                      if (colorRus != null)
+                        _chip(colorRus, Colors.teal.shade50,
+                            Colors.teal.shade700),
                     ],
                   ),
                 ],
