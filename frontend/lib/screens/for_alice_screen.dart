@@ -1,7 +1,6 @@
 // frontend/lib/screens/for_alice_screen.dart
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../services/api_service.dart';
@@ -41,7 +40,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   String _error = '';
 
   // Результаты
-  Map<String, dynamic>? _result;
   List<dynamic> _resultRows = [];
   List<dynamic> _missing = [];
   Map<String, dynamic>? _totals;
@@ -75,55 +73,159 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     });
   }
 
-  Future<void> _pasteFromClipboard() async {
-    try {
-      final data = await Clipboard.getData('text/plain');
-      if (data == null || data.text == null || data.text!.trim().isEmpty) {
-        return;
+  void _clearAll() {
+    setState(() {
+      for (final r in _rows) {
+        r.dispose();
       }
-      final text = data.text!;
-      final lines = text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      _rows.clear();
+      _rows.add(_ForAliceRow());
+    });
+  }
 
+  // ============================================================
+  // ВСТАВКА: НАЗВАНИЯ
+  // ============================================================
+  Future<void> _pasteNames() async {
+    final controller = TextEditingController();
+    final result = await _showPasteDialog(
+      title: 'Вставить названия',
+      hint: 'Скопируйте столбец с названиями из 1С и вставьте сюда (Ctrl+V)',
+      controller: controller,
+    );
+    if (result == true) {
+      final lines = _splitLines(controller.text);
       setState(() {
-        // Очистим пустые строки
-        _rows.removeWhere((r) =>
-            r.name.text.isEmpty && r.qty.text.isEmpty && r.price.text.isEmpty);
-
-        for (final line in lines) {
-          final parts = line.split('\t');
-          if (parts.isEmpty) continue;
-
-          String name = '';
-          String qty = '';
-          String price = '';
-
-          if (parts.length >= 5) {
-            // код | P/N | название | кол-во | цена
-            name = parts[2].trim();
-            qty = parts[3].trim();
-            price = parts[4].trim();
-          } else if (parts.length == 3) {
-            // название | кол-во | цена
-            name = parts[0].trim();
-            qty = parts[1].trim();
-            price = parts[2].trim();
-          } else if (parts.length == 1) {
-            name = parts[0].trim();
+        // Дополняем существующие строки или создаём новые
+        for (int i = 0; i < lines.length; i++) {
+          if (i < _rows.length) {
+            _rows[i].name.text = lines[i];
           } else {
-            name = parts[0].trim();
-            if (parts.length > 1) qty = parts[1].trim();
-            if (parts.length > 2) price = parts[2].trim();
+            _rows.add(_ForAliceRow(name: lines[i]));
           }
-
-          _rows.add(_ForAliceRow(name: name, qty: qty, price: price));
         }
       });
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Ошибка вставки: $e')),
-      );
+      _showSnack('Вставлено названий: ${lines.length}');
     }
+  }
+
+  // ============================================================
+  // ВСТАВКА: КОЛИЧЕСТВА
+  // ============================================================
+  Future<void> _pasteQtys() async {
+    final controller = TextEditingController();
+    final result = await _showPasteDialog(
+      title: 'Вставить количества',
+      hint: 'Скопируйте столбец с количествами из 1С и вставьте сюда (Ctrl+V)',
+      controller: controller,
+    );
+    if (result == true) {
+      final lines = _splitLines(controller.text);
+      setState(() {
+        for (int i = 0; i < lines.length; i++) {
+          final qty = lines[i].replaceAll(RegExp(r'[^\d]'), '');
+          if (i < _rows.length) {
+            _rows[i].qty.text = qty;
+          } else {
+            _rows.add(_ForAliceRow(qty: qty));
+          }
+        }
+      });
+      _showSnack('Вставлено количеств: ${lines.length}');
+    }
+  }
+
+  // ============================================================
+  // ВСТАВКА: ЦЕНЫ
+  // ============================================================
+  Future<void> _pastePrices() async {
+    final controller = TextEditingController();
+    final result = await _showPasteDialog(
+      title: 'Вставить цены',
+      hint: 'Скопируйте столбец с ценами из 1С и вставьте сюда (Ctrl+V)',
+      controller: controller,
+    );
+    if (result == true) {
+      final lines = _splitLines(controller.text);
+      setState(() {
+        for (int i = 0; i < lines.length; i++) {
+          final price = lines[i]
+              .replaceAll(',', '.')
+              .replaceAll(RegExp(r'[^\d.]'), '');
+          if (i < _rows.length) {
+            _rows[i].price.text = price;
+          } else {
+            _rows.add(_ForAliceRow(price: price));
+          }
+        }
+      });
+      _showSnack('Вставлено цен: ${lines.length}');
+    }
+  }
+
+  // ============================================================
+  // ВСПОМОГАТЕЛЬНЫЕ
+  // ============================================================
+
+  List<String> _splitLines(String text) {
+    return text
+        .replaceAll('\r\n', '\n')
+        .replaceAll('\r', '\n')
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+  }
+
+  Future<bool?> _showPasteDialog({
+    required String title,
+    required String hint,
+    required TextEditingController controller,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: 600,
+          height: 400,
+          child: TextField(
+            controller: controller,
+            maxLines: null,
+            expands: true,
+            textAlignVertical: TextAlignVertical.top,
+            decoration: InputDecoration(
+              hintText: hint,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Вставить'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+      ),
+    );
   }
 
   List<Map<String, dynamic>> _collectItems() {
@@ -134,7 +236,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       final priceText = r.price.text.trim();
 
       if (name.isEmpty && qtyText.isEmpty && priceText.isEmpty) continue;
-
       if (name.isEmpty) continue;
 
       items.add({
@@ -149,12 +250,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   Future<void> _process() async {
     final items = _collectItems();
     if (items.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Добавьте хотя бы одну позицию'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Добавьте хотя бы одну позицию');
       return;
     }
 
@@ -165,12 +261,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
         double.tryParse(_usdToAedController.text.replaceAll(',', '.'));
 
     if (rate == null || documents == null || usdToAed == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Проверьте параметры расчёта'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Проверьте параметры расчёта');
       return;
     }
 
@@ -192,7 +283,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
       setState(() {
         _isProcessing = false;
-        _result = result;
         _resultRows = result['rows'] ?? [];
         _missing = result['missing'] ?? [];
         _totals = result['totals'] ?? {};
@@ -209,16 +299,17 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     }
   }
 
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
+  }
+
   Future<void> _saveWeightAndRecalculate(int index) async {
     final m = _missing[index];
     final partNumber = m['part_number'];
     if (partNumber == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Не удалось извлечь part_number из названия'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Не удалось извлечь part_number из названия');
       return;
     }
 
@@ -248,6 +339,10 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                 Navigator.pop(context, v);
               }
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Сохранить'),
           ),
         ],
@@ -264,19 +359,12 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       );
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('✅ Вес сохранён. Пересчитываем...'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      _showSnack('✅ Вес сохранён. Пересчитываем...');
 
       await _process();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Ошибка: $e'), backgroundColor: Colors.red),
-      );
+      _showError('❌ Ошибка: $e');
     }
   }
 
@@ -289,22 +377,19 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       final blob = html.Blob([bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
       final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'For_Alice_${_sessionId!.substring(0, 8)}.xlsx')
+        ..setAttribute('download',
+            'For_Alice_${_sessionId!.substring(0, 8)}.xlsx')
         ..click();
       html.Url.revokeObjectUrl(url);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Ошибка скачивания: $e'),
-            backgroundColor: Colors.red),
-      );
+      _showError('❌ Ошибка скачивания: $e');
     }
   }
 
   void _reset() {
     setState(() {
       _showResults = false;
-      _result = null;
       _resultRows = [];
       _missing = [];
       _totals = null;
@@ -393,38 +478,81 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
           const SizedBox(height: 24),
 
-          // === Строки ===
-          Row(
+          // === Кнопки вставки ===
+          const Text(
+            'Позиции',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Вставьте 3 столбца из 1С — названия, количества, цены:',
+            style: TextStyle(fontSize: 13, color: Colors.grey),
+          ),
+          const SizedBox(height: 12),
+
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              const Expanded(
-                child: Text(
-                  'Позиции',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ElevatedButton.icon(
+                onPressed: _pasteNames,
+                icon: const Icon(Icons.description_outlined, size: 18),
+                label: const Text('Вставить названия'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
                 ),
               ),
-              TextButton.icon(
-                onPressed: _pasteFromClipboard,
-                icon: const Icon(Icons.content_paste, size: 18),
-                label: const Text('Вставить'),
+              ElevatedButton.icon(
+                onPressed: _pasteQtys,
+                icon: const Icon(Icons.numbers, size: 18),
+                label: const Text('Вставить количества'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                ),
               ),
               ElevatedButton.icon(
-                onPressed: _addRow,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Строка'),
+                onPressed: _pastePrices,
+                icon: const Icon(Icons.attach_money, size: 18),
+                label: const Text('Вставить цены'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
 
-          // Заголовки строк
+          const SizedBox(height: 16),
+
+          // === Кнопки управления строками ===
+          Row(
+            children: [
+              OutlinedButton.icon(
+                onPressed: _addRow,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Добавить строку'),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: _clearAll,
+                icon: const Icon(Icons.clear_all, size: 18),
+                label: const Text('Очистить всё'),
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // === Заголовки таблицы ===
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             child: Row(
               children: const [
+                SizedBox(width: 30, child: Text('#', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                SizedBox(width: 6),
                 Expanded(flex: 5, child: Text('Название', style: TextStyle(fontSize: 12, color: Colors.grey))),
                 SizedBox(width: 6),
                 SizedBox(width: 70, child: Text('Кол-во', style: TextStyle(fontSize: 12, color: Colors.grey))),
@@ -435,6 +563,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ),
           ),
 
+          // === Строки ===
           ...List.generate(_rows.length, (idx) {
             final r = _rows[idx];
             return Padding(
@@ -442,6 +571,15 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  SizedBox(
+                    width: 30,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text('${idx + 1}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   Expanded(
                     flex: 5,
                     child: TextField(
@@ -707,8 +845,8 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ElevatedButton.icon(
               onPressed: _download,
               icon: const Icon(Icons.download),
-              label: const Text('Скачать xlsx',
-                  style: TextStyle(fontSize: 16)),
+              label:
+                  const Text('Скачать xlsx', style: TextStyle(fontSize: 16)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
