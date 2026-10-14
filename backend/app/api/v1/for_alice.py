@@ -2,7 +2,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker as sync_sessionmaker
 from typing import List, Optional
 from pydantic import BaseModel
@@ -38,6 +38,7 @@ class ForAliceRequest(BaseModel):
 
 class SaveWeightRequest(BaseModel):
     part_number: Optional[str] = None
+    name: Optional[str] = None
     weight: float
 
 
@@ -50,9 +51,6 @@ async def process_for_alice(
     data: ForAliceRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Принимает строки + параметры, возвращает результат расчёта.
-    """
     from app.services.for_alice_calculator import calculate_for_alice
 
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -79,7 +77,7 @@ async def process_for_alice(
 
 
 # ============================================================
-# СОХРАНЕНИЕ ВЕСА
+# СОХРАНЕНИЕ ВЕСА (с автосозданием товара)
 # ============================================================
 
 @router.post("/save-weight")
@@ -89,30 +87,49 @@ async def save_weight(
 ):
     """
     Сохраняет вес для Product по part_number.
-    Если part_number нет в БД — ошибка.
+    Если товара нет — создаёт новый с указанным весом.
     """
     if not data.part_number:
         raise HTTPException(status_code=400, detail="part_number обязателен")
+    if data.weight is None or data.weight <= 0:
+        raise HTTPException(status_code=400, detail="Вес должен быть > 0")
 
-    from sqlalchemy import select
     stmt = select(Product).where(Product.part_number == data.part_number)
     result = await db.execute(stmt)
     product = result.scalar_one_or_none()
 
-    if not product:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Товар {data.part_number} не найден в БД",
+    if product:
+        # Обновляем существующий
+        product.weight = data.weight
+        if data.name and not product.description:
+            product.description = data.name
+        await db.commit()
+        return {
+            "message": "Вес обновлён",
+            "created": False,
+            "part_number": data.part_number,
+            "weight": data.weight,
+            "product_id": product.id,
+        }
+    else:
+        # Создаём новый товар
+        new_product = Product(
+            part_number=data.part_number,
+            model_number="",
+            description=data.name or data.part_number,
+            weight=data.weight,
+            is_active=True,
         )
-
-    product.weight = data.weight
-    await db.commit()
-
-    return {
-        "message": "Вес сохранён",
-        "part_number": data.part_number,
-        "weight": data.weight,
-    }
+        db.add(new_product)
+        await db.commit()
+        await db.refresh(new_product)
+        return {
+            "message": "Товар создан",
+            "created": True,
+            "part_number": data.part_number,
+            "weight": data.weight,
+            "product_id": new_product.id,
+        }
 
 
 # ============================================================
@@ -124,9 +141,6 @@ async def generate_for_alice(
     data: ForAliceRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Считает + генерирует xlsx. Возвращает session_id для скачивания.
-    """
     from app.services.for_alice_calculator import calculate_for_alice
     from app.services.for_alice_generator import generate_for_alice_xlsx
 
@@ -172,7 +186,6 @@ async def generate_for_alice(
 
 @router.get("/download/{session_id}")
 async def download_for_alice(session_id: str):
-    """Скачать готовый xlsx."""
     path = os.path.join(OUTPUT_DIR, f"for_alice_{session_id[:8]}.xlsx")
 
     if not os.path.exists(path):
