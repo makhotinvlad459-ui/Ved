@@ -539,10 +539,10 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
           const SizedBox(height: 12),
 
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             child: Row(
-              children: const [
+              children: [
                 SizedBox(width: 30, child: Text('#', style: TextStyle(fontSize: 12, color: Colors.grey))),
                 SizedBox(width: 6),
                 Expanded(flex: 5, child: Text('Название', style: TextStyle(fontSize: 12, color: Colors.grey))),

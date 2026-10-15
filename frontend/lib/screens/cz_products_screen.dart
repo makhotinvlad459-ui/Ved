@@ -215,8 +215,8 @@ class _CzProductsScreenState extends State<CzProductsScreen> {
                     runSpacing: 4,
                     children: [
                       _chip(brand, Colors.blueGrey),
-                      if (screen != null) _chip('${screen}"', Colors.blue),
-                      if (ram != null) _chip('${ram} Гб', Colors.orange),
+                      if (screen != null) _chip('$screen"', Colors.blue),
+                      if (ram != null) _chip('$ram Гб', Colors.orange),
                       if (cpu != null) _chip(cpu, Colors.green),
                     ],
                   ),

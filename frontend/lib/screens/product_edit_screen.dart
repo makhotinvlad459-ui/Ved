@@ -376,7 +376,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<int?>(
-                            value: _selectedCategoryId,
+                            initialValue: _selectedCategoryId,
                             isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'Категория',
@@ -427,7 +427,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<int?>(
-                            value: _selectedColorId,
+                            initialValue: _selectedColorId,
                             isExpanded: true,
                             decoration: const InputDecoration(
                               labelText: 'Цвет',

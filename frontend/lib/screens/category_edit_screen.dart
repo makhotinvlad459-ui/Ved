@@ -256,7 +256,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
         if (_collectSerials) ...[
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            value: _serialSource,
+            initialValue: _serialSource,
             decoration: const InputDecoration(
               labelText: 'Источник серийников',
               border: OutlineInputBorder(),

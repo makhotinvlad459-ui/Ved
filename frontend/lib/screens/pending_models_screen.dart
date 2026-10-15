@@ -34,11 +34,21 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
 
   @override
   void dispose() {
-    for (var c in _categoryNameController.values) c.dispose();
-    for (var c in _categoryPrefixController.values) c.dispose();
-    for (var c in _colorRusController.values) c.dispose();
-    for (var c in _colorEngController.values) c.dispose();
-    for (var c in _nameRuController.values) c.dispose();
+    for (var c in _categoryNameController.values) {
+      c.dispose();
+    }
+    for (var c in _categoryPrefixController.values) {
+      c.dispose();
+    }
+    for (var c in _colorRusController.values) {
+      c.dispose();
+    }
+    for (var c in _colorEngController.values) {
+      c.dispose();
+    }
+    for (var c in _nameRuController.values) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -411,7 +421,7 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     }
 
     return DropdownButtonFormField<String?>(
-      value: _selectedCategory[id],
+      initialValue: _selectedCategory[id],
       items: items,
       onChanged: (value) {
         setState(() {
@@ -448,7 +458,7 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     }
 
     return DropdownButtonFormField<String?>(
-      value: _selectedColor[id],
+      initialValue: _selectedColor[id],
       items: items,
       onChanged: (value) {
         setState(() {

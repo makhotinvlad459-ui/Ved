@@ -75,9 +75,9 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
+                  const _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.description_outlined,
@@ -108,9 +108,9 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
+                  const _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.qr_code_2,
@@ -135,9 +135,9 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  _GroupLabel(label: 'СПРАВОЧНИКИ'),
+                  const _GroupLabel(label: 'СПРАВОЧНИКИ'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.inventory_outlined,

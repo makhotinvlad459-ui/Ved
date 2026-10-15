@@ -112,23 +112,44 @@ async def save_weight(
             "product_id": product.id,
         }
     else:
-        # Создаём новый товар
+        # Ищем sibling с таким же description, у которого есть категория
+        inherited_category_id = None
+        inherited_color_id = None
+
+        if data.name:
+            sibling_stmt = select(Product).where(
+                Product.description == data.name,
+                Product.category_id.isnot(None),
+            ).limit(1)
+            sibling_result = await db.execute(sibling_stmt)
+            sibling = sibling_result.scalar_one_or_none()
+
+            if sibling:
+                inherited_category_id = sibling.category_id
+                inherited_color_id = sibling.color_id
+
         new_product = Product(
             part_number=data.part_number,
             model_number="",
             description=data.name or data.part_number,
             weight=data.weight,
+            category_id=inherited_category_id,
+            color_id=inherited_color_id,
             is_active=True,
         )
         db.add(new_product)
         await db.commit()
         await db.refresh(new_product)
         return {
-            "message": "Товар создан",
+            "message": "Товар создан" + (
+                " (категория унаследована)" if inherited_category_id else ""
+            ),
             "created": True,
             "part_number": data.part_number,
             "weight": data.weight,
             "product_id": new_product.id,
+            "inherited_category_id": inherited_category_id,
+            "inherited_color_id": inherited_color_id,
         }
 
 

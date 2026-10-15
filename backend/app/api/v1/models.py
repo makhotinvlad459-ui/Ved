@@ -284,6 +284,19 @@ async def approve_pending_model(
         if not col_result.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Указанный цвет не найден")
 
+    # Если category_id не задан — ищем sibling по description
+    if not category_id and pending.description:
+        sibling_stmt = select(Product).where(
+            Product.description == pending.description,
+            Product.category_id.isnot(None),
+        ).limit(1)
+        sibling_result = await db.execute(sibling_stmt)
+        sibling = sibling_result.scalar_one_or_none()
+        if sibling:
+            category_id = sibling.category_id
+            if not color_id:
+                color_id = sibling.color_id
+
     product = Product(
         part_number=pending.part_number,
         model_number=pending.model_number,
@@ -391,13 +404,29 @@ async def approve_all_pending(
 
     approved_count = 0
     for pending in pendings:
+        category_id = pending.suggested_category_id
+        color_id = pending.suggested_color_id
+
+        # Если категория не задана — ищем sibling по description
+        if not category_id and pending.description:
+            sibling_stmt = select(Product).where(
+                Product.description == pending.description,
+                Product.category_id.isnot(None),
+            ).limit(1)
+            sibling_result = await db.execute(sibling_stmt)
+            sibling = sibling_result.scalar_one_or_none()
+            if sibling:
+                category_id = sibling.category_id
+                if not color_id:
+                    color_id = sibling.color_id
+
         product = Product(
             part_number=pending.part_number,
             model_number=pending.model_number,
             description=pending.description,
             coo=pending.coo,
-            category_id=pending.suggested_category_id,
-            color_id=pending.suggested_color_id,
+            category_id=category_id,
+            color_id=color_id,
             custom_name_ru=pending.suggested_name_ru,
             is_active=True
         )

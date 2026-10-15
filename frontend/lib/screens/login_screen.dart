@@ -290,10 +290,10 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: _isLoading
-                          ? Row(
+                          ? const Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const SizedBox(
+                                SizedBox(
                                   height: 24,
                                   width: 24,
                                   child: CircularProgressIndicator(
@@ -301,8 +301,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                     strokeWidth: 2,
                                   ),
                                 ),
-                                const SizedBox(width: 12),
-                                const Text(
+                                SizedBox(width: 12),
+                                Text(
                                   'Вход...',
                                   style: TextStyle(fontSize: 16),
                                 ),
