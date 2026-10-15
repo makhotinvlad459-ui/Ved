@@ -2,7 +2,7 @@
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-
+import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 
 class ForAliceScreen extends StatefulWidget {
@@ -706,44 +706,75 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                   ),
                   const SizedBox(height: 12),
                   ...List.generate(_missing.length, (idx) {
-                    final m = _missing[idx];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              m['part_number'] ?? '—',
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              m['name'] ?? '',
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey[700]),
-                            ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: ElevatedButton.icon(
-                                onPressed: () => _saveWeightAndRecalculate(idx),
-                                icon: const Icon(Icons.add_circle_outline,
-                                    size: 18),
-                                label: const Text('Ввести вес'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  }),
+        final m = _missing[idx];
+        final partNumber = m['part_number'] ?? '—';
+        final name = m['name'] ?? '';
+
+  return Card(
+    margin: const EdgeInsets.only(bottom: 8),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  partNumber,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 18),
+                tooltip: 'Скопировать артикул',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: partNumber));
+                  _showSnack('Артикул скопирован: $partNumber');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: SelectableText(
+                  name,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy, size: 18),
+                tooltip: 'Скопировать название',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: name));
+                  _showSnack('Название скопировано');
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              onPressed: () => _saveWeightAndRecalculate(idx),
+              icon: const Icon(Icons.add_circle_outline, size: 18),
+              label: const Text('Ввести вес'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}),
                 ],
               ),
             ),
