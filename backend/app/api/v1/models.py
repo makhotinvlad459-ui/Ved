@@ -218,6 +218,12 @@ async def get_pending_models(
             col = col_result.scalar_one_or_none()
             color_name = col.eng if col else None
 
+        # Определяем тип: новый товар или товар без категории
+        prod_stmt = select(Product).where(Product.part_number == p.part_number)
+        prod_result = await db.execute(prod_stmt)
+        existing_product = prod_result.scalar_one_or_none()
+        is_missing_category = existing_product is not None
+
         new_models.append({
             "id": p.id,
             "part_number": p.part_number,
@@ -230,7 +236,8 @@ async def get_pending_models(
             "suggested_color_name": color_name,
             "suggested_name_ru": p.suggested_name_ru,
             "custom_name_ru": p.custom_name_ru,
-            "status": p.status
+            "status": p.status,
+            "type": "missing_category" if is_missing_category else "new_model",
         })
 
     categories = await db.execute(select(Category).where(Category.is_active == True))
@@ -284,30 +291,34 @@ async def approve_pending_model(
         if not col_result.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Указанный цвет не найден")
 
-    # Если category_id не задан — ищем sibling по description
-    if not category_id and pending.description:
-        sibling_stmt = select(Product).where(
-            Product.description == pending.description,
-            Product.category_id.isnot(None),
-        ).limit(1)
-        sibling_result = await db.execute(sibling_stmt)
-        sibling = sibling_result.scalar_one_or_none()
-        if sibling:
-            category_id = sibling.category_id
-            if not color_id:
-                color_id = sibling.color_id
+    # Проверяем: есть ли уже Product с таким part_number
+    existing_stmt = select(Product).where(Product.part_number == pending.part_number)
+    existing_result = await db.execute(existing_stmt)
+    existing_product = existing_result.scalar_one_or_none()
 
-    product = Product(
-        part_number=pending.part_number,
-        model_number=pending.model_number,
-        description=pending.description,
-        coo=pending.coo,
-        category_id=category_id,
-        color_id=color_id,
-        custom_name_ru=name_ru,
-        is_active=True
-    )
-    db.add(product)
+    if existing_product:
+        # Товар существует — обновляем категорию/цвет
+        existing_product.category_id = category_id
+        if color_id:
+            existing_product.color_id = color_id
+        if name_ru and not existing_product.custom_name_ru:
+            existing_product.custom_name_ru = name_ru
+        product = existing_product
+        action = "updated"
+    else:
+        # Создаём новый
+        product = Product(
+            part_number=pending.part_number,
+            model_number=pending.model_number,
+            description=pending.description,
+            coo=pending.coo,
+            category_id=category_id,
+            color_id=color_id,
+            custom_name_ru=name_ru,
+            is_active=True
+        )
+        db.add(product)
+        action = "created"
 
     pending.status = "approved"
     pending.custom_name_ru = name_ru
@@ -335,7 +346,8 @@ async def approve_pending_model(
             process_invoice.delay(session_id)
 
     return {
-        "message": "Модель подтверждена и добавлена в БД",
+        "message": f"Товар {action}",
+        "action": action,
         "product": {
             "id": product.id,
             "part_number": product.part_number,
@@ -406,31 +418,34 @@ async def approve_all_pending(
     for pending in pendings:
         category_id = pending.suggested_category_id
         color_id = pending.suggested_color_id
+        name_ru = pending.suggested_name_ru
 
-        # Если категория не задана — ищем sibling по description
-        if not category_id and pending.description:
-            sibling_stmt = select(Product).where(
-                Product.description == pending.description,
-                Product.category_id.isnot(None),
-            ).limit(1)
-            sibling_result = await db.execute(sibling_stmt)
-            sibling = sibling_result.scalar_one_or_none()
-            if sibling:
-                category_id = sibling.category_id
-                if not color_id:
-                    color_id = sibling.color_id
+        # Проверяем: есть ли уже Product
+        existing_stmt = select(Product).where(Product.part_number == pending.part_number)
+        existing_result = await db.execute(existing_stmt)
+        existing_product = existing_result.scalar_one_or_none()
 
-        product = Product(
-            part_number=pending.part_number,
-            model_number=pending.model_number,
-            description=pending.description,
-            coo=pending.coo,
-            category_id=category_id,
-            color_id=color_id,
-            custom_name_ru=pending.suggested_name_ru,
-            is_active=True
-        )
-        db.add(product)
+        if existing_product:
+            # Обновляем существующий
+            existing_product.category_id = category_id
+            if color_id:
+                existing_product.color_id = color_id
+            if name_ru and not existing_product.custom_name_ru:
+                existing_product.custom_name_ru = name_ru
+        else:
+            # Создаём новый
+            product = Product(
+                part_number=pending.part_number,
+                model_number=pending.model_number,
+                description=pending.description,
+                coo=pending.coo,
+                category_id=category_id,
+                color_id=color_id,
+                custom_name_ru=name_ru,
+                is_active=True
+            )
+            db.add(product)
+
         pending.status = "approved"
         approved_count += 1
 
