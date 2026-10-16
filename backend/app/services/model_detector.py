@@ -1,5 +1,4 @@
 # backend/app/services/model_detector.py
-# backend/app/services/model_detector.py
 import re
 from typing import Optional, List, Dict, Any
 from sqlalchemy.orm import Session
@@ -15,7 +14,7 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
 
     rules = {
         "Телефон": ["iphone", "galaxy", "pixel", "phone", "mobile", "samsung galaxy"],
-        "Samsung Телефон": ["samsung galaxy", "sm-s", "sm-g", "sm-a"],  # ← НОВОЕ
+        "Samsung Телефон": ["samsung galaxy", "sm-s", "sm-g", "sm-a"],
         "Компьютер": ["macbook", "laptop", "notebook"],
         "Персональный компьютер": ["imac", "mac mini", "mac studio", "mac pro"],
         "Планшет": ["ipad", "galaxy tab", "tablet"],
@@ -33,10 +32,8 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
         "Стилус": ["pencil", "stylus"],
         "Полировочная ткань": ["polishing cloth"],
         "Адаптеры": ["adapter", "thunderbolt"],
-        "Ноутбуки Lenovo": ["lenovo", "thinkpad", "thinkbook", "legion", "ideapad", "yoga", "loq"],
     }
 
-    # Сначала проверяем Samsung — он должен идти раньше общего "Телефон"
     if "samsung" in description_lower:
         for cat in categories:
             if cat.name == "Samsung Телефон":
@@ -44,14 +41,13 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
 
     for category_name, keywords in rules.items():
         if category_name == "Samsung Телефон":
-            continue  # уже обработали выше
+            continue
         for keyword in keywords:
             if keyword in description_lower:
                 for cat in categories:
                     if cat.name == category_name:
                         return cat
 
-    # Дефолтная категория
     for cat in categories:
         if cat.name == "Компьютер":
             return cat
@@ -60,17 +56,12 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
 
 
 def detect_color(description: str, colors: List[Color]) -> Optional[Color]:
-    """
-    Определяет цвет по описанию — самое длинное совпадение.
-    Защита от 'Space Black' → 'Black'.
-    """
     if not description or not colors:
         return None
     d = description.lower()
     matches = [c for c in colors if c.eng and c.eng.lower() in d]
     if not matches:
         return None
-    # Самое длинное eng-название — самое точное
     return max(matches, key=lambda c: len(c.eng or ""))
 
 
@@ -79,7 +70,6 @@ def detect_or_create_category(
     categories: List[Category],
     db: Session
 ) -> Optional[Category]:
-    """Определить категорию или создать новую (временную)"""
     category = detect_category(description, categories)
     if category:
         return category
@@ -110,7 +100,6 @@ def detect_or_create_color(
     colors: List[Color],
     db: Session
 ) -> Optional[Color]:
-    """Определить цвет или создать новый (временный)"""
     color = detect_color(description, colors)
     if color:
         return color
@@ -197,7 +186,10 @@ def save_pending_models(
     db: Session,
     session_id: str
 ) -> List[Dict[str, Any]]:
-    """Сохранить новые модели в список на подтверждение"""
+    """
+    Сохранить новые модели в список на подтверждение.
+    Также создаёт PendingModel для существующих Product БЕЗ категории.
+    """
     new_models = []
 
     existing_part_numbers = {
@@ -213,9 +205,48 @@ def save_pending_models(
     for item in items:
         part_number = item.get("part_number", "")
 
-        if not part_number or part_number in existing_part_numbers or part_number in pending_part_numbers:
+        if not part_number:
             continue
 
+        # === Случай 1: товар уже в PendingModel ===
+        if part_number in pending_part_numbers:
+            continue
+
+        # === Случай 2: товар в БД, но без категории ===
+        if part_number in existing_part_numbers:
+            product = db.query(Product).filter(
+                Product.part_number == part_number
+            ).first()
+
+            if product and not product.category_id:
+                # Нужно подтверждение категории
+                pending = PendingModel(
+                    session_id=session_id,
+                    part_number=part_number,
+                    model_number=product.model_number,
+                    description=product.description or item.get("description", ""),
+                    coo=product.coo or item.get("coo", ""),
+                    suggested_category_id=None,
+                    suggested_color_id=product.color_id,
+                    suggested_name_ru=product.custom_name_ru,
+                    status="pending",
+                )
+                db.add(pending)
+                db.commit()
+                pending_part_numbers.add(part_number)
+
+                new_models.append({
+                    "part_number": part_number,
+                    "type": "missing_category",
+                    "suggested_name": product.custom_name_ru,
+                    "category_id": None,
+                    "color_id": product.color_id,
+                })
+                print(f"📝 Товар без категории на подтверждение: {part_number}")
+
+            continue
+
+        # === Случай 3: новый товар (нет в БД) ===
         description = item.get("description", "")
 
         category = detect_category(description, categories)
@@ -245,9 +276,11 @@ def save_pending_models(
         )
         db.add(pending)
         db.commit()
+        pending_part_numbers.add(part_number)
 
         new_models.append({
             "part_number": part_number,
+            "type": "new_model",
             "suggested_name": suggested_name,
             "category_id": category.id if category else None,
             "color_id": color.id if color else None
@@ -276,6 +309,11 @@ def get_pending_models_by_session(db: Session, session_id: str) -> List[Dict[str
             col = db.query(Color).filter(Color.id == p.suggested_color_id).first()
             color_name = col.eng if col else None
 
+        # Определяем тип: новый товар или товар без категории
+        existing_product = db.query(Product).filter(
+            Product.part_number == p.part_number
+        ).first()
+
         result.append({
             "id": p.id,
             "part_number": p.part_number,
@@ -288,7 +326,8 @@ def get_pending_models_by_session(db: Session, session_id: str) -> List[Dict[str
             "suggested_color_name": color_name,
             "suggested_name_ru": p.suggested_name_ru,
             "custom_name_ru": p.custom_name_ru,
-            "status": p.status
+            "status": p.status,
+            "type": "missing_category" if existing_product else "new_model",
         })
 
     return result

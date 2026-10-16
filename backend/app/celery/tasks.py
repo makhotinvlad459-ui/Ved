@@ -64,7 +64,25 @@ def process_invoice(session_id: str):
             color_mapping = {c.eng: c.rus for c in colors}
             category_map = {c.name: c for c in categories}
 
-            print(f"🔍 Проверяем новые модели...")
+            # === Обогащаем Product: coo и upc (если пусто) ===
+            for item in items:
+                pn = item.get("part_number", "")
+                if not pn:
+                    continue
+                product = db.query(Product).filter(Product.part_number == pn).first()
+                if product:
+                    changed = False
+                    if not product.coo and item.get("coo"):
+                        product.coo = item.get("coo")
+                        changed = True
+                    if not product.upc and item.get("upc"):
+                        product.upc = item.get("upc")
+                        changed = True
+                    if changed:
+                        print(f"   📥 Обогатили {pn}: coo={product.coo}, upc={product.upc}")
+            db.commit()
+
+            print(f"🔍 Проверяем новые модели и товары без категории...")
             pending_models = save_pending_models(
                 items=items,
                 categories=categories,
@@ -74,33 +92,41 @@ def process_invoice(session_id: str):
             )
 
             missing_part_numbers = []
+            missing_categories = []
+
             for item in items:
                 pn = item.get("part_number", "")
                 if not pn:
                     continue
-                exists = db.query(Product).filter(Product.part_number == pn).first()
-                if not exists:
+                product = db.query(Product).filter(Product.part_number == pn).first()
+                if not product:
                     missing_part_numbers.append(pn)
+                elif not product.category_id:
+                    missing_categories.append(pn)
 
-            if pending_models or missing_part_numbers:
+            if pending_models or missing_part_numbers or missing_categories:
                 if pending_models:
-                    print(f"   Найдено {len(pending_models)} новых моделей")
+                    print(f"   Найдено {len(pending_models)} новых/требующих категорию моделей")
                 if missing_part_numbers:
                     print(f"   ⚠️ Товаров без Product в БД: {len(missing_part_numbers)} → {missing_part_numbers}")
+                if missing_categories:
+                    print(f"   ⚠️ Товаров без категории: {len(missing_categories)} → {missing_categories}")
+
                 db.commit()
                 session.status = "pending_approval"
                 db.commit()
-                print(f"⏳ Сессия {session_id} ожидает подтверждения новых моделей")
+                print(f"⏳ Сессия {session_id} ожидает подтверждения")
                 pending_list = get_pending_models_by_session(db, session_id)
                 return {
                     "status": "pending_approval",
                     "session_id": session_id,
                     "new_models": pending_list,
                     "missing_part_numbers": missing_part_numbers,
-                    "message": f"Ожидается подтверждение {len(missing_part_numbers)} новых моделей."
+                    "missing_categories": missing_categories,
+                    "message": f"Ожидается подтверждение {len(missing_part_numbers) + len(missing_categories)} позиций."
                 }
 
-            print(f"   ✅ Все модели найдены в БД, продолжаем обработку...")
+            print(f"   ✅ Все модели найдены, продолжаем обработку...")
             result_data = []
 
             serial_cursor = {}
