@@ -18,18 +18,15 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
   bool _isLoading = true;
   String _error = '';
 
-  // Контроллеры для каждого товара (по id)
   final Map<int, TextEditingController> _categoryNameController = {};
   final Map<int, TextEditingController> _categoryPrefixController = {};
   final Map<int, TextEditingController> _colorRusController = {};
   final Map<int, TextEditingController> _colorEngController = {};
   final Map<int, TextEditingController> _nameRuController = {};
 
-  // Выбранные id
   final Map<int, int?> _selectedCategory = {};
   final Map<int, int?> _selectedColor = {};
 
-  // Для режима "новая категория/цвет"
   final Map<int, bool> _isNewCategory = {};
   final Map<int, bool> _isNewColor = {};
 
@@ -95,7 +92,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
       int? categoryId = _selectedCategory[id];
       int? colorId = _selectedColor[id];
 
-      // Создание новой категории
       if (_isNewCategory[id] == true) {
         final name = _categoryNameController[id]?.text.trim();
         final prefix = _categoryPrefixController[id]?.text.trim();
@@ -113,7 +109,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
         _isNewCategory[id] = false;
       }
 
-      // Создание нового цвета
       if (_isNewColor[id] == true) {
         final rus = _colorRusController[id]?.text.trim();
         final eng = _colorEngController[id]?.text.trim();
@@ -162,7 +157,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     );
   }
 
-  // === Хелперы для label ===
   String _categoryLabel(Map<String, dynamic>? c) {
     if (c == null) return '';
     return (c['name'] ?? '').toString();
@@ -295,7 +289,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                               ),
                               const SizedBox(height: 12),
 
-                              // === КАТЕГОРИЯ (Autocomplete) ===
                               _buildCategoryAutocomplete(id),
                               if (_isNewCategory[id] == true) ...[
                                 const SizedBox(height: 8),
@@ -326,7 +319,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                               ],
                               const SizedBox(height: 8),
 
-                              // === ЦВЕТ (Autocomplete) ===
                               _buildColorAutocomplete(id),
                               if (_isNewColor[id] == true) ...[
                                 const SizedBox(height: 8),
@@ -395,7 +387,7 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
   }
 
   // ============================================================
-  // AUTOCOMPLETE — КАТЕГОРИЯ (с опцией "+ Новая")
+  // AUTOCOMPLETE — КАТЕГОРИЯ
   // ============================================================
 
   Widget _buildCategoryAutocomplete(int id) {
@@ -407,6 +399,7 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
         : null;
 
     return Autocomplete<Map<String, dynamic>>(
+      key: ValueKey('cat_${id}_${_selectedCategory[id]}'),
       initialValue: TextEditingValue(text: _categoryLabel(selectedCat)),
       optionsBuilder: (TextEditingValue value) {
         if (value.text.isEmpty) {
@@ -495,6 +488,7 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
         : null;
 
     return Autocomplete<Map<String, dynamic>>(
+      key: ValueKey('color_${id}_${_selectedColor[id]}'),
       initialValue: TextEditingValue(text: _colorLabel(selectedColor)),
       optionsBuilder: (TextEditingValue value) {
         if (value.text.isEmpty) {
@@ -569,10 +563,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
       },
     );
   }
-
-  // ============================================================
-  // ОБЩИЙ ВИДЖЕТ ДЛЯ ОПЦИЙ
-  // ============================================================
 
   Widget _buildAutocompleteOptions({
     required Iterable<Map<String, dynamic>> options,
