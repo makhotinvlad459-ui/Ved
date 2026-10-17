@@ -59,7 +59,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
 
-      // Загружаем категории и цвета
       final catsColors = await api.getCategoriesAndColors();
       _categories = catsColors['categories'] ?? [];
       _colors = catsColors['colors'] ?? [];
@@ -114,21 +113,11 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     final modelNumber = _modelNumberController.text.trim();
 
     if (partNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Введите артикул (part_number)'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Введите артикул (part_number)');
       return;
     }
     if (modelNumber.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Введите модель (model_number)'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      _showError('Введите модель (model_number)');
       return;
     }
 
@@ -202,10 +191,14 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Ошибка: $e'), backgroundColor: Colors.red),
-      );
+      _showError('❌ Ошибка: $e');
     }
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   Future<void> _delete() async {
@@ -242,9 +235,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Ошибка: $e'), backgroundColor: Colors.red),
-      );
+      _showError('❌ Ошибка: $e');
     }
   }
 
@@ -268,6 +259,20 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     if (result == true) {
       await _reloadCategoriesAndColors();
     }
+  }
+
+  // === Хелперы для label ===
+  String _categoryLabel(Map<String, dynamic>? c) {
+    if (c == null) return '';
+    return (c['name'] ?? '').toString();
+  }
+
+  String _colorLabel(Map<String, dynamic>? c) {
+    if (c == null) return '';
+    final rus = c['rus'] ?? '';
+    final eng = c['eng'] ?? '';
+    if (eng.toString().isEmpty) return rus.toString();
+    return '$rus ($eng)';
   }
 
   @override
@@ -371,34 +376,10 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // === КАТЕГОРИЯ ===
+                    // === КАТЕГОРИЯ (Autocomplete) ===
                     Row(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int?>(
-                            initialValue: _selectedCategoryId,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Категория',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem<int?>(
-                                value: null,
-                                child: Text('Без категории'),
-                              ),
-                              ..._categories.map((c) {
-                                return DropdownMenuItem<int?>(
-                                  value: c['id'] as int,
-                                  child: Text(c['name'] ?? ''),
-                                );
-                              }),
-                            ],
-                            onChanged: (value) {
-                              setState(() => _selectedCategoryId = value);
-                            },
-                          ),
-                        ),
+                        Expanded(child: _buildCategoryAutocomplete()),
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline,
                               color: Colors.blueGrey),
@@ -422,34 +403,10 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                       ),
                     const SizedBox(height: 12),
 
-                    // === ЦВЕТ ===
+                    // === ЦВЕТ (Autocomplete) ===
                     Row(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<int?>(
-                            initialValue: _selectedColorId,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: 'Цвет',
-                              border: OutlineInputBorder(),
-                            ),
-                            items: [
-                              const DropdownMenuItem<int?>(
-                                value: null,
-                                child: Text('Без цвета'),
-                              ),
-                              ..._colors.map((c) {
-                                return DropdownMenuItem<int?>(
-                                  value: c['id'] as int,
-                                  child: Text('${c['rus']} (${c['eng']})'),
-                                );
-                              }),
-                            ],
-                            onChanged: (value) {
-                              setState(() => _selectedColorId = value);
-                            },
-                          ),
-                        ),
+                        Expanded(child: _buildColorAutocomplete()),
                         IconButton(
                           icon: const Icon(Icons.add_circle_outline,
                               color: Colors.blueGrey),
@@ -509,6 +466,181 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                     ),
                   ],
                 ),
+    );
+  }
+
+  // ============================================================
+  // AUTOCOMPLETE — КАТЕГОРИЯ
+  // ============================================================
+
+  Widget _buildCategoryAutocomplete() {
+    // Начальное значение — текущая категория
+    final selectedCat = _selectedCategoryId != null
+        ? _categories.firstWhere(
+            (c) => c['id'] == _selectedCategoryId,
+            orElse: () => null,
+          )
+        : null;
+
+    return Autocomplete<Map<String, dynamic>>(
+      initialValue: TextEditingValue(
+        text: _categoryLabel(selectedCat),
+      ),
+      optionsBuilder: (TextEditingValue value) {
+        if (value.text.isEmpty) {
+          return _categories.cast<Map<String, dynamic>>();
+        }
+        final q = value.text.toLowerCase();
+        return _categories
+            .cast<Map<String, dynamic>>()
+            .where((c) =>
+                (c['name'] ?? '').toString().toLowerCase().contains(q))
+            .toList();
+      },
+      displayStringForOption: (option) => _categoryLabel(option),
+      onSelected: (option) {
+        setState(() {
+          _selectedCategoryId = option['id'] as int;
+        });
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: 'Категория',
+            hintText: 'Начните вводить название',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.category_outlined),
+            suffixIcon: _selectedCategoryId != null
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _selectedCategoryId = null;
+                        controller.clear();
+                      });
+                    },
+                  )
+                : null,
+          ),
+          onSubmitted: (_) => onFieldSubmitted(),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return _buildAutocompleteOptions(
+          options: options,
+          onSelected: onSelected,
+          labelBuilder: _categoryLabel,
+          width: 400,
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // AUTOCOMPLETE — ЦВЕТ
+  // ============================================================
+
+  Widget _buildColorAutocomplete() {
+    final selectedColor = _selectedColorId != null
+        ? _colors.firstWhere(
+            (c) => c['id'] == _selectedColorId,
+            orElse: () => null,
+          )
+        : null;
+
+    return Autocomplete<Map<String, dynamic>>(
+      initialValue: TextEditingValue(
+        text: _colorLabel(selectedColor),
+      ),
+      optionsBuilder: (TextEditingValue value) {
+        if (value.text.isEmpty) {
+          return _colors.cast<Map<String, dynamic>>();
+        }
+        final q = value.text.toLowerCase();
+        return _colors.cast<Map<String, dynamic>>().where((c) {
+          final rus = (c['rus'] ?? '').toString().toLowerCase();
+          final eng = (c['eng'] ?? '').toString().toLowerCase();
+          return rus.contains(q) || eng.contains(q);
+        }).toList();
+      },
+      displayStringForOption: (option) => _colorLabel(option),
+      onSelected: (option) {
+        setState(() {
+          _selectedColorId = option['id'] as int;
+        });
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: 'Цвет',
+            hintText: 'Начните вводить название',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(Icons.palette),
+            suffixIcon: _selectedColorId != null
+                ? IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _selectedColorId = null;
+                        controller.clear();
+                      });
+                    },
+                  )
+                : null,
+          ),
+          onSubmitted: (_) => onFieldSubmitted(),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return _buildAutocompleteOptions(
+          options: options,
+          onSelected: onSelected,
+          labelBuilder: _colorLabel,
+          width: 400,
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // ОБЩИЙ ВИДЖЕТ ДЛЯ ВЫПАДАЮЩИХ ОПЦИЙ
+  // ============================================================
+
+  Widget _buildAutocompleteOptions({
+    required Iterable<Map<String, dynamic>> options,
+    required void Function(Map<String, dynamic>) onSelected,
+    required String Function(Map<String, dynamic>?) labelBuilder,
+    double width = 400,
+  }) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: 300, maxWidth: width),
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            itemCount: options.length,
+            itemBuilder: (context, index) {
+              final option = options.elementAt(index);
+              return InkWell(
+                onTap: () => onSelected(option),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text(labelBuilder(option)),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
