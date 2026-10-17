@@ -18,13 +18,20 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
   bool _isLoading = true;
   String _error = '';
 
+  // Контроллеры для каждого товара (по id)
   final Map<int, TextEditingController> _categoryNameController = {};
   final Map<int, TextEditingController> _categoryPrefixController = {};
   final Map<int, TextEditingController> _colorRusController = {};
   final Map<int, TextEditingController> _colorEngController = {};
   final Map<int, TextEditingController> _nameRuController = {};
-  final Map<int, String?> _selectedCategory = {};
-  final Map<int, String?> _selectedColor = {};
+
+  // Выбранные id
+  final Map<int, int?> _selectedCategory = {};
+  final Map<int, int?> _selectedColor = {};
+
+  // Для режима "новая категория/цвет"
+  final Map<int, bool> _isNewCategory = {};
+  final Map<int, bool> _isNewColor = {};
 
   @override
   void initState() {
@@ -34,21 +41,11 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
 
   @override
   void dispose() {
-    for (var c in _categoryNameController.values) {
-      c.dispose();
-    }
-    for (var c in _categoryPrefixController.values) {
-      c.dispose();
-    }
-    for (var c in _colorRusController.values) {
-      c.dispose();
-    }
-    for (var c in _colorEngController.values) {
-      c.dispose();
-    }
-    for (var c in _nameRuController.values) {
-      c.dispose();
-    }
+    for (var c in _categoryNameController.values) c.dispose();
+    for (var c in _categoryPrefixController.values) c.dispose();
+    for (var c in _colorRusController.values) c.dispose();
+    for (var c in _colorEngController.values) c.dispose();
+    for (var c in _nameRuController.values) c.dispose();
     super.dispose();
   }
 
@@ -57,12 +54,11 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
       final api = Provider.of<ApiService>(context, listen: false);
 
       final data = await api.getCategoriesAndColors();
-      setState(() {
-        _categories = data['categories'] ?? [];
-        _colors = data['colors'] ?? [];
-      });
+      _categories = data['categories'] ?? [];
+      _colors = data['colors'] ?? [];
 
       final models = await api.getPendingModels(widget.sessionId);
+
       setState(() {
         _models = models;
         _isLoading = false;
@@ -70,14 +66,11 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
 
       for (var model in _models) {
         final id = model['id'];
-        if (model['suggested_category_id'] != null) {
-          _selectedCategory[id] = model['suggested_category_id'].toString();
-        } else {
-          _selectedCategory[id] = 'new';
-        }
-        if (model['suggested_color_id'] != null) {
-          _selectedColor[id] = model['suggested_color_id'].toString();
-        }
+        _selectedCategory[id] = model['suggested_category_id'];
+        _selectedColor[id] = model['suggested_color_id'];
+        _isNewCategory[id] = false;
+        _isNewColor[id] = false;
+
         _categoryNameController[id] = TextEditingController();
         _categoryPrefixController[id] = TextEditingController();
         _colorRusController[id] = TextEditingController();
@@ -99,53 +92,51 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
       final api = Provider.of<ApiService>(context, listen: false);
       final id = model['id'];
 
-      String? categoryId = _selectedCategory[id];
-      String? colorId = _selectedColor[id];
-      String? newCategoryName;
-      String? newCategoryPrefix;
-      String? newColorRus;
-      String? newColorEng;
+      int? categoryId = _selectedCategory[id];
+      int? colorId = _selectedColor[id];
 
-      if (categoryId == 'new') {
-        newCategoryName = _categoryNameController[id]?.text.trim();
-        newCategoryPrefix = _categoryPrefixController[id]?.text.trim();
-
-        if (newCategoryName == null || newCategoryName.isEmpty) {
+      // Создание новой категории
+      if (_isNewCategory[id] == true) {
+        final name = _categoryNameController[id]?.text.trim();
+        final prefix = _categoryPrefixController[id]?.text.trim();
+        if (name == null || name.isEmpty) {
           _showToast('Введите название новой категории');
           return;
         }
-        if (newCategoryPrefix == null || newCategoryPrefix.isEmpty) {
+        if (prefix == null || prefix.isEmpty) {
           _showToast('Введите префикс для новой категории');
           return;
         }
-
-        final newCat = await api.createCategory(
-          name: newCategoryName,
-          prefixRu: newCategoryPrefix,
-        );
-        categoryId = newCat['id'].toString();
+        final newCat = await api.createCategory(name: name, prefixRu: prefix);
+        categoryId = newCat['id'];
+        _categories.add(newCat);
+        _isNewCategory[id] = false;
       }
 
-      if (colorId == 'new') {
-        newColorRus = _colorRusController[id]?.text.trim();
-        newColorEng = _colorEngController[id]?.text.trim();
-        if (newColorRus == null || newColorRus.isEmpty ||
-            newColorEng == null || newColorEng.isEmpty) {
+      // Создание нового цвета
+      if (_isNewColor[id] == true) {
+        final rus = _colorRusController[id]?.text.trim();
+        final eng = _colorEngController[id]?.text.trim();
+        if (rus == null || rus.isEmpty || eng == null || eng.isEmpty) {
           _showToast('Введите название цвета на русском и английском');
           return;
         }
-        final newColor = await api.createColor(eng: newColorEng, rus: newColorRus);
-        colorId = newColor['id'].toString();
+        final newColor = await api.createColor(eng: eng, rus: rus);
+        colorId = newColor['id'];
+        _colors.add(newColor);
+        _isNewColor[id] = false;
       }
 
-      final nameRu = _nameRuController[id]?.text.trim() ?? model['suggested_name_ru'] ?? '';
+      final nameRu = _nameRuController[id]?.text.trim() ??
+          model['suggested_name_ru'] ??
+          '';
 
       await api.approveModel(
         sessionId: widget.sessionId,
         pendingId: id,
         customNameRu: nameRu,
-        customCategoryId: categoryId != null ? int.parse(categoryId) : null,
-        customColorId: colorId != null ? int.parse(colorId) : null,
+        customCategoryId: categoryId,
+        customColorId: colorId,
       );
 
       setState(() {
@@ -162,12 +153,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     }
   }
 
-  Future<void> _approveAll() async {
-    for (var model in _models) {
-      await _approveModel(model);
-    }
-  }
-
   void _showToast(String message, {bool isSuccess = false}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -175,6 +160,20 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
         backgroundColor: isSuccess ? Colors.green : Colors.red,
       ),
     );
+  }
+
+  // === Хелперы для label ===
+  String _categoryLabel(Map<String, dynamic>? c) {
+    if (c == null) return '';
+    return (c['name'] ?? '').toString();
+  }
+
+  String _colorLabel(Map<String, dynamic>? c) {
+    if (c == null) return '';
+    final rus = c['rus'] ?? '';
+    final eng = c['eng'] ?? '';
+    if (eng.toString().isEmpty) return rus.toString();
+    return '$rus ($eng)';
   }
 
   @override
@@ -207,11 +206,11 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
               ),
               const SizedBox(height: 16),
 
-              if (_isLoading) ...[
+              if (_isLoading)
                 const Expanded(
                   child: Center(child: CircularProgressIndicator()),
-                ),
-              ] else if (_error.isNotEmpty) ...[
+                )
+              else if (_error.isNotEmpty)
                 Expanded(
                   child: Center(
                     child: Column(
@@ -223,8 +222,8 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                       ],
                     ),
                   ),
-                ),
-              ] else if (_models.isEmpty) ...[
+                )
+              else if (_models.isEmpty)
                 const Expanded(
                   child: Center(
                     child: Column(
@@ -236,8 +235,8 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                       ],
                     ),
                   ),
-                ),
-              ] else ...[
+                )
+              else
                 Expanded(
                   child: ListView.builder(
                     itemCount: _models.length,
@@ -263,6 +262,24 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                                       ),
                                     ),
                                   ),
+                                  if (model['type'] == 'missing_category')
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius:
+                                            BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'нет категории',
+                                        style: TextStyle(
+                                          color: Colors.orange.shade700,
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ),
+                                  const SizedBox(width: 8),
                                   TextButton(
                                     onPressed: () => _approveModel(model),
                                     child: const Text('✅ Добавить'),
@@ -278,41 +295,41 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                               ),
                               const SizedBox(height: 12),
 
-                              _buildCategoryDropdown(id),
-                              const SizedBox(height: 8),
-
-                              if (_selectedCategory[id] == 'new')
-                                Column(
-                                  children: [
-                                    TextField(
-                                      controller: _categoryNameController[id],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Название новой категории',
-                                        hintText: 'Например: Роботы',
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      ),
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    TextField(
-                                      controller: _categoryPrefixController[id],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Префикс новой категории (рус)',
-                                        hintText: 'Например: Робот-пылесос торговой марки',
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                      ),
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                  ],
+                              // === КАТЕГОРИЯ (Autocomplete) ===
+                              _buildCategoryAutocomplete(id),
+                              if (_isNewCategory[id] == true) ...[
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _categoryNameController[id],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Название новой категории',
+                                    hintText: 'Например: Роботы',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                  ),
+                                  style: const TextStyle(fontSize: 14),
                                 ),
+                                const SizedBox(height: 8),
+                                TextField(
+                                  controller: _categoryPrefixController[id],
+                                  decoration: const InputDecoration(
+                                    labelText: 'Префикс (рус)',
+                                    hintText:
+                                        'Например: Робот-пылесос торговой марки',
+                                    border: OutlineInputBorder(),
+                                    contentPadding: EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 8),
+                                  ),
+                                  style: const TextStyle(fontSize: 14),
+                                ),
+                              ],
                               const SizedBox(height: 8),
 
-                              _buildColorDropdown(id),
-                              const SizedBox(height: 8),
-
-                              if (_selectedColor[id] == 'new')
+                              // === ЦВЕТ (Autocomplete) ===
+                              _buildColorAutocomplete(id),
+                              if (_isNewColor[id] == true) ...[
+                                const SizedBox(height: 8),
                                 Row(
                                   children: [
                                     Expanded(
@@ -322,7 +339,10 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                                           labelText: 'Цвет (рус)',
                                           hintText: 'Розовое золото',
                                           border: OutlineInputBorder(),
-                                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          contentPadding:
+                                              EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 8),
                                         ),
                                         style: const TextStyle(fontSize: 14),
                                       ),
@@ -335,36 +355,31 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                                           labelText: 'Цвет (англ)',
                                           hintText: 'Rose Gold',
                                           border: OutlineInputBorder(),
-                                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                          contentPadding:
+                                              EdgeInsets.symmetric(
+                                                  horizontal: 12,
+                                                  vertical: 8),
                                         ),
                                         style: const TextStyle(fontSize: 14),
                                       ),
                                     ),
                                   ],
                                 ),
+                              ],
                               const SizedBox(height: 8),
 
                               TextField(
                                 controller: _nameRuController[id],
                                 decoration: const InputDecoration(
-                                  labelText: 'Название товара (без префикса)',
+                                  labelText:
+                                      'Название товара (без префикса)',
                                   hintText: 'Apple Watch Series 11',
                                   border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 8),
                                 ),
                                 style: const TextStyle(fontSize: 14),
                               ),
-                              if (_selectedCategory[id] != 'new' && _selectedCategory[id] != null)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: Text(
-                                    '🔹 Префикс будет добавлен автоматически: ${_getCategoryPrefix(int.parse(_selectedCategory[id]!))}',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.green[700],
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ),
@@ -372,17 +387,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: _approveAll,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: Text('✅ Подтвердить все (${_models.length})'),
-                ),
-              ],
             ],
           ),
         ),
@@ -390,85 +394,215 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     );
   }
 
-  String _getCategoryPrefix(int categoryId) {
-    final category = _categories.firstWhere(
-      (c) => c['id'] == categoryId,
-      orElse: () => null,
+  // ============================================================
+  // AUTOCOMPLETE — КАТЕГОРИЯ (с опцией "+ Новая")
+  // ============================================================
+
+  Widget _buildCategoryAutocomplete(int id) {
+    final selectedCat = _selectedCategory[id] != null
+        ? _categories.firstWhere(
+            (c) => c['id'] == _selectedCategory[id],
+            orElse: () => null,
+          )
+        : null;
+
+    return Autocomplete<Map<String, dynamic>>(
+      initialValue: TextEditingValue(text: _categoryLabel(selectedCat)),
+      optionsBuilder: (TextEditingValue value) {
+        if (value.text.isEmpty) {
+          return _categories.cast<Map<String, dynamic>>();
+        }
+        final q = value.text.toLowerCase();
+        return _categories
+            .cast<Map<String, dynamic>>()
+            .where((c) =>
+                (c['name'] ?? '').toString().toLowerCase().contains(q))
+            .toList();
+      },
+      displayStringForOption: (option) => _categoryLabel(option),
+      onSelected: (option) {
+        setState(() {
+          _selectedCategory[id] = option['id'] as int;
+          _isNewCategory[id] = false;
+        });
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: 'Категория',
+            hintText: 'Начните вводить или создайте новую',
+            border: const OutlineInputBorder(),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            prefixIcon: const Icon(Icons.category_outlined, size: 18),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_selectedCategory[id] != null)
+                  IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _selectedCategory[id] = null;
+                        controller.clear();
+                      });
+                    },
+                  ),
+                IconButton(
+                  icon: Icon(
+                    _isNewCategory[id] == true
+                        ? Icons.close
+                        : Icons.add_circle_outline,
+                    size: 18,
+                  ),
+                  tooltip: _isNewCategory[id] == true
+                      ? 'Отменить создание'
+                      : 'Создать новую категорию',
+                  onPressed: () {
+                    setState(() {
+                      _isNewCategory[id] = !(_isNewCategory[id] ?? false);
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          onSubmitted: (_) => onFieldSubmitted(),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return _buildAutocompleteOptions(
+          options: options,
+          onSelected: onSelected,
+          labelBuilder: _categoryLabel,
+        );
+      },
     );
-    return category != null ? (category['prefix_ru'] ?? '') : '';
   }
 
-  Widget _buildCategoryDropdown(int id) {
-    final items = <DropdownMenuItem<String>>[
-      const DropdownMenuItem(value: 'new', child: Text('➕ Новая категория')),
-    ];
+  // ============================================================
+  // AUTOCOMPLETE — ЦВЕТ
+  // ============================================================
 
-    final uniqueCategories = <int, dynamic>{};
-    for (var cat in _categories) {
-      uniqueCategories[cat['id']] = cat;
-    }
+  Widget _buildColorAutocomplete(int id) {
+    final selectedColor = _selectedColor[id] != null
+        ? _colors.firstWhere(
+            (c) => c['id'] == _selectedColor[id],
+            orElse: () => null,
+          )
+        : null;
 
-    for (var cat in uniqueCategories.values) {
-      final value = cat['id'].toString();
-      items.add(
-        DropdownMenuItem(
-          value: value,
-          child: Text(
-            '${cat['name']} ${cat['prefix_ru']?.isNotEmpty == true ? '(${cat['prefix_ru']})' : ''}',
+    return Autocomplete<Map<String, dynamic>>(
+      initialValue: TextEditingValue(text: _colorLabel(selectedColor)),
+      optionsBuilder: (TextEditingValue value) {
+        if (value.text.isEmpty) {
+          return _colors.cast<Map<String, dynamic>>();
+        }
+        final q = value.text.toLowerCase();
+        return _colors.cast<Map<String, dynamic>>().where((c) {
+          final rus = (c['rus'] ?? '').toString().toLowerCase();
+          final eng = (c['eng'] ?? '').toString().toLowerCase();
+          return rus.contains(q) || eng.contains(q);
+        }).toList();
+      },
+      displayStringForOption: (option) => _colorLabel(option),
+      onSelected: (option) {
+        setState(() {
+          _selectedColor[id] = option['id'] as int;
+          _isNewColor[id] = false;
+        });
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        return TextField(
+          controller: controller,
+          focusNode: focusNode,
+          decoration: InputDecoration(
+            labelText: 'Цвет',
+            hintText: 'Начните вводить или создайте новый',
+            border: const OutlineInputBorder(),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            prefixIcon: const Icon(Icons.palette, size: 18),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_selectedColor[id] != null)
+                  IconButton(
+                    icon: const Icon(Icons.clear, size: 18),
+                    onPressed: () {
+                      setState(() {
+                        _selectedColor[id] = null;
+                        controller.clear();
+                      });
+                    },
+                  ),
+                IconButton(
+                  icon: Icon(
+                    _isNewColor[id] == true
+                        ? Icons.close
+                        : Icons.add_circle_outline,
+                    size: 18,
+                  ),
+                  tooltip: _isNewColor[id] == true
+                      ? 'Отменить создание'
+                      : 'Создать новый цвет',
+                  onPressed: () {
+                    setState(() {
+                      _isNewColor[id] = !(_isNewColor[id] ?? false);
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          onSubmitted: (_) => onFieldSubmitted(),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return _buildAutocompleteOptions(
+          options: options,
+          onSelected: onSelected,
+          labelBuilder: _colorLabel,
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // ОБЩИЙ ВИДЖЕТ ДЛЯ ОПЦИЙ
+  // ============================================================
+
+  Widget _buildAutocompleteOptions({
+    required Iterable<Map<String, dynamic>> options,
+    required void Function(Map<String, dynamic>) onSelected,
+    required String Function(Map<String, dynamic>?) labelBuilder,
+  }) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Material(
+        elevation: 4,
+        borderRadius: BorderRadius.circular(8),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 250, maxWidth: 400),
+          child: ListView.builder(
+            padding: EdgeInsets.zero,
+            shrinkWrap: true,
+            itemCount: options.length,
+            itemBuilder: (context, index) {
+              final option = options.elementAt(index);
+              return InkWell(
+                onTap: () => onSelected(option),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Text(labelBuilder(option)),
+                ),
+              );
+            },
           ),
         ),
-      );
-    }
-
-    return DropdownButtonFormField<String?>(
-      initialValue: _selectedCategory[id],
-      items: items,
-      onChanged: (value) {
-        setState(() {
-          _selectedCategory[id] = value;
-        });
-      },
-      decoration: const InputDecoration(
-        labelText: 'Категория',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      ),
-    );
-  }
-
-  Widget _buildColorDropdown(int id) {
-    final items = <DropdownMenuItem<String>>[
-      const DropdownMenuItem(value: '', child: Text('Без цвета')),
-      const DropdownMenuItem(value: 'new', child: Text('➕ Новый цвет')),
-    ];
-
-    final uniqueColors = <int, dynamic>{};
-    for (var color in _colors) {
-      uniqueColors[color['id']] = color;
-    }
-
-    for (var color in uniqueColors.values) {
-      final value = color['id'].toString();
-      items.add(
-        DropdownMenuItem(
-          value: value,
-          child: Text('${color['rus']} (${color['eng']})'),
-        ),
-      );
-    }
-
-    return DropdownButtonFormField<String?>(
-      initialValue: _selectedColor[id],
-      items: items,
-      onChanged: (value) {
-        setState(() {
-          _selectedColor[id] = value;
-        });
-      },
-      decoration: const InputDecoration(
-        labelText: 'Цвет',
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
     );
   }
