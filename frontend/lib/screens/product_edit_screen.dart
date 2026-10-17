@@ -20,7 +20,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
   bool _isNew = false;
   String _error = '';
 
-  // Контроллеры полей
   final _partNumberController = TextEditingController();
   final _modelNumberController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -116,7 +115,8 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
       _showError('Введите артикул (part_number)');
       return;
     }
-    if (modelNumber.isEmpty) {
+    // model_number обязательно ТОЛЬКО при создании
+    if (_isNew && modelNumber.isEmpty) {
       _showError('Введите модель (model_number)');
       return;
     }
@@ -157,7 +157,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
         await api.updateProduct(
           id: widget.productId!,
           partNumber: partNumber,
-          modelNumber: modelNumber,
+          modelNumber: modelNumber.isEmpty ? null : modelNumber,
           description: _descriptionController.text.trim().isEmpty
               ? null
               : _descriptionController.text.trim(),
@@ -261,7 +261,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     }
   }
 
-  // === Хелперы для label ===
   String _categoryLabel(Map<String, dynamic>? c) {
     if (c == null) return '';
     return (c['name'] ?? '').toString();
@@ -317,10 +316,12 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
 
                     TextField(
                       controller: _modelNumberController,
-                      decoration: const InputDecoration(
-                        labelText: 'Модель / артикул модели (model_number) *',
+                      decoration: InputDecoration(
+                        labelText: _isNew
+                            ? 'Модель / артикул модели (model_number) *'
+                            : 'Модель / артикул модели (model_number)',
                         hintText: 'A3428',
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -376,7 +377,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // === КАТЕГОРИЯ (Autocomplete) ===
                     Row(
                       children: [
                         Expanded(child: _buildCategoryAutocomplete()),
@@ -403,7 +403,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                       ),
                     const SizedBox(height: 12),
 
-                    // === ЦВЕТ (Autocomplete) ===
                     Row(
                       children: [
                         Expanded(child: _buildColorAutocomplete()),
@@ -417,7 +416,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                     ),
                     const SizedBox(height: 12),
 
-                    // === CUSTOM NAME RU ===
                     TextField(
                       controller: _nameRuController,
                       maxLines: 2,
@@ -469,12 +467,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     );
   }
 
-  // ============================================================
-  // AUTOCOMPLETE — КАТЕГОРИЯ
-  // ============================================================
-
   Widget _buildCategoryAutocomplete() {
-    // Начальное значение — текущая категория
     final selectedCat = _selectedCategoryId != null
         ? _categories.firstWhere(
             (c) => c['id'] == _selectedCategoryId,
@@ -483,6 +476,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
         : null;
 
     return Autocomplete<Map<String, dynamic>>(
+      key: ValueKey('cat_${_selectedCategoryId}'),
       initialValue: TextEditingValue(
         text: _categoryLabel(selectedCat),
       ),
@@ -518,7 +512,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                     onPressed: () {
                       setState(() {
                         _selectedCategoryId = null;
-                        controller.clear();
                       });
                     },
                   )
@@ -538,10 +531,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     );
   }
 
-  // ============================================================
-  // AUTOCOMPLETE — ЦВЕТ
-  // ============================================================
-
   Widget _buildColorAutocomplete() {
     final selectedColor = _selectedColorId != null
         ? _colors.firstWhere(
@@ -551,6 +540,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
         : null;
 
     return Autocomplete<Map<String, dynamic>>(
+      key: ValueKey('color_${_selectedColorId}'),
       initialValue: TextEditingValue(
         text: _colorLabel(selectedColor),
       ),
@@ -586,7 +576,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
                     onPressed: () {
                       setState(() {
                         _selectedColorId = null;
-                        controller.clear();
                       });
                     },
                   )
@@ -605,10 +594,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
       },
     );
   }
-
-  // ============================================================
-  // ОБЩИЙ ВИДЖЕТ ДЛЯ ВЫПАДАЮЩИХ ОПЦИЙ
-  // ============================================================
 
   Widget _buildAutocompleteOptions({
     required Iterable<Map<String, dynamic>> options,
