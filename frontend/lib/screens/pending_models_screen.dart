@@ -18,18 +18,11 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
   bool _isLoading = true;
   String _error = '';
 
-  // Контроллеры для создания новых категорий/цветов (текстовые поля)
   final Map<int, TextEditingController> _categoryNameController = {};
   final Map<int, TextEditingController> _categoryPrefixController = {};
   final Map<int, TextEditingController> _colorRusController = {};
   final Map<int, TextEditingController> _colorEngController = {};
   final Map<int, TextEditingController> _nameRuController = {};
-
-  // === ГЛАВНЫЙ ФИКС: внешние контроллеры для Autocomplete ===
-  final Map<int, TextEditingController> _categoryAutocompleteController = {};
-  final Map<int, FocusNode> _categoryAutocompleteFocus = {};
-  final Map<int, TextEditingController> _colorAutocompleteController = {};
-  final Map<int, FocusNode> _colorAutocompleteFocus = {};
 
   final Map<int, int?> _selectedCategory = {};
   final Map<int, int?> _selectedColor = {};
@@ -50,11 +43,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     for (var c in _colorRusController.values) c.dispose();
     for (var c in _colorEngController.values) c.dispose();
     for (var c in _nameRuController.values) c.dispose();
-    // Чистим контроллеры Autocomplete
-    for (var c in _categoryAutocompleteController.values) c.dispose();
-    for (var f in _categoryAutocompleteFocus.values) f.dispose();
-    for (var c in _colorAutocompleteController.values) c.dispose();
-    for (var f in _colorAutocompleteFocus.values) f.dispose();
     super.dispose();
   }
 
@@ -87,16 +75,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
         _nameRuController[id] = TextEditingController(
           text: model['suggested_name_ru'] ?? '',
         );
-
-        // Инициализируем контроллеры Autocomplete с начальным значением
-        _categoryAutocompleteController[id] = TextEditingController(
-          text: _getCategoryLabel(id),
-        );
-        _categoryAutocompleteFocus[id] = FocusNode();
-        _colorAutocompleteController[id] = TextEditingController(
-          text: _getColorLabel(id),
-        );
-        _colorAutocompleteFocus[id] = FocusNode();
       }
     } catch (e) {
       setState(() {
@@ -106,7 +84,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     }
   }
 
-  // === Хелперы для получения текста из выбранных id ===
   String _getCategoryLabel(int id) {
     final catId = _selectedCategory[id];
     if (catId == null) return '';
@@ -417,72 +394,72 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     );
   }
 
-  // ============================================================
-  // AUTOCOMPLETE — КАТЕГОРИЯ (фикс через внешний контроллер)
-  // ============================================================
-
   Widget _buildCategoryAutocomplete(int id) {
+    final selectedCat = _selectedCategory[id];
+    final initialText = _getCategoryLabel(id);
+
     return Row(
       children: [
         Expanded(
-          child: Autocomplete<Map<String, dynamic>>(
-            textEditingController: _categoryAutocompleteController[id],
-            focusNode: _categoryAutocompleteFocus[id],
-            optionsBuilder: (TextEditingValue value) {
-              if (value.text.isEmpty) {
-                return _categories.cast<Map<String, dynamic>>();
-              }
-              final q = value.text.toLowerCase();
-              return _categories
-                  .cast<Map<String, dynamic>>()
-                  .where((c) =>
-                      (c['name'] ?? '').toString().toLowerCase().contains(q))
-                  .toList();
-            },
-            displayStringForOption: (option) => (option['name'] ?? '').toString(),
-            onSelected: (option) {
-              setState(() {
-                _selectedCategory[id] = option['id'] as int;
-                _isNewCategory[id] = false;
-                // Вручную обновляем текст через внешний контроллер
-                _categoryAutocompleteController[id]?.text =
-                    (option['name'] ?? '').toString();
-              });
-            },
-            fieldViewBuilder:
-                (context, controller, focusNode, onFieldSubmitted) {
-              // Используем внешний контроллер, а не тот, что даёт Autocomplete
-              return TextField(
-                controller: _categoryAutocompleteController[id],
-                focusNode: _categoryAutocompleteFocus[id],
-                decoration: InputDecoration(
-                  labelText: 'Категория',
-                  hintText: 'Начните вводить',
-                  border: const OutlineInputBorder(),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  prefixIcon: const Icon(Icons.category_outlined, size: 18),
-                  suffixIcon: _selectedCategory[id] != null
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () {
-                            setState(() {
-                              _selectedCategory[id] = null;
-                              _categoryAutocompleteController[id]?.clear();
-                            });
-                          },
-                        )
-                      : null,
-                ),
-              );
-            },
-            optionsViewBuilder: (context, onSelected, options) {
-              return _buildAutocompleteOptions(
-                options: options,
-                onSelected: onSelected,
-                labelBuilder: (o) => (o['name'] ?? '').toString(),
-              );
-            },
+          child: KeyedSubtree(
+            key: ValueKey('cat_${id}_$selectedCat'),
+            child: Autocomplete<Map<String, dynamic>>(
+              initialValue: TextEditingValue(
+                text: initialText,
+              ),
+              optionsBuilder: (TextEditingValue value) {
+                if (value.text.isEmpty) {
+                  return _categories.cast<Map<String, dynamic>>();
+                }
+                final q = value.text.toLowerCase();
+                return _categories
+                    .cast<Map<String, dynamic>>()
+                    .where((c) =>
+                        (c['name'] ?? '').toString().toLowerCase().contains(q))
+                    .toList();
+              },
+              displayStringForOption: (option) =>
+                  (option['name'] ?? '').toString(),
+              onSelected: (option) {
+                setState(() {
+                  _selectedCategory[id] = option['id'] as int;
+                  _isNewCategory[id] = false;
+                });
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: InputDecoration(
+                    labelText: 'Категория',
+                    hintText: 'Начните вводить',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    prefixIcon: const Icon(Icons.category_outlined, size: 18),
+                    suffixIcon: _selectedCategory[id] != null
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              setState(() {
+                                _selectedCategory[id] = null;
+                              });
+                            },
+                          )
+                        : null,
+                  ),
+                  onSubmitted: (_) => onFieldSubmitted(),
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return _buildAutocompleteOptions(
+                  options: options,
+                  onSelected: onSelected,
+                  labelBuilder: (o) => (o['name'] ?? '').toString(),
+                );
+              },
+            ),
           ),
         ),
         IconButton(
@@ -503,72 +480,72 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     );
   }
 
-  // ============================================================
-  // AUTOCOMPLETE — ЦВЕТ (фикс через внешний контроллер)
-  // ============================================================
-
   Widget _buildColorAutocomplete(int id) {
+    final selectedColor = _selectedColor[id];
+    final initialText = _getColorLabel(id);
+
     return Row(
       children: [
         Expanded(
-          child: Autocomplete<Map<String, dynamic>>(
-            textEditingController: _colorAutocompleteController[id],
-            focusNode: _colorAutocompleteFocus[id],
-            optionsBuilder: (TextEditingValue value) {
-              if (value.text.isEmpty) {
-                return _colors.cast<Map<String, dynamic>>();
-              }
-              final q = value.text.toLowerCase();
-              return _colors.cast<Map<String, dynamic>>().where((c) {
-                final rus = (c['rus'] ?? '').toString().toLowerCase();
-                final eng = (c['eng'] ?? '').toString().toLowerCase();
-                return rus.contains(q) || eng.contains(q);
-              }).toList();
-            },
-            displayStringForOption: (option) =>
-                '${option['rus']} (${option['eng']})',
-            onSelected: (option) {
-              setState(() {
-                _selectedColor[id] = option['id'] as int;
-                _isNewColor[id] = false;
-                // Вручную обновляем текст
-                _colorAutocompleteController[id]?.text =
-                    '${option['rus']} (${option['eng']})';
-              });
-            },
-            fieldViewBuilder:
-                (context, controller, focusNode, onFieldSubmitted) {
-              return TextField(
-                controller: _colorAutocompleteController[id],
-                focusNode: _colorAutocompleteFocus[id],
-                decoration: InputDecoration(
-                  labelText: 'Цвет',
-                  hintText: 'Начните вводить',
-                  border: const OutlineInputBorder(),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  prefixIcon: const Icon(Icons.palette, size: 18),
-                  suffixIcon: _selectedColor[id] != null
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, size: 18),
-                          onPressed: () {
-                            setState(() {
-                              _selectedColor[id] = null;
-                              _colorAutocompleteController[id]?.clear();
-                            });
-                          },
-                        )
-                      : null,
-                ),
-              );
-            },
-            optionsViewBuilder: (context, onSelected, options) {
-              return _buildAutocompleteOptions(
-                options: options,
-                onSelected: onSelected,
-                labelBuilder: (o) => '${o['rus']} (${o['eng']})',
-              );
-            },
+          child: KeyedSubtree(
+            key: ValueKey('color_${id}_$selectedColor'),
+            child: Autocomplete<Map<String, dynamic>>(
+              initialValue: TextEditingValue(
+                text: initialText,
+              ),
+              optionsBuilder: (TextEditingValue value) {
+                if (value.text.isEmpty) {
+                  return _colors.cast<Map<String, dynamic>>();
+                }
+                final q = value.text.toLowerCase();
+                return _colors.cast<Map<String, dynamic>>().where((c) {
+                  final rus = (c['rus'] ?? '').toString().toLowerCase();
+                  final eng = (c['eng'] ?? '').toString().toLowerCase();
+                  return rus.contains(q) || eng.contains(q);
+                }).toList();
+              },
+              displayStringForOption: (option) =>
+                  '${option['rus']} (${option['eng']})',
+              onSelected: (option) {
+                setState(() {
+                  _selectedColor[id] = option['id'] as int;
+                  _isNewColor[id] = false;
+                });
+              },
+              fieldViewBuilder:
+                  (context, controller, focusNode, onFieldSubmitted) {
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: InputDecoration(
+                    labelText: 'Цвет',
+                    hintText: 'Начните вводить',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    prefixIcon: const Icon(Icons.palette, size: 18),
+                    suffixIcon: _selectedColor[id] != null
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 18),
+                            onPressed: () {
+                              setState(() {
+                                _selectedColor[id] = null;
+                              });
+                            },
+                          )
+                        : null,
+                  ),
+                  onSubmitted: (_) => onFieldSubmitted(),
+                );
+              },
+              optionsViewBuilder: (context, onSelected, options) {
+                return _buildAutocompleteOptions(
+                  options: options,
+                  onSelected: onSelected,
+                  labelBuilder: (o) => '${o['rus']} (${o['eng']})',
+                );
+              },
+            ),
           ),
         ),
         IconButton(
