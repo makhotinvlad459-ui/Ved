@@ -197,10 +197,11 @@ def save_pending_models(
     }
 
     pending_part_numbers = {
-        p.part_number for p in db.query(PendingModel).filter(
-            PendingModel.status == "pending"
-        ).all()
-    }
+    p.part_number for p in db.query(PendingModel).filter(
+        PendingModel.session_id == session_id,
+        PendingModel.status == "pending"
+    ).all()
+}
 
     for item in items:
         part_number = item.get("part_number", "")
