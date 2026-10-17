@@ -421,11 +421,12 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
               displayStringForOption: (option) =>
                   (option['name'] ?? '').toString(),
               onSelected: (option) {
-                setState(() {
-                  _selectedCategory[id] = option['id'] as int;
-                  _isNewCategory[id] = false;
-                });
-              },
+  print('>>> CATEGORY SELECTED: ${option['id']} / ${option['name']}');
+  setState(() {
+    _selectedCategory[id] = option['id'] as int;
+    _isNewCategory[id] = false;
+  });
+},
               fieldViewBuilder:
                   (context, controller, focusNode, onFieldSubmitted) {
                 return TextField(
@@ -507,11 +508,12 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
               displayStringForOption: (option) =>
                   '${option['rus']} (${option['eng']})',
               onSelected: (option) {
-                setState(() {
-                  _selectedColor[id] = option['id'] as int;
-                  _isNewColor[id] = false;
-                });
-              },
+  print('>>> COLOR SELECTED: ${option['id']} / ${option['rus']}');
+  setState(() {
+    _selectedColor[id] = option['id'] as int;
+    _isNewColor[id] = false;
+  });
+},
               fieldViewBuilder:
                   (context, controller, focusNode, onFieldSubmitted) {
                 return TextField(
