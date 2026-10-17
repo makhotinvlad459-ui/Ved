@@ -20,12 +20,12 @@ class _ProductsScreenState extends State<ProductsScreen> {
   List<dynamic> _products = [];
   bool _isLoading = true;
   bool _hasSearched = false;
+  bool _missingCategoryFilter = false;
   String _error = '';
 
   @override
   void initState() {
     super.initState();
-    // Загрузим сразу всё (пустой запрос — все товары)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _load();
     });
@@ -53,7 +53,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      final data = await api.searchProducts(query);
+      final data = await api.searchProducts(
+        query,
+        missingCategory: _missingCategoryFilter,
+      );
       if (!mounted) return;
       setState(() {
         _products = data['products'] ?? [];
@@ -123,6 +126,26 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                FilterChip(
+                  label: const Text('Без категории'),
+                  selected: _missingCategoryFilter,
+                  onSelected: (v) {
+                    setState(() => _missingCategoryFilter = v);
+                    _load(query: _searchController.text);
+                  },
+                  avatar: Icon(
+                    _missingCategoryFilter
+                        ? Icons.check
+                        : Icons.filter_alt_outlined,
+                    size: 16,
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -169,6 +192,21 @@ class _ProductsScreenState extends State<ProductsScreen> {
       );
     }
     if (_products.isEmpty) {
+      if (_missingCategoryFilter) {
+        return const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle, color: Colors.green, size: 64),
+              SizedBox(height: 16),
+              Text(
+                'Товаров без категории нет',
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+            ],
+          ),
+        );
+      }
       return const Center(
         child: Text('Ничего не найдено', style: TextStyle(color: Colors.grey)),
       );
@@ -255,6 +293,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       if (category != null)
                         _chip(category, Colors.purple.shade50,
                             Colors.purple.shade700),
+                      if (category == null)
+                        _chip('нет категории', Colors.red.shade50,
+                            Colors.red.shade700),
                       if (colorRus != null)
                         _chip(colorRus, Colors.teal.shade50,
                             Colors.teal.shade700),

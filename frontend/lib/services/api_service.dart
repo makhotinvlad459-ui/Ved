@@ -233,20 +233,24 @@ class ApiService {
   // 4. ТОВАРЫ (Products)
   // ============================================================
 
-  Future<Map<String, dynamic>> searchProducts(String query) async {
-    try {
-      final response = await _dio.get(
-        '/models/search',
-        queryParameters: {
-          if (query.trim().isNotEmpty) 'q': query.trim(),
-          'limit': 500,
-        },
-      );
-      return response.data;
-    } catch (e) {
-      throw Exception('Ошибка поиска: $e');
-    }
+  Future<Map<String, dynamic>> searchProducts(
+  String query, {
+  bool missingCategory = false,
+}) async {
+  try {
+    final response = await _dio.get(
+      '/models/search',
+      queryParameters: {
+        if (query.trim().isNotEmpty) 'q': query.trim(),
+        if (missingCategory) 'missing_category': true,
+        'limit': 500,
+      },
+    );
+    return response.data;
+  } catch (e) {
+    throw Exception('Ошибка поиска: $e');
   }
+}
 
   Future<Map<String, dynamic>> getProduct(int id) async {
     try {

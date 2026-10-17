@@ -36,6 +36,7 @@ async def get_all_products(
 @router.get("/search")
 async def search_products(
     q: str = "",
+    missing_category: bool = False,
     limit: int = 50,
     include_inactive: bool = False,
     db: AsyncSession = Depends(get_db)
@@ -65,6 +66,9 @@ async def search_products(
 
     if not include_inactive:
         stmt = stmt.where(Product.is_active == True)
+
+    if missing_category:
+        stmt = stmt.where(Product.category_id.is_(None))
 
     stmt = stmt.limit(limit)
 
