@@ -64,34 +64,58 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 40),
 
                   // ============ ЗАГОЛОВОК + ЧАСЫ В СТРОКУ ============
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: const [
-                            Text(
-                              'Выберите сервис',
-                              style: TextStyle(
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold,
-                              ),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth >= 800;
+
+                      final titleBlock = Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Выберите сервис',
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
                             ),
-                            SizedBox(height: 8),
-                            Text(
-                              'Обработка документов и управление справочниками',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: Colors.grey,
-                              ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Обработка документов и управление справочниками',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      );
+
+                      // На узких экранах часы уходят вниз, на широких — справа
+                      if (!isWide) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            titleBlock,
+                            const SizedBox(height: 16),
+                            const SizedBox(
+                              width: double.infinity,
+                              child: WorldClockWidget(compact: true),
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(width: 24),
-                      const WorldClockWidget(compact: true),
-                    ],
+                        );
+                      }
+
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: titleBlock),
+                          const SizedBox(width: 24),
+                          const SizedBox(
+                            width: 360,
+                            child: WorldClockWidget(compact: true),
+                          ),
+                        ],
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 32),
@@ -260,7 +284,8 @@ class _ResponsiveGrid extends StatelessWidget {
           columns = 3;
         }
 
-        final effectiveColumns = items.length < columns ? items.length : columns;
+        final effectiveColumns =
+            items.length < columns ? items.length : columns;
 
         const spacing = 12.0;
         final itemWidth =

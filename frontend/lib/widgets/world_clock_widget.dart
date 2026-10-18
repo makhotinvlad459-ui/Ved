@@ -1,5 +1,6 @@
 // frontend/lib/widgets/world_clock_widget.dart
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 
 class WorldClockWidget extends StatefulWidget {
@@ -133,31 +134,33 @@ class _WorldClockWidgetState extends State<WorldClockWidget>
             ],
             LayoutBuilder(
               builder: (context, constraints) {
-                final width = constraints.maxWidth;
+                // Защита от бесконечных constraints (Row без Expanded/SizedBox)
+                var width = constraints.maxWidth;
+                if (!width.isFinite) {
+                  width = widget.compact ? 360.0 : 600.0;
+                }
+
                 final columns = widget.compact ? 3 : (width < 600 ? 1 : 3);
                 final spacing = widget.compact ? 8.0 : 12.0;
-                final itemWidth =
-                    (width - spacing * (columns - 1)) / columns;
+                final itemWidth = (width - spacing * (columns - 1)) / columns;
 
                 return Wrap(
                   spacing: spacing,
                   runSpacing: spacing,
-                  children: _cities
-                      .map((city) => SizedBox(
-                            width: itemWidth,
-                            child: _CityCard(
-                              city: city,
-                              time: _cityTime(city.timezoneOffset),
-                              timeStr:
-                                  _formatTime(_cityTime(city.timezoneOffset)),
-                              dayPart:
-                                  _dayPart(_cityTime(city.timezoneOffset)),
-                              dayIcon:
-                                  _dayIcon(_cityTime(city.timezoneOffset)),
-                              compact: widget.compact,
-                            ),
-                          ))
-                      .toList(),
+                  children: _cities.map((city) {
+                    final t = _cityTime(city.timezoneOffset);
+                    return SizedBox(
+                      width: itemWidth,
+                      child: _CityCard(
+                        city: city,
+                        time: t,
+                        timeStr: _formatTime(t),
+                        dayPart: _dayPart(t),
+                        dayIcon: _dayIcon(t),
+                        compact: widget.compact,
+                      ),
+                    );
+                  }).toList(),
                 );
               },
             ),
@@ -213,7 +216,11 @@ class _CityCardState extends State<_CityCard>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+    );
+    // Пульс нужен только в полном режиме — в compact не тратим кадры
+    if (!widget.compact) {
+      _pulseController.repeat(reverse: true);
+    }
   }
 
   @override
@@ -261,24 +268,25 @@ class _CityCardState extends State<_CityCard>
                     fontSize: widget.compact ? 11 : 14,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               AnimatedBuilder(
                 animation: _pulseController,
                 builder: (context, child) {
+                  final v = _pulseController.value;
                   return Container(
                     width: widget.compact ? 6 : 8,
                     height: widget.compact ? 6 : 8,
                     decoration: BoxDecoration(
-                      color: Colors.green.shade400.withOpacity(
-                        0.5 + _pulseController.value * 0.5,
-                      ),
+                      color: Colors.green.shade400.withOpacity(0.5 + v * 0.5),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.green.shade400
-                              .withOpacity(_pulseController.value * 0.6),
-                          blurRadius: 8 * _pulseController.value,
+                          color:
+                              Colors.green.shade400.withOpacity(v * 0.6),
+                          blurRadius: 8 * v,
                         ),
                       ],
                     ),
@@ -297,6 +305,8 @@ class _CityCardState extends State<_CityCard>
               letterSpacing: widget.compact ? 0.5 : 1.5,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
           if (!widget.compact) ...[
             const SizedBox(height: 4),
