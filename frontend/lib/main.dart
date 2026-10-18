@@ -1,7 +1,5 @@
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/upload_screen.dart';
 import 'screens/packing_list_screen.dart';
@@ -35,7 +33,9 @@ class MyApp extends StatelessWidget {
           useMaterial3: true,
         ),
         debugShowCheckedModeBanner: false,
-        home: const AuthWrapper(),
+        // Basic Auth на nginx уже проверил пользователя —
+        // сразу открываем главный экран.
+        home: const HomeScreen(),
         routes: {
           '/home': (context) => const HomeScreen(),
           '/upload': (context) => const UploadScreen(),
@@ -51,18 +51,5 @@ class MyApp extends StatelessWidget {
         },
       ),
     );
-  }
-}
-
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isAuth = html.window.localStorage['is_authenticated'] == 'true';
-    if (isAuth) {
-      return const HomeScreen();
-    }
-    return const LoginScreen();
   }
 }
