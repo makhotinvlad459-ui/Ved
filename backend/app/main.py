@@ -12,21 +12,45 @@ from app.api.v1 import (
 
 from app.database import get_db
 
+# ============================================================
+# НАСТРОЙКИ БЕЗОПАСНОСТИ
+# ============================================================
+
+# Разрешённые origin для CORS.
+# Замени/добавь свои домены, если появятся.
+ALLOWED_ORIGINS = [
+    "http://89.38.131.221",
+    "http://89.38.131.221:80",
+    "https://89.38.131.221",
+    "http://localhost",
+    "http://localhost:80",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
+]
+
 app = FastAPI(
     title="VED Excel Processor",
-    version="0.1.0"
+    version="0.1.0",
+    # Отключаем публичные доки — они светят структуру API
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
 )
 
-# CORS
+# CORS — только конкретные origin, без "*"
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
-# Роутеры
+# ============================================================
+# РОУТЕРЫ
+# ============================================================
+
 app.include_router(upload.router, prefix="/api/v1")
 app.include_router(models.router, prefix="/api/v1")
 app.include_router(categories.router, prefix="/api/v1")
@@ -38,6 +62,10 @@ app.include_router(cz_codes.router, prefix="/api/v1")
 app.include_router(cz.router, prefix="/api/v1")
 app.include_router(for_alice.router, prefix="/api/v1")
 
+
+# ============================================================
+# СЛУЖЕБНЫЕ ЭНДПОИНТЫ
+# ============================================================
 
 @app.get("/")
 async def root():
