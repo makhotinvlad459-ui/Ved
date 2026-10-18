@@ -1,4 +1,6 @@
+// frontend/lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
+import '../widgets/world_clock_widget.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,6 +18,7 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // ============ ЛОГОТИП ============
                   Row(
                     children: [
                       Container(
@@ -60,24 +63,43 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  const Text(
-                    'Выберите сервис',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Обработка документов и управление справочниками',
-                    style: TextStyle(fontSize: 15, color: Colors.grey),
+                  // ============ ЗАГОЛОВОК + ЧАСЫ В СТРОКУ ============
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: const [
+                            Text(
+                              'Выберите сервис',
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Text(
+                              'Обработка документов и управление справочниками',
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 24),
+                      const WorldClockWidget(compact: true),
+                    ],
                   ),
 
                   const SizedBox(height: 32),
 
-                  const _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
+                  // ============ ГРУППА: ОБРАБОТКА ДОКУМЕНТОВ ============
+                  _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
                   const SizedBox(height: 12),
-                  const _ResponsiveGrid(
+                  _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.description_outlined,
@@ -108,9 +130,10 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  const _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
+                  // ============ ГРУППА: ЧЕСТНЫЙ ЗНАК ============
+                  _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
                   const SizedBox(height: 12),
-                  const _ResponsiveGrid(
+                  _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.qr_code_2,
@@ -135,9 +158,10 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 32),
 
-                  const _GroupLabel(label: 'СПРАВОЧНИКИ'),
+                  // ============ ГРУППА: СПРАВОЧНИКИ ============
+                  _GroupLabel(label: 'СПРАВОЧНИКИ'),
                   const SizedBox(height: 12),
-                  const _ResponsiveGrid(
+                  _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.inventory_outlined,
