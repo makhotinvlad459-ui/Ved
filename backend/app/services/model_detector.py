@@ -6,54 +6,133 @@ from sqlalchemy.orm import Session
 from app.models import Category, Color, Product, PendingModel
 
 
+# ============================================================
+# ОПРЕДЕЛЕНИЕ КАТЕГОРИИ
+# ============================================================
+
 def detect_category(description: str, categories: List[Category]) -> Optional[Category]:
+    """
+    Определяет категорию по описанию товара.
+
+    ВАЖНО: правила привязаны к РЕАЛЬНЫМ именам категорий в БД:
+      - «Ноутбуки APPLE», «Телефоны APPLE», «Планшеты APLLE», «Часы APPLE»,
+        «Наушники APPLE», «Наушники Beats», «Телефоны Samsung»,
+        «Ноутбуки Lenovo», «Пылесосы Dyson», и т.д.
+
+    Если ничего не нашли — возвращает None (автосоздание отключено).
+    """
     if not description or not categories:
         return None
 
-    description_lower = description.lower()
+    d = description.lower()
 
-    rules = {
-        "Телефон": ["iphone", "galaxy", "pixel", "phone", "mobile", "samsung galaxy"],
-        "Samsung Телефон": ["samsung galaxy", "sm-s", "sm-g", "sm-a"],
-        "Компьютер": ["macbook", "laptop", "notebook"],
-        "Персональный компьютер": ["imac", "mac mini", "mac studio", "mac pro"],
-        "Планшет": ["ipad", "galaxy tab", "tablet"],
-        "Часы": ["watch", "galaxy watch", "apple watch"],
-        "Чехол-книжка": ["smart folio", "book cover"],
-        "Чехол": ["case", "folio", "cover", "silicon", "techwoven"],
-        "Зарядное": ["adapter", "charger", "power adapter", "power supply"],
-        "Наушники": ["airpods", "headphones", "earbuds", "earphones"],
-        "Кабель": ["cable", "wire", "usb-c", "lightning"],
-        "Экшн-камера": ["action cam", "osmo", "insta360", "gopro"],
-        "Фитнес-браслет": ["fitbit", "fitness", "tracker", "band"],
-        "Кошелек": ["wallet", "card holder"],
-        "Ремешок": ["strap", "band", "bracelet"],
-        "Клавиатура": ["keyboard", "magic keyboard"],
-        "Стилус": ["pencil", "stylus"],
-        "Полировочная ткань": ["polishing cloth"],
-        "Адаптеры": ["adapter", "thunderbolt"],
-    }
+    # Словарь: имя категории в БД → список ключевых слов.
+    # Порядок важен: более специфичные правила ВЫШЕ общих.
+    rules: List[tuple] = [
+        # === Apple: ноутбуки ===
+        ("Ноутбуки APPLE", ["macbook"]),
 
-    if "samsung" in description_lower:
-        for cat in categories:
-            if cat.name == "Samsung Телефон":
+        # === Apple: телефоны ===
+        ("Телефоны APPLE", ["iphone"]),
+
+        # === Apple: планшеты (ловим оба варианта — с опечаткой и без) ===
+        ("Планшеты APLLE", ["ipad"]),
+        ("Планшеты APPLE", ["ipad"]),
+
+        # === Apple: часы ===
+        ("Часы APPLE", [
+            "apple watch", "watch series", "watch se",
+            "watch ultra", "watch  series",
+        ]),
+
+        # === Apple: наушники ===
+        ("Наушники APPLE", ["airpods"]),
+
+        # === Apple: приставки / мониторы / мини / десктопы ===
+        ("Приставки APPLE TV", ["apple tv"]),
+        ("Мониторы APPLE", ["studio display", "pro display xdr"]),
+        ("Макмини", ["mac mini"]),
+        ("Персональные компьютеры APPLE", ["imac", "mac studio", "mac pro"]),
+
+        # === Apple: аксессуары ===
+        ("Клавиатуры APPLE", ["magic keyboard"]),
+        ("Стилусы APPLE", ["apple pencil"]),
+        ("Адаптеры APPLE", [
+            "power adapter", "magsafe", "usb-c power",
+            "usb-c power adapter", "85w", "96w", "70w", "140w",
+        ]),
+        ("Зарядное APPLE", ["charger", "power supply"]),
+        ("Чехлы для телефонов APPLE", [
+            "silicone case", "clear case", "case with magsafe",
+            "case for iphone", "techwoven case",
+        ]),
+        ("Чехол-книжка APPLE", ["smart folio", "folio"]),
+        ("Ремешки для часов APPLE", [
+            "band for apple watch", "milanese loop", "link bracelet",
+            "sport band", "sport loop", "solo loop", "braided solo loop",
+        ]),
+        ("Ремешки Crossbody APPLE", ["crossbody strap"]),
+        ("Ремешки для руки", ["crossbody"]),
+        ("Брелки APPLE", ["airtag", "key ring"]),
+        ("Кошельки APPLE", ["magsafe wallet", "wallet with magsafe"]),
+        ("Кошелек", ["wallet", "card holder"]),
+        ("Полировочная ткань APPLE", ["polishing cloth"]),
+
+        # === Samsung ===
+        ("Телефоны Samsung", [
+            "samsung galaxy", "galaxy s", "galaxy a", "galaxy z",
+            "sm-s", "sm-g", "sm-a", "sm-f", "sm-n",
+        ]),
+
+        # === Beats ===
+        ("Наушники Beats", [
+            "beats powerbeats", "powerbeats", "beats studio",
+            "beats fit", "beats solo", "beats ",
+        ]),
+        ("Чехол(торговой марки Beats)", ["beats case"]),
+
+        # === Lenovo ===
+        ("Ноутбуки Lenovo", [
+            "lenovo", "thinkpad", "thinkbook", "legion",
+            "ideapad", "yoga", "loq",
+        ]),
+
+        # === Dyson ===
+        ("Пылесосы Dyson", [
+            "dyson vacuum", "v8 ", "v10 ", "v11 ", "v12 ", "v15 ",
+            "dyson v", "dyson digital slim",
+        ]),
+        ("Фены Dyson", ["dyson supersonic", "supersonic"]),
+        ("Мультистайлеры Dyson", ["dyson airwrap", "airwrap"]),
+        ("Выпрямители для волос Dyson", ["dyson corrale", "corrale"]),
+
+        # === Прочее (общие правила — НИЖЕ специфичных) ===
+        ("Мониторы", ["monitor", "display"]),
+        ("Клавиатура", ["keyboard"]),
+        ("Кабель", ["cable", "usb-c to", "lightning to", "thunderbolt"]),
+        ("Экшн-камера", ["action cam", "osmo", "insta360", "gopro"]),
+        ("Фитнес-браслеты Google", ["fitbit", "fitness tracker"]),
+        ("Очки", ["glasses", "sunglasses"]),
+    ]
+
+    # Индекс: имя категории → объект Category
+    cat_by_name = {c.name: c for c in categories}
+
+    for cat_name, keywords in rules:
+        cat = cat_by_name.get(cat_name)
+        if not cat:
+            continue  # такой категории нет в БД — пропускаем
+        for kw in keywords:
+            if kw in d:
                 return cat
 
-    for category_name, keywords in rules.items():
-        if category_name == "Samsung Телефон":
-            continue
-        for keyword in keywords:
-            if keyword in description_lower:
-                for cat in categories:
-                    if cat.name == category_name:
-                        return cat
-
-    for cat in categories:
-        if cat.name == "Компьютер":
-            return cat
-
+    # Ничего не нашли — None (пользователь выберет вручную)
     return None
 
+
+# ============================================================
+# ОПРЕДЕЛЕНИЕ ЦВЕТА
+# ============================================================
 
 def detect_color(description: str, colors: List[Color]) -> Optional[Color]:
     if not description or not colors:
@@ -65,35 +144,9 @@ def detect_color(description: str, colors: List[Color]) -> Optional[Color]:
     return max(matches, key=lambda c: len(c.eng or ""))
 
 
-def detect_or_create_category(
-    description: str,
-    categories: List[Category],
-    db: Session
-) -> Optional[Category]:
-    category = detect_category(description, categories)
-    if category:
-        return category
-
-    name_eng = extract_category_name(description)
-    existing = db.query(Category).filter(Category.name == name_eng).first()
-    if existing:
-        return existing
-
-    new_category = Category(
-        name=name_eng,
-        name_eng=name_eng,
-        prefix_ru="",
-        prefix_eng="",
-        collect_serials=True,
-        serial_source="serial_number",
-        clean_serial_prefix=True
-    )
-    db.add(new_category)
-    db.commit()
-    db.refresh(new_category)
-    print(f"✅ Создана новая категория: {name_eng}")
-    return new_category
-
+# ============================================================
+# АВТОСОЗДАНИЕ ЦВЕТА (оставлено — цветов мало, мусор минимален)
+# ============================================================
 
 def detect_or_create_color(
     description: str,
@@ -143,14 +196,9 @@ def detect_or_create_color(
     return None
 
 
-def extract_category_name(description: str) -> str:
-    words = description.split()
-    if len(words) >= 3:
-        return " ".join(words[:3])
-    elif len(words) >= 2:
-        return " ".join(words[:2])
-    return words[0] if words else "Новая категория"
-
+# ============================================================
+# ГЕНЕРАЦИЯ РУССКОГО НАЗВАНИЯ
+# ============================================================
 
 def generate_russian_name(
     description: str,
@@ -163,7 +211,11 @@ def generate_russian_name(
     name = description
     name = re.sub(r'\s*\([^)]*\)\s*$', '', name).strip()
 
-    brands = ["Apple", "Samsung", "Xiaomi", "Huawei", "Lenovo", "HP", "Dell", "Asus", "Acer", "Google", "DJI", "Insta360"]
+    brands = [
+        "Apple", "Samsung", "Xiaomi", "Huawei", "Lenovo",
+        "HP", "Dell", "Asus", "Acer", "Google", "DJI", "Insta360",
+        "Beats", "Dyson",
+    ]
     for brand in brands:
         if name.startswith(brand):
             name = name[len(brand):].strip()
@@ -179,6 +231,10 @@ def generate_russian_name(
     return name.strip()
 
 
+# ============================================================
+# СОХРАНЕНИЕ PENDING-МОДЕЛЕЙ
+# ============================================================
+
 def save_pending_models(
     items: List[Dict[str, Any]],
     categories: List[Category],
@@ -189,6 +245,9 @@ def save_pending_models(
     """
     Сохранить новые модели в список на подтверждение.
     Также создаёт PendingModel для существующих Product БЕЗ категории.
+
+    Автоматическое создание КАТЕГОРИЙ отключено.
+    Автоматическое создание ЦВЕТОВ оставлено (безопасно — цветов мало).
     """
     new_models = []
 
@@ -197,11 +256,11 @@ def save_pending_models(
     }
 
     pending_part_numbers = {
-    p.part_number for p in db.query(PendingModel).filter(
-        PendingModel.session_id == session_id,
-        PendingModel.status == "pending"
-    ).all()
-}
+        p.part_number for p in db.query(PendingModel).filter(
+            PendingModel.session_id == session_id,
+            PendingModel.status == "pending"
+        ).all()
+    }
 
     for item in items:
         part_number = item.get("part_number", "")
@@ -220,7 +279,6 @@ def save_pending_models(
             ).first()
 
             if product and not product.category_id:
-                # Нужно подтверждение категории
                 pending = PendingModel(
                     session_id=session_id,
                     part_number=part_number,
@@ -255,9 +313,9 @@ def save_pending_models(
 
         suggested_name = generate_russian_name(description, category, color)
 
-        if not category:
-            category = detect_or_create_category(description, categories, db)
-            categories = db.query(Category).all()
+        # Автоматическое создание категорий ОТКЛЮЧЕНО.
+        # Если detect_category не нашёл — suggested_category_id = None,
+        # пользователь выберет/создаст вручную в PendingModelsScreen.
 
         if not color:
             color = detect_or_create_color(description, colors, db)
@@ -287,7 +345,7 @@ def save_pending_models(
             "color_id": color.id if color else None
         })
 
-        print(f"📝 Добавлена на подтверждение: {part_number}")
+        print(f"📝 Добавлена на подтверждение: {part_number} (category={category.name if category else 'None'})")
 
     return new_models
 
@@ -310,7 +368,6 @@ def get_pending_models_by_session(db: Session, session_id: str) -> List[Dict[str
             col = db.query(Color).filter(Color.id == p.suggested_color_id).first()
             color_name = col.eng if col else None
 
-        # Определяем тип: новый товар или товар без категории
         existing_product = db.query(Product).filter(
             Product.part_number == p.part_number
         ).first()
