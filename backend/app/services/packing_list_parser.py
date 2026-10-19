@@ -193,8 +193,11 @@ def parse_packing_list(file_path: str) -> Dict[str, Any]:
                 current_pallet_no = None
                 current_box_no = box_no
 
-        if description and str(description).strip().isdigit():
-            continue
+        if description:
+            desc_str = str(description).strip()
+    
+            if desc_str.isdigit() and len(desc_str) <= 3:
+                continue
         if description and "TOTAL" in str(description).upper():
             continue
         if not description:
