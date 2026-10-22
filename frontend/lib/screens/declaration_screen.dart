@@ -15,7 +15,6 @@ class DeclarationScreen extends StatefulWidget {
 class _DeclarationScreenState extends State<DeclarationScreen> {
   FilePickerResult? _invoiceResult;
   bool _isLoading = false;
-  String _sessionId = '';
   String _textResult = '';
 
   Future<void> _pickFile() async {
@@ -28,7 +27,6 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
         setState(() {
           _invoiceResult = result;
           _textResult = ''; // сброс
-          _sessionId = '';
         });
       }
     } catch (e) {
@@ -56,29 +54,15 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
       
-      // Отправляем инвойс 3 раза, чтобы пройти валидацию эндпоинта /upload/
-      final result = await api.uploadFiles(
-        invoiceBytes: bytes,
-        invoiceName: _invoiceResult!.files.single.name,
-        manifestBytes: bytes, // заглушка
-        manifestName: _invoiceResult!.files.single.name,
-        templateBytes: bytes, // заглушка
-        templateName: _invoiceResult!.files.single.name,
-        specNumber: 'DECL',
+      // Отправляем на НОВЫЙ эндпоинт (мгновенный парсинг)
+      final result = await api.getDeclarationText(
+        bytes: bytes,
+        fileName: _invoiceResult!.files.single.name,
       );
-
-      final sessionId = result['session_id'];
-
-      // Ждем завершения Celery (или pending_approval)
-      await _waitForCompletion(sessionId);
-
-      // Получаем текст
-      final textResult = await api.getTextSummary(sessionId);
       
       if (!mounted) return;
       setState(() {
-        _sessionId = sessionId;
-        _textResult = textResult['text'] ?? 'Нет данных';
+        _textResult = result['text'] ?? 'Нет данных';
         _isLoading = false;
       });
       
@@ -88,18 +72,6 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('❌ Ошибка: $e'), backgroundColor: Colors.red),
       );
-    }
-  }
-
-  Future<void> _waitForCompletion(String sessionId) async {
-    final api = Provider.of<ApiService>(context, listen: false);
-    while (true) {
-      await Future.delayed(const Duration(seconds: 2));
-      final statusData = await api.getStatus(sessionId);
-      final status = statusData['status'];
-      if (status == 'completed' || status == 'pending_approval' || status == 'error') {
-        break;
-      }
     }
   }
 

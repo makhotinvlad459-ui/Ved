@@ -787,12 +787,22 @@ class ApiService {
     }
   }
 
-    Future<Map<String, dynamic>> getTextSummary(String sessionId) async {
+      // ============================================================
+  // 12. ДЕКЛАРИРОВАНИЕ (ОДИН ИНВОЙС)
+  // ============================================================
+
+  Future<Map<String, dynamic>> getDeclarationText({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
     try {
-      final response = await _dio.get('/upload/text-summary/$sessionId');
+      FormData formData = FormData.fromMap({
+        'invoice': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final response = await _dio.post('/upload/declaration-text', data: formData);
       return response.data;
     } catch (e) {
-      throw Exception('Ошибка получения текста: $e');
+      throw Exception('Ошибка генерации текста: $e');
     }
   }
 }
