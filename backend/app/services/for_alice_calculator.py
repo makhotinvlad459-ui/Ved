@@ -11,13 +11,20 @@ from sqlalchemy.orm import Session
 from app.models import Product, Category
 
 
-# Категории, подлежащие маркировке ЧЗ (+1.5 AED за единицу)
+# ============================================================
+# КАТЕГОРИИ, ПОДЛЕЖАЩИЕ МАРКИРОВКЕ ЧЗ (+1.5 AED за единицу)
+# ВАЖНО: имена должны ТОЧНО совпадать с БД (см. таблицу categories)
+# ============================================================
 CZ_CATEGORIES = {
-    "Телефон",
-    "Samsung Телефон",
-    "Планшет",
-    "Компьютер",
+    "Телефоны APPLE",
+    "Телефоны Samsung",
+    "Планшеты APLLE",   # в БД опечатка APLLE — оставляем как есть
+    "Планшеты APPLE",   # на всякий случай, если переименуют
+    "Ноутбуки APPLE",
     "Ноутбуки Lenovo",
+    "Часы APPLE",
+    "Наушники APPLE",
+    "Наушники Beats",
 }
 
 # Коэффициент упаковки
@@ -46,7 +53,7 @@ def extract_model_from_name(name: str) -> Optional[str]:
     d = name
 
     m = re.search(
-        r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|e))?',
+        r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|e|Duo))?',
         d, re.IGNORECASE
     )
     if m:
@@ -89,8 +96,12 @@ def extract_model_from_name(name: str) -> Optional[str]:
     return None
 
 
-def resolve_weight(db: Session, part_number: Optional[str], name: Optional[str]) -> Tuple[Optional[float], Optional[str], Optional[Product]]:
-    """Ищет вес по part_number и названию."""
+def resolve_weight(
+    db: Session,
+    part_number: Optional[str],
+    name: Optional[str],
+) -> Tuple[Optional[float], Optional[str], Optional[Product]]:
+    """Ищет вес по part_number и названию. Подгружает категорию."""
     if not part_number and not name:
         return None, None, None
 
@@ -125,16 +136,24 @@ def resolve_weight(db: Session, part_number: Optional[str], name: Optional[str])
                 Product.weight > 0,
             ).first()
             if sibling:
-                return float(sibling.weight), f"model_name:{model_name}", product
+                return float(sibling.weight), f"model_name:{model_name}", sibling
 
     return None, None, product
 
 
 def is_cz_category(product: Optional[Product]) -> bool:
     """Проверяет, подлежит ли товар маркировке ЧЗ."""
-    if not product or not product.category:
+    if not product:
         return False
-    return product.category.name in CZ_CATEGORIES
+    if not product.category_id:
+        return False
+
+    # Категория может быть не загружена (lazy) — получаем явно
+    category = product.category
+    if not category:
+        return False
+
+    return category.name in CZ_CATEGORIES
 
 
 def round2(value: float) -> float:
