@@ -539,22 +539,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
           const SizedBox(height: 12),
 
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-            child: Row(
-              children: [
-                SizedBox(width: 30, child: Text('#', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                SizedBox(width: 6),
-                Expanded(flex: 5, child: Text('Название', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                SizedBox(width: 6),
-                SizedBox(width: 70, child: Text('Кол-во', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                SizedBox(width: 6),
-                SizedBox(width: 90, child: Text('Цена', style: TextStyle(fontSize: 12, color: Colors.grey))),
-                SizedBox(width: 36),
-              ],
-            ),
-          ),
-
           ...List.generate(_rows.length, (idx) {
             final r = _rows[idx];
             return Padding(
@@ -567,7 +551,8 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Text('${idx + 1}',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          style: const TextStyle(
+                              fontSize: 12, color: Colors.grey)),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -706,81 +691,85 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                   ),
                   const SizedBox(height: 12),
                   ...List.generate(_missing.length, (idx) {
-        final m = _missing[idx];
-        final partNumber = m['part_number'] ?? '—';
-        final name = m['name'] ?? '';
+                    final m = _missing[idx];
+                    final partNumber = m['part_number'] ?? '—';
+                    final name = m['name'] ?? '';
 
-  return Card(
-    margin: const EdgeInsets.only(bottom: 8),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: SelectableText(
-                  partNumber,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy, size: 18),
-                tooltip: 'Скопировать артикул',
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: partNumber));
-                  _showSnack('Артикул скопирован: $partNumber');
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: SelectableText(
-                  name,
-                  style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy, size: 18),
-                tooltip: 'Скопировать название',
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: name));
-                  _showSnack('Название скопировано');
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: ElevatedButton.icon(
-              onPressed: () => _saveWeightAndRecalculate(idx),
-              icon: const Icon(Icons.add_circle_outline, size: 18),
-              label: const Text('Ввести вес'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-              ),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}),
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SelectableText(
+                                    partNumber,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy, size: 18),
+                                  tooltip: 'Скопировать артикул',
+                                  onPressed: () {
+                                    Clipboard.setData(
+                                        ClipboardData(text: partNumber));
+                                    _showSnack('Артикул скопирован: $partNumber');
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SelectableText(
+                                    name,
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey[700]),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.copy, size: 18),
+                                  tooltip: 'Скопировать название',
+                                  onPressed: () {
+                                    Clipboard.setData(ClipboardData(text: name));
+                                    _showSnack('Название скопировано');
+                                  },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _saveWeightAndRecalculate(idx),
+                                icon: const Icon(Icons.add_circle_outline,
+                                    size: 18),
+                                label: const Text('Ввести вес'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.orange,
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),
             const SizedBox(height: 16),
           ],
 
+          // === ИТОГИ (расширенные) ===
           if (!_hasMissing && _totals != null) ...[
             Card(
               color: Colors.teal.shade50,
@@ -794,13 +783,34 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                       style:
                           TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                        'Общий вес: ${(_totals!['total_weight'] as num).toStringAsFixed(2)} кг'),
-                    Text(
-                        'Ставка AED/кг: ${(_totals!['rate_aed_per_kg'] as num).toStringAsFixed(2)}'),
-                    Text(
-                        'Итого сумма: ${(_totals!['total_sum'] as num).toStringAsFixed(2)} AED'),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 24,
+                      runSpacing: 12,
+                      children: [
+                        _info('Общий вес',
+                            '${_num(_totals!['total_weight'])} кг'),
+                        _info('Итого сумма',
+                            '${_num(_totals!['total_sum'])} AED',
+                            highlight: true),
+                        _info('Логистика (USD/кг)',
+                            _num(_totals!['logistics_rate_usd'])),
+                        _info('Курс USD → AED',
+                            _num(_totals!['usd_to_aed'])),
+                        _info('Документы (AED)',
+                            _num(_totals!['documents_cost_aed'])),
+                        _info('Логистика всего (USD)',
+                            _num(_totals!['logistics_total_usd'])),
+                        _info('Логистика всего (AED)',
+                            _num(_totals!['logistics_total_aed'])),
+                        _info('Итого логистика (AED)',
+                            _num(_totals!['total_logistics_aed'])),
+                        _info('Ставка (AED/кг)',
+                            _num(_totals!['rate_aed_per_kg'])),
+                        _info('Ставка (USD/кг)',
+                            _num(_totals!['rate_usd_per_kg'])),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -808,6 +818,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             const SizedBox(height: 16),
           ],
 
+          // === ТАБЛИЦА (расширенная) ===
           if (_resultRows.isNotEmpty) ...[
             const Text(
               'Результаты',
@@ -817,41 +828,78 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: DataTable(
-                columnSpacing: 16,
+                columnSpacing: 12,
                 headingRowHeight: 40,
-                dataRowHeight: 56,
+                dataRowHeight: 60,
                 columns: const [
+                  DataColumn(label: Text('Модель')),
                   DataColumn(label: Text('P/N')),
-                  DataColumn(label: Text('Название')),
+                  DataColumn(label: Text('Наименование')),
                   DataColumn(label: Text('Кол')),
+                  DataColumn(label: Text('Вес')),
                   DataColumn(label: Text('Вес+15%')),
                   DataColumn(label: Text('Общий вес')),
-                  DataColumn(label: Text('Цена')),
+                  DataColumn(label: Text('Цена (AED)')),
+                  DataColumn(label: Text('Ст-ть партии')),
                   DataColumn(label: Text('Лог/ед')),
                   DataColumn(label: Text('Ц+лог')),
+                  DataColumn(label: Text('Ст-ть с лог')),
+                  DataColumn(label: Text('+ЧЗ')),
                   DataColumn(label: Text('Итог/ед')),
                   DataColumn(label: Text('Итого')),
                 ],
                 rows: _resultRows.map((r) {
+                  final qty = (r['qty'] as num?)?.toDouble() ?? 0;
+                  final price = (r['price'] as num?)?.toDouble() ?? 0;
+                  final m = (r['m'] as num?)?.toDouble() ?? 0;
+                  final isCz = r['is_cz'] == true;
+
                   return DataRow(cells: [
-                    DataCell(Text(r['part_number'] ?? '—')),
+                    DataCell(Text(r['model_number'] ?? '—',
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(r['part_number'] ?? '—',
+                        style: const TextStyle(fontSize: 11))),
                     DataCell(SizedBox(
                       width: 200,
                       child: Text(
                         r['name'] ?? '',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12),
+                        style: const TextStyle(fontSize: 11),
                       ),
                     )),
-                    DataCell(Text('${r['qty'] ?? 0}')),
-                    DataCell(Text(_num(r['g']))),
-                    DataCell(Text(_num(r['h']))),
-                    DataCell(Text(_num(r['price']))),
-                    DataCell(Text(_num(r['l']))),
-                    DataCell(Text(_num(r['m']))),
-                    DataCell(Text(_num(r['o']))),
-                    DataCell(Text(_num(r['p']))),
+                    DataCell(Text('${r['qty'] ?? 0}',
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['weight']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['g']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['h']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['price']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(price * qty),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['l']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['m']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(m * qty),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(
+                      isCz ? '+1.5' : '—',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isCz ? Colors.green.shade700 : Colors.grey,
+                        fontWeight:
+                            isCz ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    )),
+                    DataCell(Text(_num(r['o']),
+                        style: const TextStyle(fontSize: 11))),
+                    DataCell(Text(_num(r['p']),
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold))),
                   ]);
                 }).toList(),
               ),
@@ -884,6 +932,26 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _info(String label, String value, {bool highlight = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: highlight ? FontWeight.bold : FontWeight.w500,
+            color: highlight ? Colors.teal.shade900 : Colors.black87,
+          ),
+        ),
+      ],
     );
   }
 
