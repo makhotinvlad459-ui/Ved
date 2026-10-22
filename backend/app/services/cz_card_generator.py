@@ -51,7 +51,7 @@ def extract_model_name(description: str) -> Optional[str]:
 
     # iPhone (порядок: Pro Max → Pro → Plus → Air → Mini → e → без суффикса)
     m = re.search(
-        r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|e))?',
+        r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|e|Duo))?',
         d, re.IGNORECASE
     )
     if m:
@@ -107,6 +107,23 @@ def build_full_name(category: str, description: str) -> str:
     if prefix:
         return f"{prefix} {desc}"
     return desc
+
+
+def _is_duo(description: str) -> bool:
+    """Определяет, является ли устройство складным (iPhone Duo)."""
+    if not description:
+        return False
+    return "duo" in description.lower()
+
+
+def _pick_vid_tovara(category: str, description: str, default: str) -> str:
+    """
+    Подбирает «Вид товара» из справочника ЧЗ.
+    Для iPhone Duo — «СМАРТФОН СКЛАДНОЙ», для остальных — default из БД.
+    """
+    if category == "Смартфоны" and _is_duo(description):
+        return "СМАРТФОН СКЛАДНОЙ"
+    return default
 
 
 def generate_category_file(
@@ -171,7 +188,9 @@ def generate_category_file(
 
         color_eng, color_cz = extract_color(description, color_mappings)
 
-        vid_tovara = category_mapping.vid_tovara
+        vid_tovara_default = category_mapping.vid_tovara
+        vid_tovara = _pick_vid_tovara(category, description, vid_tovara_default)
+
         k3 = category_mapping.k3
         tnved = category_mapping.tnved
         okpd2 = category_mapping.okpd2
@@ -185,8 +204,16 @@ def generate_category_file(
             rom_type = "Тбайт"
             rom_value = rom_gb // 1024
 
-        ws.cell(current_row, 1).value = gtin
-        ws.cell(current_row, 2).value = tnved
+        # === GTIN как текст (сохраняем ведущий ноль) ===
+        gtin_cell = ws.cell(current_row, 1)
+        gtin_cell.value = str(gtin) if gtin else ""
+        gtin_cell.number_format = '@'
+
+        # === Tnved как текст ===
+        tnved_cell = ws.cell(current_row, 2)
+        tnved_cell.value = str(tnved) if tnved else ""
+        tnved_cell.number_format = '@'
+
         ws.cell(current_row, 3).value = k3
         ws.cell(current_row, 4).value = full_name
         ws.cell(current_row, 5).value = brand
@@ -206,6 +233,12 @@ def generate_category_file(
         ws.cell(current_row, 19).value = cpu_vendor
         ws.cell(current_row, 20).value = cpu_model
         ws.cell(current_row, 21).value = tnved
+
+        # === Tnved (дубль в U) как текст ===
+        u_cell = ws.cell(current_row, 21)
+        u_cell.value = str(tnved) if tnved else ""
+        u_cell.number_format = '@'
+
         ws.cell(current_row, 22).value = "НЕТ"
 
         for col_idx, val in [
@@ -225,6 +258,19 @@ def generate_category_file(
 
         ws.cell(current_row, 4).alignment = Alignment(wrap_text=True, vertical='top')
         current_row += 1
+
+    # === УДАЛЯЕМ ПУСТЫЕ СТРОКИ (ЧЗ требует, чтобы все строки были заполнены) ===
+    rows_to_delete = []
+    for r in range(start_row, ws.max_row + 1):
+        a_val = ws.cell(r, 1).value
+        if a_val is None or (isinstance(a_val, str) and a_val.strip() == ""):
+            rows_to_delete.append(r)
+
+    # Удаляем с конца, чтобы не сбить индексы
+    for r in reversed(rows_to_delete):
+        ws.delete_rows(r)
+
+    print(f"   🗑️ Удалено пустых строк: {len(rows_to_delete)}")
 
     wb.save(output_path)
     return output_path
