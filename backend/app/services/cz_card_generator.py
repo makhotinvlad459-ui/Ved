@@ -49,7 +49,7 @@ def extract_model_name(description: str) -> Optional[str]:
 
     d = description
 
-    # iPhone (порядок: Pro Max → Pro → Plus → Air → Mini → e → без суффикса)
+    # iPhone (порядок: Pro Max → Pro → Plus → Air → Mini → e → Duo → без суффикса)
     m = re.search(
         r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|e|Duo))?',
         d, re.IGNORECASE
@@ -124,6 +124,17 @@ def _pick_vid_tovara(category: str, description: str, default: str) -> str:
     if category == "Смартфоны" and _is_duo(description):
         return "СМАРТФОН СКЛАДНОЙ"
     return default
+
+
+def _set_text_cell(ws, row: int, col: int, value: Any) -> None:
+    """
+    Записывает значение как ТЕКСТ.
+    ВАЖНО: number_format = '@' ставится ДО value, иначе openpyxl
+    может сохранить число и потерять ведущие нули.
+    """
+    cell = ws.cell(row, col)
+    cell.number_format = '@'
+    cell.value = str(value) if value not in (None, "") else ""
 
 
 def generate_category_file(
@@ -204,16 +215,12 @@ def generate_category_file(
             rom_type = "Тбайт"
             rom_value = rom_gb // 1024
 
-        # === GTIN как текст (сохраняем ведущий ноль) ===
-        gtin_cell = ws.cell(current_row, 1)
-        gtin_cell.value = str(gtin) if gtin else ""
-        gtin_cell.number_format = '@'
+        # === Текстовые колонки: GTIN (A), Tnved (B), Tnved (U) ===
+        _set_text_cell(ws, current_row, 1, gtin)   # A: GTIN
+        _set_text_cell(ws, current_row, 2, tnved)  # B: Tnved
+        _set_text_cell(ws, current_row, 21, tnved) # U: Tnved (дубль)
 
-        # === Tnved как текст ===
-        tnved_cell = ws.cell(current_row, 2)
-        tnved_cell.value = str(tnved) if tnved else ""
-        tnved_cell.number_format = '@'
-
+        # === Остальные колонки ===
         ws.cell(current_row, 3).value = k3
         ws.cell(current_row, 4).value = full_name
         ws.cell(current_row, 5).value = brand
@@ -232,15 +239,9 @@ def generate_category_file(
         ws.cell(current_row, 18).value = rom_value
         ws.cell(current_row, 19).value = cpu_vendor
         ws.cell(current_row, 20).value = cpu_model
-        ws.cell(current_row, 21).value = tnved
-
-        # === Tnved (дубль в U) как текст ===
-        u_cell = ws.cell(current_row, 21)
-        u_cell.value = str(tnved) if tnved else ""
-        u_cell.number_format = '@'
-
         ws.cell(current_row, 22).value = "НЕТ"
 
+        # Подсветка пустых критичных полей
         for col_idx, val in [
             (1, gtin),
             (4, full_name),
@@ -266,9 +267,11 @@ def generate_category_file(
         if a_val is None or (isinstance(a_val, str) and a_val.strip() == ""):
             rows_to_delete.append(r)
 
-    # Удаляем с конца, чтобы не сбить индексы
+    # Удаляем с конца, чтобы не сбить индексы + чистим row_dimensions («призраки»)
     for r in reversed(rows_to_delete):
         ws.delete_rows(r)
+        if r in ws.row_dimensions:
+            del ws.row_dimensions[r]
 
     print(f"   🗑️ Удалено пустых строк: {len(rows_to_delete)}")
 
