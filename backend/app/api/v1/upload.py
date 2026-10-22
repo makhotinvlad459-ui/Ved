@@ -7,6 +7,7 @@ import uuid
 import os
 from datetime import datetime
 import shutil
+import re
 
 from app.database import get_db
 from app.models import ProcessingSession, PendingModel
@@ -202,3 +203,74 @@ async def get_pending_count(
         "pending_models_count": pending_count,
         "has_pending": pending_count > 0
     }
+
+@router.get("/text-summary/{session_id}")
+async def get_text_summary(
+    session_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """Генерирует текст для письма (сводка по моделям)."""
+    stmt = select(ProcessingSession).where(ProcessingSession.session_id == session_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    
+    if not session or not session.invoice_file:
+        raise HTTPException(status_code=404, detail="Инвойс не найден")
+
+    from app.services.parser import parse_invoice
+    import os
+    
+    if not os.path.exists(session.invoice_file):
+        raise HTTPException(status_code=404, detail="Файл инвойса удалён")
+        
+    invoice_data = parse_invoice(session.invoice_file)
+    items = invoice_data.get("items", [])
+    
+    summary = {}
+    
+    for item in items:
+        desc = item.get("description", "")
+        model_num = item.get("model_number", "")
+        qty = item.get("qty", 0)
+        
+        if not desc or qty <= 0:
+            continue
+            
+        clean_name = desc
+        clean_name = re.sub(r'\s*\([^)]*\)', '', clean_name)
+        clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб)\b', '', clean_name)
+        
+        # Убираем цвета и лишние слова (только для формирования имени)
+        clean_name = re.sub(
+            r'\b(Black|White|Silver|Blue|Green|Yellow|Pink|Purple|Gold|Grey|Gray|Midnight|Starlight|Space|Burgundy|Red|Orange|Yellow)\b', 
+            '', clean_name, flags=re.IGNORECASE
+        )
+        clean_name = re.sub(r'^\s*(Apple|Samsung|Beats|Lenovo|Dyson)\s+', '', clean_name, flags=re.IGNORECASE)
+        clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+        
+        # Если перестарались с очисткой, берем оригинал до скобок
+        if not clean_name or len(clean_name) < 3:
+            clean_name = desc.split(" (")[0]
+
+        key = clean_name
+        if key not in summary:
+            summary[key] = {}
+            
+        if model_num:
+            summary[key][model_num] = summary[key].get(model_num, 0) + qty
+        else:
+            summary[key]["—"] = summary[key].get("—", 0) + qty
+
+    lines = []
+    for model_name, models_dict in summary.items():
+        if len(models_dict) == 1 and "—" in models_dict:
+            # Если модели нет — просто кол-во
+            lines.append(f"{model_name} - {list(models_dict.values())[0]} шт.;")
+        else:
+            models_str = ", ".join([f"модель {m} - {q} шт." for m, q in sorted(models_dict.items()) if m != "—"])
+            if "—" in models_dict:
+                 models_str += f", без модели - {models_dict['—']} шт."
+            lines.append(f"{model_name}, {models_str};")
+        
+    text = "\n".join(lines)
+    return {"text": text}

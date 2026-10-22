@@ -132,6 +132,12 @@ class HomeScreen extends StatelessWidget {
                         route: '/upload',
                       ),
                       _ServiceItem(
+                        icon: Icons.gavel_outlined,
+                        title: 'Декларирование',
+                        color: Colors.brown,
+                        route: '/declaration',
+                      ),
+                      _ServiceItem(
                         icon: Icons.inventory_2_outlined,
                         title: 'Packing List',
                         color: Colors.orange,

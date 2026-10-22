@@ -786,4 +786,13 @@ class ApiService {
       throw Exception('Ошибка скачивания: $e');
     }
   }
+
+    Future<Map<String, dynamic>> getTextSummary(String sessionId) async {
+    try {
+      final response = await _dio.get('/upload/text-summary/$sessionId');
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка получения текста: $e');
+    }
+  }
 }
