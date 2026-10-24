@@ -13,6 +13,7 @@ import 'screens/cz_colors_screen.dart';
 import 'screens/for_alice_screen.dart';
 import 'services/api_service.dart';
 import 'screens/declaration_screen.dart';
+import 'screens/far_east_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -50,6 +51,7 @@ class MyApp extends StatelessWidget {
           '/cz-colors': (context) => const CzColorsScreen(),
           '/for-alice': (context) => const ForAliceScreen(),
           '/declaration': (context) => const DeclarationScreen(),
+          '/far-east': (context) => const FarEastScreen(),
         },
       ),
     );

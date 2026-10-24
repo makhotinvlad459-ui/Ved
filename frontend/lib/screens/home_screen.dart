@@ -138,6 +138,12 @@ class HomeScreen extends StatelessWidget {
                         route: '/declaration',
                       ),
                       _ServiceItem(
+                        icon: Icons.local_shipping_outlined,
+                        title: 'Far East',
+                        color: Colors.indigo,
+                        route: '/far-east',
+                      ),
+                      _ServiceItem(
                         icon: Icons.inventory_2_outlined,
                         title: 'Packing List',
                         color: Colors.orange,

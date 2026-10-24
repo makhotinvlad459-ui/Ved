@@ -805,4 +805,22 @@ class ApiService {
       throw Exception('Ошибка генерации текста: $e');
     }
   }
+    // ============================================================
+  // 13. FAR EAST (ТАМОЖНЯ)
+  // ============================================================
+
+  Future<Map<String, dynamic>> getFarEastText({
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    try {
+      FormData formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
+      });
+      final response = await _dio.post('/upload/far-east-text', data: formData);
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка генерации текста Far East: $e');
+    }
+  }
 }
