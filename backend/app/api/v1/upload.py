@@ -226,6 +226,15 @@ async def get_declaration_text(
         
         summary = {}
         
+        # Список цветов, которые нужно убрать из названия (Glacier, Star White и т.д.)
+        colors_to_remove = [
+            "Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
+            "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", 
+            "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive",
+            "Camel", "Navy", "Magenta", "Pale Succulent", "Wildflower", "Mulberry",
+            "Sage", "Dark Umber", "Desert", "Light Umber", "Chambray"
+        ]
+        
         for item in items:
             desc = item.get("description", "")
             model_num = item.get("model_number", "")
@@ -234,20 +243,29 @@ async def get_declaration_text(
             if not desc or qty <= 0:
                 continue
                 
-            clean_name = desc
-            clean_name = re.sub(r'\s*\([^)]*\)', '', clean_name)
-            clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб)\b', '', clean_name)
-            clean_name = re.sub(
-                r'\b(Black|White|Silver|Blue|Green|Yellow|Pink|Purple|Gold|Grey|Gray|Midnight|Starlight|Space|Burgundy|Red|Orange)\b', 
-                '', clean_name, flags=re.IGNORECASE
-            )
-            clean_name = re.sub(r'^\s*(Apple|Samsung|Beats|Lenovo|Dyson)\s+', '', clean_name, flags=re.IGNORECASE)
-            clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+            # 1. Берем часть до первой скобки (там чистое название)
+            clean_name = desc.split(" (")[0].strip()
             
-            if not clean_name or len(clean_name) < 3:
-                clean_name = desc.split(" (")[0]
+            # 2. Убираем бренд в начале
+            clean_name = re.sub(r'^(Apple|Samsung|Google|Beats)\s+', '', clean_name, flags=re.IGNORECASE)
+            
+            # 3. Убираем память (256Gb, 1Tb, 128GB)
+            clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Gb|Гб|Тб)\b', '', clean_name, flags=re.IGNORECASE)
+            
+            # 4. Убираем цвета (самые длинные фразы сначала)
+            for color in sorted(colors_to_remove, key=len, reverse=True):
+                clean_name = re.sub(rf'\b{re.escape(color)}\b', '', clean_name, flags=re.IGNORECASE)
+                
+            # 5. Убираем лишние пробелы и дефисы по краям
+            clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+            clean_name = re.sub(r'^[\s\-\/,]+', '', clean_name).strip()
+            
+            # Если совсем пусто — возвращаем как было
+            if not clean_name or len(clean_name) < 2:
+                clean_name = desc.split(" (")[0].strip()
 
             key = clean_name
+            
             if key not in summary:
                 summary[key] = {}
                 
