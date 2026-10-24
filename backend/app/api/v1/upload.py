@@ -230,32 +230,49 @@ async def get_declaration_text(
             if not desc or qty <= 0:
                 continue
 
+            # Берем часть до первой скобки
             clean_name = desc.split(" (")[0].strip()
+            
+            # Убираем бренд в начале
             clean_name = re.sub(r'^(Apple|Samsung|Google|Beats)\s+', '', clean_name, flags=re.IGNORECASE)
             
             # === 1. СПЕЦИАЛЬНЫЕ ПРАВИЛА ===
-            if re.search(r'Watch (SE|Series)', clean_name, re.IGNORECASE):
+            
+            # Чехлы и ремешки (аксессуары) — не ищем в них iPhone/iPad
+            if re.search(r'Case|Strap|Band|Adapter|Key Ring|Folio|Earbuds', clean_name, re.IGNORECASE):
+                if "Band for Apple Watch" in clean_name:
+                    clean_name = "Band for Apple Watch"
+                elif "Crossbody Strap" in clean_name:
+                    clean_name = "Crossbody Strap"
+                elif "TechWoven Case" in clean_name:
+                    clean_name = "TechWoven Case"
+                elif "Smart Folio" in clean_name:
+                    clean_name = "Smart Folio"
+                elif "Key Ring" in clean_name:
+                    clean_name = "FineWoven Key Ring"
+                elif "Power Adapter" in clean_name:
+                    m = re.search(r'\d+W\s+USB-C\s+Power Adapter', clean_name, re.IGNORECASE)
+                    clean_name = m.group(0) if m else "Power Adapter"
+                elif "AirPods" in clean_name:
+                    clean_name = "AirPods with Wireless Charging Case" if "Wireless" in clean_name else "AirPods"
+                # Общая очистка для аксессуаров
+                clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|mm)\b', '', clean_name, flags=re.IGNORECASE)
+                clean_name = re.sub(r'\bwith\b.*$', '', clean_name, flags=re.IGNORECASE)
+                clean_name = re.sub(r'^[\s\-\/,]+|[\s\-\/,]+$', '', clean_name).strip()
+
+            # Часы
+            elif re.search(r'Watch (SE|Series)', clean_name, re.IGNORECASE):
                 m = re.search(r'Watch (?:SE|Series)\s+\d+', clean_name, re.IGNORECASE)
                 if m:
                     clean_name = re.sub(r'\s+', ' ', m.group(0)).strip()
                 else:
                     clean_name = "Apple Watch"
 
-            elif "Band for Apple Watch" in clean_name:
-                clean_name = "Band for Apple Watch"
-
-            elif re.search(r'AirPods', clean_name, re.IGNORECASE):
-                if "Wireless" in clean_name:
-                    clean_name = "AirPods with Wireless Charging Case"
-                else:
-                    clean_name = "AirPods"
-
+            # Fitbit
             elif re.search(r'Fitbit', clean_name, re.IGNORECASE):
                 clean_name = "Google Fitbit Air"
 
-            elif "Crossbody Strap" in clean_name:
-                clean_name = "Crossbody Strap"
-
+            # iPad Pro
             elif re.search(r'iPad Pro \d+', clean_name, re.IGNORECASE):
                 m = re.search(r'iPad Pro \d+["\u201d\u2033]?', clean_name, re.IGNORECASE)
                 if m:
@@ -263,41 +280,39 @@ async def get_declaration_text(
                 else:
                     clean_name = "iPad Pro"
                     
+            # MacBook Air / Pro
             elif re.search(r'MacBook (Air|Pro)', clean_name, re.IGNORECASE):
                 m = re.search(r'MacBook (?:Air|Pro)\s+\d+["\u201d\u2033]?', clean_name, re.IGNORECASE)
                 if m:
                     clean_name = m.group(0).replace('"', '').strip()
                     
+            # Mac Mini
             elif "Mac Mini" in clean_name:
                 clean_name = "Mac Mini"
                 
+            # iPhone (Pro Max должен идти ДО Pro!)
             elif "iPhone" in clean_name:
                 if "Duo" in clean_name:
                     clean_name = "iPhone Duo"
                 else:
-                    m = re.search(r'iPhone\s+\d+(?:\s+(?:Pro|Max|Plus|Air|Mini))?', clean_name, re.IGNORECASE)
+                    m = re.search(r'iPhone\s+\d+(?:\s+(?:Pro\s+Max|Pro|Plus|Air|Mini|Max))?', clean_name, re.IGNORECASE)
                     if m:
                         clean_name = m.group(0)
                     else:
                         clean_name = "iPhone"
 
-            # === 2. ОБЩАЯ ОЧИСТКА ===
+            # === 2. ОБЩАЯ ОЧИСТКА (для всего остального) ===
             else:
                 # Убираем память
-                clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб)\b', '', clean_name, flags=re.IGNORECASE)
+                clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб|mm)\b', '', clean_name, flags=re.IGNORECASE)
                 # Убираем цвета
                 colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
                           "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", 
                           "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive"]
                 for color in colors:
                     clean_name = re.sub(rf'\b{re.escape(color)}\b', '', clean_name, flags=re.IGNORECASE)
-                # Убираем "with ..."
                 clean_name = re.sub(r'\bwith\b.*$', '', clean_name, flags=re.IGNORECASE)
-                # Убираем размеры типа 44mm, 13"
-                clean_name = re.sub(r'\b\d+mm\b', '', clean_name, flags=re.IGNORECASE)
                 clean_name = re.sub(r'\b\d+["\u201d\u2033]\b', '', clean_name, flags=re.IGNORECASE)
-                
-                # Чистим хвосты (дефисы, пробелы)
                 clean_name = re.sub(r'\s+', ' ', clean_name).strip()
                 clean_name = re.sub(r'^[\s\-\/,]+|[\s\-\/,]+$', '', clean_name).strip()
 
@@ -310,7 +325,6 @@ async def get_declaration_text(
                 summary[key] = {}
                 
             if model_num:
-                # Если модель имеет несколько слов (A3531 A3532 A3530), объединяем их для сортировки
                 model_clean = " ".join(sorted(model_num.split()))
                 summary[key][model_clean] = summary[key].get(model_clean, 0) + qty
             else:
