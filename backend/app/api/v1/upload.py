@@ -206,13 +206,10 @@ async def get_pending_count(
 # ============================================================
 # НОВЫЙ ЭНДПОИНТ ДЛЯ ДЕКЛАРИРОВАНИЯ (ПОСТ + ОДИН ФАЙЛ)
 # ============================================================
-@router.post("/declaration-text")
+@@router.post("/declaration-text")
 async def get_declaration_text(
     invoice: UploadFile = File(...)
 ):
-    """
-    Мгновенный парсинг инвойса для декларирования.
-    """
     from app.services.parser import parse_invoice
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
@@ -233,15 +230,12 @@ async def get_declaration_text(
             if not desc or qty <= 0:
                 continue
 
-            # Берем часть до первой скобки
             clean_name = desc.split(" (")[0].strip()
-            
-            # Убираем бренд в начале
             clean_name = re.sub(r'^(Apple|Samsung|Google|Beats)\s+', '', clean_name, flags=re.IGNORECASE)
             
             # === 1. СПЕЦИАЛЬНЫЕ ПРАВИЛА ===
             
-            # Чехлы и ремешки (аксессуары)
+            # Чехлы, ремешки, адаптеры (аксессуары)
             if re.search(r'Case|Strap|Band|Adapter|Key Ring|Folio|Earbuds', clean_name, re.IGNORECASE):
                 if "Band for Apple Watch" in clean_name:
                     clean_name = "Band for Apple Watch"
@@ -263,13 +257,12 @@ async def get_declaration_text(
                 clean_name = re.sub(r'\bwith\b.*$', '', clean_name, flags=re.IGNORECASE)
                 clean_name = re.sub(r'^[\s\-\/,]+|[\s\-\/,]+$', '', clean_name).strip()
 
-            # Часы
+            # Часы (жёсткая обрезка по слову Aluminium)
             elif re.search(r'Watch (SE|Series)', clean_name, re.IGNORECASE):
-                m = re.search(r'Watch (?:SE|Series)\s+\d+', clean_name, re.IGNORECASE)
-                if m:
-                    clean_name = m.group(0).strip()
-                else:
-                    clean_name = "Apple Watch"
+                # Обрезаем всё, что идет после "Aluminium"
+                clean_name = clean_name.split(" Aluminium")[0].strip()
+                # Убираем лишние пробелы
+                clean_name = re.sub(r'\s+', ' ', clean_name)
 
             # Fitbit
             elif re.search(r'Fitbit', clean_name, re.IGNORECASE):
@@ -293,7 +286,7 @@ async def get_declaration_text(
             elif "Mac Mini" in clean_name:
                 clean_name = "Mac Mini"
                 
-            # iPhone (Pro Max должен идти ДО Pro!)
+            # iPhone
             elif "iPhone" in clean_name:
                 if "Duo" in clean_name:
                     clean_name = "iPhone Duo"
@@ -304,7 +297,7 @@ async def get_declaration_text(
                     else:
                         clean_name = "iPhone"
 
-            # === 2. ОБЩАЯ ОЧИСТКА (для всего остального) ===
+            # === 2. ОБЩАЯ ОЧИСТКА ===
             else:
                 clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб|mm)\b', '', clean_name, flags=re.IGNORECASE)
                 colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
