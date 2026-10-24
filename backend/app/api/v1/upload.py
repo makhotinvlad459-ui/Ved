@@ -347,6 +347,7 @@ async def get_far_east_text(
 ):
     """
     Парсинг файлов таможенного декларирования (Far East).
+    Группирует по брендам, очищает названия, разделяет Pro/Pro Max.
     """
     import openpyxl
     import tempfile
@@ -373,10 +374,11 @@ async def get_far_east_text(
                     if "наименование" in val: col_idx["name"] = c
                     elif "шт" in val: col_idx["qty"] = c
                     elif "модель" in val: col_idx["model"] = c
+                    elif "бренд" in val or "фирма" in val: col_idx["brand"] = c
                 break
 
         if not header_row:
-            raise Exception("Не удалось найти заголовки таблицы (наименование, шт).")
+            raise Exception("Не удалось найти заголовки таблицы.")
 
         # 2. Читаем данные
         items = []
@@ -384,6 +386,7 @@ async def get_far_east_text(
             name_val = ws.cell(r, col_idx.get("name")).value
             qty_val = ws.cell(r, col_idx.get("qty")).value
             model_val = ws.cell(r, col_idx.get("model")).value if "model" in col_idx else None
+            brand_val = ws.cell(r, col_idx.get("brand")).value if "brand" in col_idx else None
 
             if not name_val or not qty_val:
                 continue
@@ -399,107 +402,166 @@ async def get_far_east_text(
                 "name": str(name_val).strip(),
                 "qty": qty,
                 "model": str(model_val).strip() if model_val else "",
+                "brand": str(brand_val).strip() if brand_val else "",
             })
 
-        # 3. Очистка и группировка
-        summary = {}
+        # 3. Группировка
+        grouped = {}
         
         for item in items:
             name = item["name"]
             model = item["model"]
             qty = item["qty"]
+            brand = item["brand"]
 
-            # Убираем IMEI и серийники
-            clean_name = re.sub(r'(imei\d*|imai\d*|серия|модель,)\s*[\d\/]+', '', name, flags=re.IGNORECASE)
-            clean_name = re.sub(r'\b\d{10,}\b', '', clean_name) # длинные числа
+            # --- ОЧИСТКА НАЗВАНИЯ ---
+            clean_name = name
             
-            # Убираем память (128 gb, 256 GB, 12/256, 8+256)
+            # Убираем IMEI, длинные числа
+            clean_name = re.sub(r'(imei\d*|imai\d*|серия|модель,)\s*[\d\/]+', '', clean_name, flags=re.IGNORECASE)
+            clean_name = re.sub(r'\b\d{10,}\b', '', clean_name)
+            
+            # Убираем память
             clean_name = re.sub(r'\b\d+[/\s+]*\d*\s*(gb|тб|tb|гб)\b', '', clean_name, flags=re.IGNORECASE)
-            clean_name = re.sub(r'\b\d+/\d+\b', '', clean_name)
             
+            # Убираем мусорные префиксы
+            clean_name = re.sub(r'^(смартфон|планшетный компьютер|планшет|наушники|смарт-часы|умные часы|часы|ноутбук|игровая приставка|игровая консоль|выпрямитель|фен для волос|фен|стайлер|музыкальная колонка)\s+', '', clean_name, flags=re.IGNORECASE)
+            clean_name = re.sub(r'^(смартфон|планшетный компьютер|планшет|наушники|смарт-часы|умные часы|часы|ноутбук|игровая приставка|игровая консоль|выпрямитель|фен для волос|фен|стайлер|музыкальная колонка)\s+', '', clean_name, flags=re.IGNORECASE)
+
+            # Убираем бренды из названия
+            clean_name = re.sub(r'^(Apple|Samsung|Sony|Dyson|Xiaomi|Redmi|JBL|Yandex|Яндекс|Nintendo|Google|Fitbit)\s+', '', clean_name, flags=re.IGNORECASE)
+
             # Убираем цвета
             colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
                       "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", 
                       "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive",
                       "Teal", "Ultramarine", "Mist", "Deep", "Cosmic", "Rose", "Navy", "Titanium", 
                       "Graphite", "Strawberry", "Bronze", "Blush", "Ceramic", "Jasper", "Plum", 
-                      "Kanzan", "Sky", "Shadow", "Sage", "Orane", "Amber", "Silk", "Copper", "Dark"]
+                      "Kanzan", "Sky", "Shadow", "Sage", "Orane", "Amber", "Silk", "Copper", "Dark", "Light"]
             for c in colors:
                 clean_name = re.sub(rf'\b{re.escape(c)}\b', '', clean_name, flags=re.IGNORECASE)
 
-            # Приводим к нормальному виду (убираем лишние пробелы)
             clean_name = re.sub(r'\s+', ' ', clean_name).strip()
-            # Убираем мусор в конце (знаки препинания)
             clean_name = re.sub(r'[,\-\.]+$', '', clean_name).strip()
 
-            # === СПЕЦИАЛЬНЫЕ ПРАВИЛА ДЛЯ ИЗВЕСТНЫХ БРЕНДОВ ===
+            # === СПЕЦИАЛЬНЫЕ ПРАВИЛА (Формируем красивое имя) ===
+            # ВАЖНО: Pro Max проверяется ДО Pro, чтобы не отрезать Max
             if "iphone" in clean_name.lower():
                 m = re.search(r'iphone\s+\d+(?:\s+(?:pro\s+max|pro|plus|air|mini|max))?', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0)
+                if m: 
+                    clean_name = m.group(0).title().replace("Iphone", "iPhone")
+            
             elif "ipad" in clean_name.lower():
                 m = re.search(r'ipad\s+(?:pro|air|mini)?\s*\d*["\u201d\u2033]?', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).replace('"', '').strip()
+                if m: 
+                    clean_name = m.group(0).title().replace("Ipad", "iPad").replace('"', '').strip()
+            
             elif "macbook" in clean_name.lower():
                 m = re.search(r'macbook\s+(?:air|pro)\s*\d*["\u201d\u2033]?', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).replace('"', '').strip()
+                if m: 
+                    clean_name = m.group(0).title().replace("Macbook", "MacBook").replace('"', '').strip()
+            
             elif "airpods" in clean_name.lower() or "air pods" in clean_name.lower():
                 m = re.search(r'air\s*pods\s*(?:pro|max)?\s*\d*', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0)
+                if m: 
+                    clean_name = m.group(0).title().replace("Airpods", "AirPods").replace("Air Pods", "AirPods")
+            
             elif "watch" in clean_name.lower():
                 m = re.search(r'watch\s*(?:se|series|ultra)?\s*\d+', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0)
-            elif "samsung" in clean_name.lower() or "galaxy" in clean_name.lower():
-                m = re.search(r'(?:samsung\s+)?galaxy\s*[a-z]?\d+(?:\s+(?:ultra|pro|fe|plus))?', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0)
-                elif "buds" in clean_name.lower(): clean_name = "Galaxy Buds"
+                if m: 
+                    clean_name = m.group(0).title().replace("Watch", "Watch")
+            
+            elif "galaxy" in clean_name.lower():
+                m = re.search(r'galaxy\s*[a-z]?\d*(?:\s+(?:ultra|pro|fe|plus))?', clean_name, re.IGNORECASE)
+                if m: 
+                    clean_name = m.group(0).title().replace("Galaxy", "Galaxy")
+                elif "buds" in clean_name.lower(): 
+                    clean_name = "Galaxy Buds"
+            
             elif "xiaomi" in clean_name.lower() or "redmi" in clean_name.lower():
                 m = re.search(r'(?:xiaomi\s+)?(?:redmi\s+)?(?:pad|13|12s)\s*\w*', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0)
+                if m: 
+                    clean_name = m.group(0).title().replace("Xiaomi", "Xiaomi").replace("Redmi", "Redmi")
+            
             elif "dyson" in clean_name.lower():
                 if "supersonic" in clean_name.lower(): clean_name = "Dyson Supersonic"
                 elif "airwrap" in clean_name.lower(): clean_name = "Dyson Airwrap"
                 elif "airstrait" in clean_name.lower(): clean_name = "Dyson Airstrait"
                 else: clean_name = "Dyson"
+            
             elif "playstation" in clean_name.lower() or "ps5" in clean_name.lower() or "sony" in clean_name.lower():
-                if "джойстик" in clean_name.lower() or "dual" in clean_name.lower():
-                    clean_name = "Sony DualSense"
+                if "джойстик" in clean_name.lower() or "dual" in clean_name.lower(): clean_name = "Sony DualSense"
                 elif "pro" in clean_name.lower(): clean_name = "Sony PS5 Pro"
                 else: clean_name = "Sony PS5"
+            
             elif "яндекс" in clean_name.lower() or "yandex" in clean_name.lower():
                 m = re.search(r'станция\s+\w+', clean_name, re.IGNORECASE)
-                if m: clean_name = f"Yandex {m.group(0).title()}"
-                else: clean_name = "Yandex Станция"
+                if m: 
+                    clean_name = f"Yandex {m.group(0).title()}"
+                else: 
+                    clean_name = "Yandex Станция"
             
-            # Если название пустое или слишком короткое — берем оригинал до скобки
-            if not clean_name or len(clean_name) < 3:
+            elif "nintendo" in clean_name.lower():
+                clean_name = "Nintendo Switch OLED"
+
+            # Если пусто — берем оригинал
+            if not clean_name or len(clean_name) < 2:
                 clean_name = name.split("(")[0].split(",")[0].strip()
 
-            # Очистка модели
-            if not model or model.lower() == "none" or model == "":
-                model_key = "—"
+            # --- ОПРЕДЕЛЕНИЕ БРЕНДА ---
+            brand_clean = brand.upper() if brand else "ПРОЧЕЕ"
+            if "APPLE" in brand_clean: brand_clean = "APPLE"
+            elif "SAMSUNG" in brand_clean: brand_clean = "SAMSUNG"
+            elif "SONY" in brand_clean: brand_clean = "SONY"
+            elif "DYSON" in brand_clean: brand_clean = "DYSON"
+            elif "XIAOMI" in brand_clean: brand_clean = "XIAOMI"
+            elif "JBL" in brand_clean or "HARMAN" in brand_clean: brand_clean = "JBL"
+            elif "YANDEX" in brand_clean or "ЯНДЕКС" in brand_clean: brand_clean = "YANDEX"
+            elif "NINTENDO" in brand_clean: brand_clean = "NINTENDO"
             else:
-                # Если в модели несколько артикулов через пробел (A3047 A3048 A2968), сортируем их
-                model_key = " ".join(sorted(model.split()))
+                if "iphone" in name.lower() or "ipad" in name.lower() or "macbook" in name.lower(): brand_clean = "APPLE"
+                elif "samsung" in name.lower() or "galaxy" in name.lower(): brand_clean = "SAMSUNG"
+                elif "dyson" in name.lower(): brand_clean = "DYSON"
+                elif "xiaomi" in name.lower() or "redmi" in name.lower(): brand_clean = "XIAOMI"
+                elif "sony" in name.lower() or "playstation" in name.lower(): brand_clean = "SONY"
+                elif "jbl" in name.lower(): brand_clean = "JBL"
+                elif "яндекс" in name.lower() or "yandex" in name.lower(): brand_clean = "YANDEX"
+                elif "nintendo" in name.lower(): brand_clean = "NINTENDO"
+                else: brand_clean = "ПРОЧЕЕ"
 
-            # Группировка
-            if clean_name not in summary:
-                summary[clean_name] = {}
-            summary[clean_name][model_key] = summary[clean_name].get(model_key, 0) + qty
+            # Модель
+            model_key = "—" if (not model or model.lower() == "none") else " ".join(sorted(model.split()))
+
+            # Запись
+            if brand_clean not in grouped:
+                grouped[brand_clean] = {}
+            if clean_name not in grouped[brand_clean]:
+                grouped[brand_clean][clean_name] = {}
+            grouped[brand_clean][clean_name][model_key] = grouped[brand_clean][clean_name].get(model_key, 0) + qty
 
         # 4. Формируем текст
         lines = []
-        for model_name, models_dict in summary.items():
-            if len(models_dict) == 1 and "—" in models_dict:
-                lines.append(f"{model_name} - {list(models_dict.values())[0]} шт.;")
-            else:
-                models_str = ", ".join([f"модель {m} - {q} шт." for m, q in sorted(models_dict.items()) if m != "—"])
-                if "—" in models_dict:
-                     models_str += f", без модели - {models_dict['—']} шт."
-                lines.append(f"{model_name}, {models_str};")
+        for brand, models_dict in sorted(grouped.items()):
+            lines.append(f"=== {brand} ===")
+            
+            # Сортируем названия моделей
+            for model_name, model_nums in sorted(models_dict.items()):
+                if len(model_nums) == 1 and "—" in model_nums:
+                    lines.append(f"{model_name} - {list(model_nums.values())[0]} шт.;")
+                else:
+                    parts = []
+                    for m, q in sorted(model_nums.items()):
+                        if m == "—":
+                            parts.append(f"без модели - {q} шт.")
+                        else:
+                            parts.append(f"модель {m} - {q} шт.")
+                    lines.append(f"{model_name}, {', '.join(parts)};")
+            
+            lines.append("")  # Пустая строка
 
-        text = "\n".join(lines)
+        text = "\n".join(lines).strip()
         return {"text": text}
 
     finally:
         if os.path.exists(tmp_path):
-            os.remove(tmp_path)            
+            os.remove(tmp_path)
