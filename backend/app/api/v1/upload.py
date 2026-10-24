@@ -210,10 +210,6 @@ async def get_pending_count(
 async def get_declaration_text(
     invoice: UploadFile = File(...)
 ):
-    """
-    Мгновенный парсинг инвойса для декларирования.
-    Не использует БД и Celery.
-    """
     from app.services.parser import parse_invoice
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
@@ -226,15 +222,6 @@ async def get_declaration_text(
         
         summary = {}
         
-        # Список цветов, которые нужно убрать из названия (Glacier, Star White и т.д.)
-        colors_to_remove = [
-            "Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
-            "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", 
-            "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive",
-            "Camel", "Navy", "Magenta", "Pale Succulent", "Wildflower", "Mulberry",
-            "Sage", "Dark Umber", "Desert", "Light Umber", "Chambray"
-        ]
-        
         for item in items:
             desc = item.get("description", "")
             model_num = item.get("model_number", "")
@@ -242,35 +229,90 @@ async def get_declaration_text(
             
             if not desc or qty <= 0:
                 continue
-                
-            # 1. Берем часть до первой скобки (там чистое название)
+
             clean_name = desc.split(" (")[0].strip()
-            
-            # 2. Убираем бренд в начале
             clean_name = re.sub(r'^(Apple|Samsung|Google|Beats)\s+', '', clean_name, flags=re.IGNORECASE)
             
-            # 3. Убираем память (256Gb, 1Tb, 128GB)
-            clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Gb|Гб|Тб)\b', '', clean_name, flags=re.IGNORECASE)
-            
-            # 4. Убираем цвета (самые длинные фразы сначала)
-            for color in sorted(colors_to_remove, key=len, reverse=True):
-                clean_name = re.sub(rf'\b{re.escape(color)}\b', '', clean_name, flags=re.IGNORECASE)
+            # === 1. СПЕЦИАЛЬНЫЕ ПРАВИЛА ===
+            if re.search(r'Watch (SE|Series)', clean_name, re.IGNORECASE):
+                m = re.search(r'Watch (?:SE|Series)\s+\d+', clean_name, re.IGNORECASE)
+                if m:
+                    clean_name = re.sub(r'\s+', ' ', m.group(0)).strip()
+                else:
+                    clean_name = "Apple Watch"
+
+            elif "Band for Apple Watch" in clean_name:
+                clean_name = "Band for Apple Watch"
+
+            elif re.search(r'AirPods', clean_name, re.IGNORECASE):
+                if "Wireless" in clean_name:
+                    clean_name = "AirPods with Wireless Charging Case"
+                else:
+                    clean_name = "AirPods"
+
+            elif re.search(r'Fitbit', clean_name, re.IGNORECASE):
+                clean_name = "Google Fitbit Air"
+
+            elif "Crossbody Strap" in clean_name:
+                clean_name = "Crossbody Strap"
+
+            elif re.search(r'iPad Pro \d+', clean_name, re.IGNORECASE):
+                m = re.search(r'iPad Pro \d+["\u201d\u2033]?', clean_name, re.IGNORECASE)
+                if m:
+                    clean_name = m.group(0).replace('"', '').strip()
+                else:
+                    clean_name = "iPad Pro"
+                    
+            elif re.search(r'MacBook (Air|Pro)', clean_name, re.IGNORECASE):
+                m = re.search(r'MacBook (?:Air|Pro)\s+\d+["\u201d\u2033]?', clean_name, re.IGNORECASE)
+                if m:
+                    clean_name = m.group(0).replace('"', '').strip()
+                    
+            elif "Mac Mini" in clean_name:
+                clean_name = "Mac Mini"
                 
-            # 5. Убираем лишние пробелы и дефисы по краям
-            clean_name = re.sub(r'\s+', ' ', clean_name).strip()
-            clean_name = re.sub(r'^[\s\-\/,]+', '', clean_name).strip()
-            
-            # Если совсем пусто — возвращаем как было
+            elif "iPhone" in clean_name:
+                if "Duo" in clean_name:
+                    clean_name = "iPhone Duo"
+                else:
+                    m = re.search(r'iPhone\s+\d+(?:\s+(?:Pro|Max|Plus|Air|Mini))?', clean_name, re.IGNORECASE)
+                    if m:
+                        clean_name = m.group(0)
+                    else:
+                        clean_name = "iPhone"
+
+            # === 2. ОБЩАЯ ОЧИСТКА ===
+            else:
+                # Убираем память
+                clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб)\b', '', clean_name, flags=re.IGNORECASE)
+                # Убираем цвета
+                colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
+                          "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", 
+                          "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive"]
+                for color in colors:
+                    clean_name = re.sub(rf'\b{re.escape(color)}\b', '', clean_name, flags=re.IGNORECASE)
+                # Убираем "with ..."
+                clean_name = re.sub(r'\bwith\b.*$', '', clean_name, flags=re.IGNORECASE)
+                # Убираем размеры типа 44mm, 13"
+                clean_name = re.sub(r'\b\d+mm\b', '', clean_name, flags=re.IGNORECASE)
+                clean_name = re.sub(r'\b\d+["\u201d\u2033]\b', '', clean_name, flags=re.IGNORECASE)
+                
+                # Чистим хвосты (дефисы, пробелы)
+                clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+                clean_name = re.sub(r'^[\s\-\/,]+|[\s\-\/,]+$', '', clean_name).strip()
+
             if not clean_name or len(clean_name) < 2:
                 clean_name = desc.split(" (")[0].strip()
 
+            # === 3. ГРУППИРОВКА ===
             key = clean_name
-            
             if key not in summary:
                 summary[key] = {}
                 
             if model_num:
-                summary[key][model_num] = summary[key].get(model_num, 0) + qty
+                # Если модель имеет несколько слов (A3531 A3532 A3530), объединяем их для сортировки
+                model_clean = " ".join(sorted(model_num.split()))
+                summary[key][model_clean] = summary[key].get(model_clean, 0) + qty
             else:
                 summary[key]["—"] = summary[key].get("—", 0) + qty
 
