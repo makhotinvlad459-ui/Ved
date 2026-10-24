@@ -206,7 +206,7 @@ async def get_pending_count(
 # ============================================================
 # НОВЫЙ ЭНДПОИНТ ДЛЯ ДЕКЛАРИРОВАНИЯ (ПОСТ + ОДИН ФАЙЛ)
 # ============================================================
-@@router.post("/declaration-text")
+@router.post("/declaration-text")
 async def get_declaration_text(
     invoice: UploadFile = File(...)
 ):
