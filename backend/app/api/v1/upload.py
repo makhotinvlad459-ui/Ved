@@ -421,102 +421,104 @@ async def get_far_east_text(
             qty = item["qty"]
             brand = item["brand"]
 
+            # 1. Сначала переводим русские префиксы в английские (чтобы не мешали)
             clean_name = name
-
-            # Чистим от IMEI и памяти
-            clean_name = re.sub(r'(imei\d*|imai\d*|серия|модель,)\s*[\d\/]+', '', clean_name, flags=re.IGNORECASE)
-            clean_name = re.sub(r'\b\d{10,}\b', '', clean_name)
-            clean_name = re.sub(r'\b\d+[/\s+]*\d*\s*(gb|тб|tb|гб)\b', '', clean_name, flags=re.IGNORECASE)
-            clean_name = re.sub(r'\b\d+/\d+\b', '', clean_name)
-
-            # Переводим русские слова (чтобы не было кракозябр, но смысл сохраняем)
             for ru, en in RU_SYNONYMS.items():
                 clean_name = re.sub(rf'\b{ru}\b', en, clean_name, flags=re.IGNORECASE)
 
-            # Убираем цвета
-            colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive", "Teal", "Ultramarine", "Mist", "Deep", "Cosmic", "Rose", "Navy", "Titanium", "Graphite", "Strawberry", "Bronze", "Blush", "Ceramic", "Jasper", "Plum", "Kanzan", "Sky", "Shadow", "Sage", "Orane", "Amber", "Silk", "Copper", "Dark", "Light"]
-            for c in colors:
-                clean_name = re.sub(rf'\b{re.escape(c)}\b', '', clean_name, flags=re.IGNORECASE)
-
-            clean_name = re.sub(r'\s+', ' ', clean_name).strip()
-            clean_name = re.sub(r'[,\-\.]+$', '', clean_name).strip()
+            # 2. Ищем "Якорь" (главное слово) ДО очистки от цифр!
+            # Это защитит от того, что IMEI прилип к названию
             lower_name = clean_name.lower()
+            anchor = ""
 
-            # --- ПРАВИЛА ---
-            if "playstation" in lower_name or "ps5" in lower_name:
-                if "dualsense" in lower_name or "dual" in lower_name or "zct1" in model: clean_name = "Sony DualSense"
-                elif "pro" in lower_name: clean_name = "Sony PS5 Pro"
-                else: clean_name = "Sony PS5"
-                
-            elif "dyson" in lower_name or brand.upper() == "DYSON":
-                if "supersonic" in lower_name or "hd16" in model or "hd17" in model: clean_name = "Dyson Supersonic"
-                elif "airwrap" in lower_name or "hs05" in model or "hs08" in model: clean_name = "Dyson Airwrap"
-                elif "airstrait" in lower_name or "ht01" in model: clean_name = "Dyson Airstrait"
-                elif "detect" in lower_name or "sv23" in model: clean_name = "Dyson Detect"
-                else: clean_name = "Dyson"
-
-            elif "iphone" in lower_name:
+            if "iphone" in lower_name:
                 m = re.search(r'iphone\s*(\d+)?\s*(pro\s*max|pro|plus|air|mini|max)?', clean_name, re.IGNORECASE)
                 if m:
                     num = m.group(1)
                     suffix = m.group(2)
-                    clean_name = "iPhone"
-                    if num:
-                        clean_name += f" {num}"
+                    anchor = "iPhone"
+                    if num: anchor += f" {num}"
                     if suffix:
                         suffix = suffix.lower().replace(" ", "")
-                        if "promax" in suffix: clean_name += " Pro Max"
-                        elif "pro" in suffix: clean_name += " Pro"
-                        elif "plus" in suffix: clean_name += " Plus"
-                        elif "air" in suffix: clean_name += " Air"
-                        elif "mini" in suffix: clean_name += " Mini"
-                else:
-                    clean_name = "iPhone"
+                        if "promax" in suffix: anchor += " Pro Max"
+                        elif "pro" in suffix: anchor += " Pro"
+                        elif "plus" in suffix: anchor += " Plus"
+                        elif "air" in suffix: anchor += " Air"
+                        elif "mini" in suffix: anchor += " Mini"
+                else: anchor = "iPhone"
             
             elif "ipad" in lower_name:
                 m = re.search(r'ipad\s+(?:pro|air|mini)?\s*\d*', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).title().replace("Ipad", "iPad").replace('"', '').strip()
-                else: clean_name = "iPad"
+                if m: anchor = m.group(0).title().replace("Ipad", "iPad").replace('"', '').strip()
+                else: anchor = "iPad"
             
             elif "macbook" in lower_name:
                 m = re.search(r'macbook\s+(?:air|pro)\s*\d*', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).title().replace("Macbook", "MacBook").replace('"', '').strip()
-                else: clean_name = "MacBook"
+                if m: anchor = m.group(0).title().replace("Macbook", "MacBook").replace('"', '').strip()
+                else: anchor = "MacBook"
             
             elif "airpods" in lower_name or "air pods" in lower_name:
                 m = re.search(r'air\s*pods\s*(?:pro|max)?\s*\d*', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).title().replace("Airpods", "AirPods").replace("Air Pods", "AirPods")
-                else: clean_name = "AirPods"
+                if m: anchor = m.group(0).title().replace("Airpods", "AirPods").replace("Air Pods", "AirPods")
+                else: anchor = "AirPods"
             
             elif "watch" in lower_name:
                 m = re.search(r'watch\s*(?:se|series)?\s*\d+', clean_name, re.IGNORECASE)
                 if m: 
-                    clean_name = m.group(0).title().replace("Watch", "Watch")
-                    clean_name = clean_name.replace("Se", "SE")
-                else: clean_name = "Watch"
+                    anchor = m.group(0).title().replace("Watch", "Watch").replace("Se", "SE")
+                else: anchor = "Watch"
             
             elif "galaxy" in lower_name:
                 m = re.search(r'galaxy\s*[a-z]?\d*(?:\s+(?:ultra|pro|fe|plus))?', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).title().replace("Galaxy", "Galaxy")
-                elif "buds" in lower_name: clean_name = "Galaxy Buds"
-                else: clean_name = "Galaxy"
+                if m: anchor = m.group(0).title().replace("Galaxy", "Galaxy")
+                elif "buds" in lower_name: anchor = "Galaxy Buds"
+                else: anchor = "Galaxy"
             
             elif "xiaomi" in lower_name or "redmi" in lower_name:
                 m = re.search(r'(?:redmi\s+|xiaomi\s+)?(?:pad|13|12s)\s*[a-z0-9]*', clean_name, re.IGNORECASE)
-                if m: clean_name = m.group(0).title().replace("Xiaomi", "Xiaomi").replace("Redmi", "Redmi")
-                else: clean_name = "Xiaomi"
+                if m: anchor = m.group(0).title().replace("Xiaomi", "Xiaomi").replace("Redmi", "Redmi")
+                else: anchor = "Xiaomi"
+            
+            elif "dyson" in lower_name or brand.upper() == "DYSON":
+                if "supersonic" in lower_name or "hd16" in model or "hd17" in model: anchor = "Dyson Supersonic"
+                elif "airwrap" in lower_name or "hs05" in model or "hs08" in model: anchor = "Dyson Airwrap"
+                elif "airstrait" in lower_name or "ht01" in model: anchor = "Dyson Airstrait"
+                elif "detect" in lower_name or "sv23" in model: anchor = "Dyson Detect"
+                else: anchor = "Dyson"
+                
+            elif "playstation" in lower_name or "ps5" in lower_name:
+                if "dualsense" in lower_name or "dual" in lower_name or "zct1" in model: anchor = "Sony DualSense"
+                elif "pro" in lower_name: anchor = "Sony PS5 Pro"
+                else: anchor = "Sony PS5"
             
             elif "yandex" in lower_name or "station" in lower_name:
-                if "max" in lower_name or "00053" in model: clean_name = "Yandex Station Max"
-                elif "mini" in lower_name and "pro" in lower_name: clean_name = "Yandex Station Mini Pro"
-                elif "mini" in lower_name: clean_name = "Yandex Station Mini"
-                elif "midi" in lower_name: clean_name = "Yandex Station Midi"
-                elif "duo" in lower_name: clean_name = "Yandex Station Duo"
-                elif "street" in lower_name: clean_name = "Yandex Station Street"
-                else: clean_name = "Yandex Station"
+                if "max" in lower_name or "00053" in model: anchor = "Yandex Station Max"
+                elif "mini" in lower_name and "pro" in lower_name: anchor = "Yandex Station Mini Pro"
+                elif "mini" in lower_name: anchor = "Yandex Station Mini"
+                elif "midi" in lower_name: anchor = "Yandex Station Midi"
+                elif "duo" in lower_name: anchor = "Yandex Station Duo"
+                elif "street" in lower_name: anchor = "Yandex Station Street"
+                else: anchor = "Yandex Station"
 
             elif "nintendo" in lower_name:
-                clean_name = "Nintendo Switch OLED"
+                anchor = "Nintendo Switch OLED"
+
+            # 3. Если якорь нашли — используем его.
+            # Если нет — чистим название от мусора как раньше.
+            if anchor:
+                clean_name = anchor
+            else:
+                clean_name = re.sub(r'(imei\d*|imai\d*|серия|модель,)\s*[\d\/]+', '', clean_name, flags=re.IGNORECASE)
+                clean_name = re.sub(r'\b\d{10,}\b', '', clean_name)
+                clean_name = re.sub(r'\b\d+[/\s+]*\d*\s*(gb|тб|tb|гб)\b', '', clean_name, flags=re.IGNORECASE)
+                clean_name = re.sub(r'\b\d+/\d+\b', '', clean_name)
+
+                colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive", "Teal", "Ultramarine", "Mist", "Deep", "Cosmic", "Rose", "Navy", "Titanium", "Graphite", "Strawberry", "Bronze", "Blush", "Ceramic", "Jasper", "Plum", "Kanzan", "Sky", "Shadow", "Sage", "Orane", "Amber", "Silk", "Copper", "Dark", "Light"]
+                for c in colors:
+                    clean_name = re.sub(rf'\b{re.escape(c)}\b', '', clean_name, flags=re.IGNORECASE)
+
+                clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+                clean_name = re.sub(r'[,\-\.]+$', '', clean_name).strip()
 
             # --- ОПРЕДЕЛЕНИЕ БРЕНДА ---
             b_up = brand.upper() if brand else ""
@@ -539,18 +541,15 @@ async def get_far_east_text(
                 elif "nintendo" in lower_name: brand_clean = "NINTENDO"
                 else: brand_clean = "ДРУГОЕ"
 
-            # Если пусто — берем оригинал (НЕ УДАЛЯЕМ!)
             if len(clean_name) < 2 or clean_name.lower() == brand.lower():
                 clean_name = name.split("(")[0].split(",")[0].strip()
 
-            # Ключ модели (если нет — ставим "—")
             model_key = "—" if (not model or model.lower() == "none") else " ".join(sorted(model.split()))
 
             if brand_clean not in grouped: grouped[brand_clean] = {}
             if clean_name not in grouped[brand_clean]: grouped[brand_clean][clean_name] = {}
             grouped[brand_clean][clean_name][model_key] = grouped[brand_clean][clean_name].get(model_key, 0) + qty
 
-        # Формируем текст
         lines = []
         for brand, models_dict in sorted(grouped.items()):
             lines.append(f"=== {brand} ===")
@@ -560,10 +559,8 @@ async def get_far_east_text(
                 else:
                     parts = []
                     for m, q in sorted(model_nums.items()):
-                        if m == "—": 
-                            parts.append(f"без модели - {q} шт.")
-                        else: 
-                            parts.append(f"модель {m} - {q} шт.")
+                        if m == "—": parts.append(f"без модели - {q} шт.")
+                        else: parts.append(f"модель {m} - {q} шт.")
                     lines.append(f"{model_name}, {', '.join(parts)};")
             lines.append("")
 
