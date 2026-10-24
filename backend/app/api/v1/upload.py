@@ -210,6 +210,9 @@ async def get_pending_count(
 async def get_declaration_text(
     invoice: UploadFile = File(...)
 ):
+    """
+    Мгновенный парсинг инвойса для декларирования.
+    """
     from app.services.parser import parse_invoice
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx") as tmp:
@@ -238,7 +241,7 @@ async def get_declaration_text(
             
             # === 1. СПЕЦИАЛЬНЫЕ ПРАВИЛА ===
             
-            # Чехлы и ремешки (аксессуары) — не ищем в них iPhone/iPad
+            # Чехлы и ремешки (аксессуары)
             if re.search(r'Case|Strap|Band|Adapter|Key Ring|Folio|Earbuds', clean_name, re.IGNORECASE):
                 if "Band for Apple Watch" in clean_name:
                     clean_name = "Band for Apple Watch"
@@ -255,7 +258,7 @@ async def get_declaration_text(
                     clean_name = m.group(0) if m else "Power Adapter"
                 elif "AirPods" in clean_name:
                     clean_name = "AirPods with Wireless Charging Case" if "Wireless" in clean_name else "AirPods"
-                # Общая очистка для аксессуаров
+                
                 clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|mm)\b', '', clean_name, flags=re.IGNORECASE)
                 clean_name = re.sub(r'\bwith\b.*$', '', clean_name, flags=re.IGNORECASE)
                 clean_name = re.sub(r'^[\s\-\/,]+|[\s\-\/,]+$', '', clean_name).strip()
@@ -264,7 +267,7 @@ async def get_declaration_text(
             elif re.search(r'Watch (SE|Series)', clean_name, re.IGNORECASE):
                 m = re.search(r'Watch (?:SE|Series)\s+\d+', clean_name, re.IGNORECASE)
                 if m:
-                    clean_name = re.sub(r'\s+', ' ', m.group(0)).strip()
+                    clean_name = m.group(0).strip()
                 else:
                     clean_name = "Apple Watch"
 
@@ -303,9 +306,7 @@ async def get_declaration_text(
 
             # === 2. ОБЩАЯ ОЧИСТКА (для всего остального) ===
             else:
-                # Убираем память
                 clean_name = re.sub(r'\b\d+(?:Gb|GB|Tb|TB|Гб|Тб|mm)\b', '', clean_name, flags=re.IGNORECASE)
-                # Убираем цвета
                 colors = ["Black", "White", "Silver", "Blue", "Green", "Yellow", "Pink", "Purple", 
                           "Gold", "Grey", "Gray", "Midnight", "Starlight", "Space", "Burgundy", 
                           "Red", "Orange", "Glacier", "Star", "Crisp", "Sand", "Taupe", "Olive"]
