@@ -13,32 +13,23 @@ from app.models import Category, Color, Product, PendingModel
 def detect_category(description: str, categories: List[Category]) -> Optional[Category]:
     """
     Определяет категорию по описанию товара.
-
-    ВАЖНО: правила привязаны к РЕАЛЬНЫМ именам категорий в БД:
-      - «Ноутбуки APPLE», «Телефоны APPLE», «Планшеты APLLE», «Часы APPLE»,
-        «Наушники APPLE», «Наушники Beats», «Телефоны Samsung»,
-        «Ноутбуки Lenovo», «Пылесосы Dyson», и т.д.
-
-    Если ничего не нашли — возвращает None (автосоздание отключено).
     """
     if not description or not categories:
         return None
 
     d = description.lower()
 
-    # Словарь: имя категории в БД → список ключевых слов.
-    # Порядок важен: более специфичные правила ВЫШЕ общих.
     rules: List[tuple] = [
-
         # === Нестандартные товары (проверяются первыми) ===
         ("Moonwalkers", ["moonwalkers", "moonwalker"]),
+        
         # === Apple: ноутбуки ===
         ("Ноутбуки APPLE", ["macbook"]),
 
         # === Apple: телефоны ===
         ("Телефоны APPLE", ["iphone"]),
 
-        # === Apple: планшеты (ловим оба варианта — с опечаткой и без) ===
+        # === Apple: планшеты ===
         ("Планшеты APLLE", ["ipad"]),
         ("Планшеты APPLE", ["ipad"]),
 
@@ -118,18 +109,16 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
         ("Очки", ["glasses", "sunglasses"]),
     ]
 
-    # Индекс: имя категории → объект Category
     cat_by_name = {c.name: c for c in categories}
 
     for cat_name, keywords in rules:
         cat = cat_by_name.get(cat_name)
         if not cat:
-            continue  # такой категории нет в БД — пропускаем
+            continue
         for kw in keywords:
             if kw in d:
                 return cat
 
-    # Ничего не нашли — None (пользователь выберет вручную)
     return None
 
 
@@ -148,7 +137,7 @@ def detect_color(description: str, colors: List[Color]) -> Optional[Color]:
 
 
 # ============================================================
-# АВТОСОЗДАНИЕ ЦВЕТА (оставлено — цветов мало, мусор минимален)
+# АВТОСОЗДАНИЕ ЦВЕТА
 # ============================================================
 
 def detect_or_create_color(
@@ -247,10 +236,6 @@ def save_pending_models(
 ) -> List[Dict[str, Any]]:
     """
     Сохранить новые модели в список на подтверждение.
-    Также создаёт PendingModel для существующих Product БЕЗ категории.
-
-    Автоматическое создание КАТЕГОРИЙ отключено.
-    Автоматическое создание ЦВЕТОВ оставлено (безопасно — цветов мало).
     """
     new_models = []
 
@@ -267,6 +252,12 @@ def save_pending_models(
 
     for item in items:
         part_number = item.get("part_number", "")
+        description = item.get("description", "")
+
+        # === MOONWALKERS: НЕ создаем PendingModel, пропускаем ===
+        if "moonwalkers" in str(part_number).lower() or "moonwalkers" in str(description).lower():
+            continue
+        # ==========================================================
 
         if not part_number:
             continue
@@ -309,16 +300,10 @@ def save_pending_models(
             continue
 
         # === Случай 3: новый товар (нет в БД) ===
-        description = item.get("description", "")
-
         category = detect_category(description, categories)
         color = detect_color(description, colors)
 
         suggested_name = generate_russian_name(description, category, color)
-
-        # Автоматическое создание категорий ОТКЛЮЧЕНО.
-        # Если detect_category не нашёл — suggested_category_id = None,
-        # пользователь выберет/создаст вручную в PendingModelsScreen.
 
         if not color:
             color = detect_or_create_color(description, colors, db)
@@ -348,7 +333,7 @@ def save_pending_models(
             "color_id": color.id if color else None
         })
 
-        print(f"📝 Добавлена на подтверждение: {part_number} (category={category.name if category else 'None'})")
+        print(f"📝 Добавлена на подтверждение: {part_number}")
 
     return new_models
 

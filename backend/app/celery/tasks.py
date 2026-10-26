@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select
 from datetime import datetime, timedelta
-
+import re
 from app.models import ProcessingSession, Product, Category, Color, PendingModel
 from app.services.parser import parse_invoice, parse_manifest
 from app.services.transformer import transform_product_name, clean_serial
