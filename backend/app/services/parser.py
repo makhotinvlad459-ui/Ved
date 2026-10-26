@@ -1,3 +1,4 @@
+# backend/app/services/parser.py
 import openpyxl
 from datetime import datetime
 from typing import List, Dict, Any, Optional
@@ -102,7 +103,8 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
             
             part_number = str(part_cell.value).strip()
             
-            if part_number.lower() in ["total", "итого", ""]:
+            # Пропускаем строки с заголовками или итогами
+            if part_number.lower() in ["total", "итого", "", "p/n", "part"]:
                 continue
             
             model_idx = header_cells.get("model", 2) - 1
@@ -113,9 +115,15 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
             desc_cell = row[desc_idx] if desc_idx < len(row) else None
             description = str(desc_cell.value).strip() if desc_cell and desc_cell.value else ""
             
+            # === ЗАЩИТА ОТ ЗАГОЛОВКОВ QTY ===
             qty_idx = header_cells.get("qty", 21) - 1
             qty_cell = row[qty_idx] if qty_idx < len(row) else None
-            qty = int(qty_cell.value or 0) if qty_cell else 0
+            qty = 0
+            if qty_cell and qty_cell.value:
+                try:
+                    qty = int(qty_cell.value)
+                except (ValueError, TypeError):
+                    qty = 0
             
             coo_idx = header_cells.get("coo", 28) - 1
             coo_cell = row[coo_idx] if coo_idx < len(row) else None
@@ -125,19 +133,29 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
             upc_cell = row[upc_idx] if upc_idx < len(row) else None
             upc = str(upc_cell.value).strip() if upc_cell and upc_cell.value else ""
             
+            # === ЗАЩИТА ОТ ЗАГОЛОВКОВ PRICE ===
             price_idx = header_cells.get("price", 30) - 1
             price_cell = row[price_idx] if price_idx < len(row) else None
-            try:
-                price = float(price_cell.value or 0) if price_cell else 0
-            except:
-                price = 0
+            price = 0.0
+            if price_cell and price_cell.value:
+                try:
+                    price = float(price_cell.value)
+                except (ValueError, TypeError):
+                    price = 0.0
             
+            # === ЗАЩИТА ОТ ЗАГОЛОВКОВ TOTAL ===
             total_idx = header_cells.get("total", 34) - 1
             total_cell = row[total_idx] if total_idx < len(row) else None
-            try:
-                total = float(total_cell.value or 0) if total_cell else 0
-            except:
-                total = 0
+            total = 0.0
+            if total_cell and total_cell.value:
+                try:
+                    total = float(total_cell.value)
+                except (ValueError, TypeError):
+                    total = 0.0
+            
+            # Если qty == 0 и price == 0, скорее всего это мусорная строка (заголовок блока)
+            if qty == 0 and price == 0.0 and total == 0.0:
+                continue
             
             items.append({
                 "model_number": model_number,
@@ -162,9 +180,6 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
 def parse_manifest(file_path: str) -> Dict[str, List[str]]:
     """
     Парсинг манифеста. Возвращает {"serials": {...}, "imei": {...}}.
-
-    ВАЖНО: для IMEI берётся ТОЛЬКО колонка "IMEI 1" (первая колонка, где в
-    заголовке есть "IMEI"). Колонки "IMEI 2" и последующие игнорируются.
     """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
@@ -187,7 +202,7 @@ def parse_manifest(file_path: str) -> Dict[str, List[str]]:
     if header_row:
         part_col = None
         serial_col = None
-        imei_col = None   # ← ровно одна колонка, самая первая с "IMEI"
+        imei_col = None
 
         for col_idx, cell in enumerate(ws[header_row], 1):
             if cell.value is None:
@@ -200,8 +215,6 @@ def parse_manifest(file_path: str) -> Dict[str, List[str]]:
             elif "serial" in v_low and serial_col is None:
                 serial_col = col_idx
             elif "imei" in v_low and imei_col is None:
-                # Берём ТОЛЬКО первую IMEI-колонку. Всё, что правее (IMEI 2, IMEI 3)
-                # игнорируется, потому что imei_col уже установлен.
                 imei_col = col_idx
 
         print(f"   📋 Манифест: part_col={part_col}, serial_col={serial_col}, "
@@ -221,20 +234,17 @@ def parse_manifest(file_path: str) -> Dict[str, List[str]]:
                 serials_by_part[part_number] = []
                 imei_by_part[part_number] = []
 
-            # Serial Number
             if serial_col is not None and serial_col - 1 < len(row):
                 serial_val = row[serial_col - 1].value
                 if serial_val:
                     serials_by_part[part_number].append(str(serial_val).strip())
 
-            # IMEI — только IMEI 1
             if imei_col is not None and imei_col - 1 < len(row):
                 imei_val = row[imei_col - 1].value
                 if imei_val:
                     imei_by_part[part_number].append(str(imei_val).strip())
 
     else:
-        # Fallback на старый формат — как было
         for row in ws.iter_rows(min_row=2):
             part_number = row[3].value
             if not part_number:
