@@ -66,6 +66,10 @@ def transform_product_name(
     if not description:
         return ""
 
+    # === СПЕЦИАЛЬНОЕ ПРАВИЛО ДЛЯ MOONWALKERS ===
+    if "moonwalkers" in description.lower():
+        return f"Устройство индивидуальной мобильности торговой марки {description} / {description}"
+
     if not color_mapping:
         color_mapping = {}
 

@@ -98,8 +98,16 @@ def process_invoice(session_id: str):
                 pn = item.get("part_number", "")
                 if not pn:
                     continue
+                
+                # === MOONWALKERS: пропускаем проверку, чтобы он шел в спецификацию ===
+                if "moonwalkers" in pn.lower():
+                    continue
+                # ====================================================================
+                
                 product = db.query(Product).filter(Product.part_number == pn).first()
                 if not product:
+                    if not re.match(r'^[A-Z0-9\-/. ]+$', pn) or " " in pn:
+                        continue
                     missing_part_numbers.append(pn)
                 elif not product.category_id:
                     missing_categories.append(pn)
