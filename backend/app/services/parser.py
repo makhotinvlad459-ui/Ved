@@ -63,39 +63,29 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
     items = []
     
     for idx, header_row in enumerate(header_rows):
-        # Определяем колонки
-        header_cells = {}
-        for col_idx, cell in enumerate(ws[header_row], 1):
-            if cell.value:
-                val = str(cell.value).strip()
-                if val == "Model":
-                    header_cells["model"] = col_idx
-                elif "P/N" in val or val == "P/N":
-                    header_cells["part"] = col_idx
-                elif "Description" in val:
-                    header_cells["desc"] = col_idx
-                elif "Qty" in val:
-                    header_cells["qty"] = col_idx
-                elif "COO" in val:
-                    header_cells["coo"] = col_idx
-                elif "UPC" in val:
-                    header_cells["upc"] = col_idx
-                elif "Price" in val:
-                    header_cells["price"] = col_idx
-                elif "Total" in val:
-                    header_cells["total"] = col_idx
+        # ЖЁСТКО ЗАШИВАЕМ КОЛОНКИ (инвойс K625 всегда одинаковый)
+        # Model: C (3), P/N: E (5), Description: H (8), Qty: V (22), COO: AC (29), UPC: AD (30), Price: AE (31), Total: AI (35)
+        header_cells = {
+            "model": 3,
+            "part": 5,
+            "desc": 8,
+            "qty": 22,
+            "coo": 29,
+            "upc": 30,
+            "price": 31,
+            "total": 35
+        }
         
         print(f"   📋 Блок {idx+1} (строка {header_row}): {header_cells}")
         
-        # Определяем конец блока — либо следующий заголовок, либо конец файла
         if idx + 1 < len(header_rows):
             end_row = header_rows[idx + 1] - 1
         else:
             end_row = ws.max_row
         
-        # Читаем строки блока
         for row in ws.iter_rows(min_row=header_row + 1, max_row=end_row):
-            part_idx = header_cells.get("part", 4) - 1
+            # P/N в колонке E (5) -> index 4
+            part_idx = 4
             part_cell = row[part_idx] if part_idx < len(row) else None
             
             if not part_cell or not part_cell.value:
@@ -103,38 +93,41 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
             
             part_number = str(part_cell.value).strip()
             
-            # Пропускаем только явные итоги (не трогаем N/A или Moonwalkers)
-            if part_number.lower() in ["total", "итого"]:
+            if part_number.lower() in ["total", "итого", "p/n", "part"]:
                 continue
             
-            model_idx = header_cells.get("model", 2) - 1
+            # Model в колонке C (3) -> index 2
+            model_idx = 2
             model_cell = row[model_idx] if model_idx < len(row) else None
             model_number = str(model_cell.value).strip() if model_cell and model_cell.value else ""
             
-            desc_idx = header_cells.get("desc", 7) - 1
+            # Description в колонке H (8) -> index 7
+            desc_idx = 7
             desc_cell = row[desc_idx] if desc_idx < len(row) else None
             description = str(desc_cell.value).strip() if desc_cell and desc_cell.value else ""
             
-            # === ЗАЩИТА ОТ ЗАГОЛОВКОВ QTY ===
-            qty_idx = header_cells.get("qty", 21) - 1
+            # Qty в колонке V (22) -> index 21
+            qty_idx = 21
             qty_cell = row[qty_idx] if qty_idx < len(row) else None
             qty = 0
             if qty_cell and qty_cell.value:
                 try:
                     qty = int(qty_cell.value)
                 except (ValueError, TypeError):
-                    qty = 0  # Если это слово "Qty", ставим 0
+                    qty = 0
             
-            coo_idx = header_cells.get("coo", 28) - 1
+            # COO в колонке AC (29) -> index 28
+            coo_idx = 28
             coo_cell = row[coo_idx] if coo_idx < len(row) else None
             coo = str(coo_cell.value).strip() if coo_cell and coo_cell.value else ""
             
-            upc_idx = header_cells.get("upc", 29) - 1
+            # UPC в колонке AD (30) -> index 29
+            upc_idx = 29
             upc_cell = row[upc_idx] if upc_idx < len(row) else None
             upc = str(upc_cell.value).strip() if upc_cell and upc_cell.value else ""
             
-            # === ЗАЩИТА ОТ ЗАГОЛОВКОВ PRICE ===
-            price_idx = header_cells.get("price", 30) - 1
+            # Price в колонке AE (31) -> index 30
+            price_idx = 30
             price_cell = row[price_idx] if price_idx < len(row) else None
             price = 0.0
             if price_cell and price_cell.value:
@@ -143,8 +136,8 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
                 except (ValueError, TypeError):
                     price = 0.0
             
-            # === ЗАЩИТА ОТ ЗАГОЛОВКОВ TOTAL ===
-            total_idx = header_cells.get("total", 34) - 1
+            # Total в колонке AI (35) -> index 34
+            total_idx = 34
             total_cell = row[total_idx] if total_idx < len(row) else None
             total = 0.0
             if total_cell and total_cell.value:
@@ -153,8 +146,8 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
                 except (ValueError, TypeError):
                     total = 0.0
             
-            # Пропускаем строку ТОЛЬКО если это явный заголовок (Qty = 0 и Price = 0 и Description = "Description")
-            if qty == 0 and price == 0.0 and description in ["Description", "description", ""]:
+            # Пропускаем только строки с заголовками (где part_number = "P/N" или "Model")
+            if part_number in ["P/N", "Model", "N/A", "Description"] and qty == 0:
                 continue
 
             items.append({
@@ -178,16 +171,12 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
 
 
 def parse_manifest(file_path: str) -> Dict[str, List[str]]:
-    """
-    Парсинг манифеста. Возвращает {"serials": {...}, "imei": {...}}.
-    """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     ws = wb.active
 
     serials_by_part: Dict[str, List[str]] = {}
     imei_by_part: Dict[str, List[str]] = {}
 
-    # === Ищем строку заголовков ===
     header_row = None
     for row in ws.iter_rows(min_row=1, max_row=10):
         for cell in row:
