@@ -103,8 +103,8 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
             
             part_number = str(part_cell.value).strip()
             
-            # Пропускаем строки с заголовками или итогами
-            if part_number.lower() in ["total", "итого", "", "p/n", "part"]:
+            # Пропускаем только явные итоги (не трогаем N/A или Moonwalkers)
+            if part_number.lower() in ["total", "итого"]:
                 continue
             
             model_idx = header_cells.get("model", 2) - 1
@@ -123,7 +123,7 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
                 try:
                     qty = int(qty_cell.value)
                 except (ValueError, TypeError):
-                    qty = 0
+                    qty = 0  # Если это слово "Qty", ставим 0
             
             coo_idx = header_cells.get("coo", 28) - 1
             coo_cell = row[coo_idx] if coo_idx < len(row) else None
@@ -153,10 +153,10 @@ def parse_invoice(file_path: str) -> Dict[str, Any]:
                 except (ValueError, TypeError):
                     total = 0.0
             
-            # Если qty == 0 и price == 0, скорее всего это мусорная строка (заголовок блока)
-            if qty == 0 and price == 0.0 and total == 0.0:
+            # Пропускаем строку ТОЛЬКО если это явный заголовок (Qty = 0 и Price = 0 и Description = "Description")
+            if qty == 0 and price == 0.0 and description in ["Description", "description", ""]:
                 continue
-            
+
             items.append({
                 "model_number": model_number,
                 "part_number": part_number,
