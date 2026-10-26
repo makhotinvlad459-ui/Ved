@@ -29,6 +29,9 @@ def detect_category(description: str, categories: List[Category]) -> Optional[Ca
     # Словарь: имя категории в БД → список ключевых слов.
     # Порядок важен: более специфичные правила ВЫШЕ общих.
     rules: List[tuple] = [
+
+        # === Нестандартные товары (проверяются первыми) ===
+        ("Moonwalkers", ["moonwalkers", "moonwalker"]),
         # === Apple: ноутбуки ===
         ("Ноутбуки APPLE", ["macbook"]),
 
