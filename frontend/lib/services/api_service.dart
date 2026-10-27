@@ -737,19 +737,24 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> forAliceGenerate({
+    Future<Map<String, dynamic>> forAliceGenerate({
     required List<Map<String, dynamic>> items,
     required double logisticsRateUsd,
     required double usdToAed,
     required double documentsCostAed,
+    List<String>? order,
   }) async {
     try {
-      final response = await _dio.post('/for-alice/generate', data: {
+      final body = <String, dynamic>{
         'items': items,
         'logistics_rate_usd': logisticsRateUsd,
         'usd_to_aed': usdToAed,
         'documents_cost_aed': documentsCostAed,
-      });
+      };
+      if (order != null) {
+        body['order'] = order;
+      }
+      final response = await _dio.post('/for-alice/generate', data: body);
       return response.data;
     } catch (e) {
       throw Exception('Ошибка генерации: $e');

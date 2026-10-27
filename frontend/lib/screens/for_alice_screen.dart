@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
-import 'for_alice_results_table.dart'; // <-- ДОБАВЛЕН ИМПОРТ
+import 'for_alice_results_table.dart';
 
 class ForAliceScreen extends StatefulWidget {
   const ForAliceScreen({super.key});
@@ -261,11 +261,16 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
+      
+      // Собираем порядок из текущих строк
+      final order = _resultRows.map((r) => r['name'] as String).toList();
+
       final result = await api.forAliceGenerate(
         items: items,
         logisticsRateUsd: rate,
         usdToAed: usdToAed,
         documentsCostAed: documents,
+        order: order.isNotEmpty ? order : null,
       );
 
       if (!mounted) return;
@@ -359,20 +364,53 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
   Future<void> _download() async {
     if (_sessionId == null) return;
+    
+    // Пересчитываем с новым порядком перед скачиванием
+    final items = _collectItems();
+    final rate = double.tryParse(_rateController.text.replaceAll(',', '.'));
+    final documents = double.tryParse(_documentsController.text.replaceAll(',', '.'));
+    final usdToAed = double.tryParse(_usdToAedController.text.replaceAll(',', '.'));
+    final order = _resultRows.map((r) => r['name'] as String).toList();
+
+    if (rate == null || documents == null || usdToAed == null) {
+      _showError('Проверьте параметры расчёта');
+      return;
+    }
+
+    setState(() => _isProcessing = true);
+
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      final response = await api.forAliceDownload(_sessionId!);
+      
+      // Генерируем новый xlsx с правильным порядком
+      final genResult = await api.forAliceGenerate(
+        items: items,
+        logisticsRateUsd: rate,
+        usdToAed: usdToAed,
+        documentsCostAed: documents,
+        order: order.isNotEmpty ? order : null,
+      );
+      
+      final newSessionId = genResult['session_id'];
+      if (newSessionId == null) throw Exception('Сессия не создана');
+
+      // Скачиваем
+      final response = await api.forAliceDownload(newSessionId);
       final bytes = response.data as List<int>;
       final blob = html.Blob([bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
       final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download',
-            'For_Alice_${_sessionId!.substring(0, 8)}.xlsx')
+        ..setAttribute('download', 'For_Alice_${newSessionId.substring(0, 8)}.xlsx')
         ..click();
       html.Url.revokeObjectUrl(url);
+
+      if (!mounted) return;
+      setState(() => _isProcessing = false);
+      _showSnack('✅ Файл скачан!');
     } catch (e) {
       if (!mounted) return;
-      _showError('❌ Ошибка скачивания: $e');
+      setState(() => _isProcessing = false);
+      _showError('❌ Ошибка: $e');
     }
   }
 
@@ -413,7 +451,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   }
 
   // ============================================================
-  // ЭКРАН ВВОДА (без изменений)
+  // ЭКРАН ВВОДА
   // ============================================================
 
   Widget _buildInput() {
@@ -643,13 +681,12 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   }
 
   // ============================================================
-  // ЭКРАН РЕЗУЛЬТАТОВ (ОБНОВЛЕННЫЙ)
+  // ЭКРАН РЕЗУЛЬТАТОВ
   // ============================================================
 
   Widget _buildResults() {
     return Column(
       children: [
-        // === БЛОК ОШИБОК (Если не хватает весов) ===
         if (_hasMissing)
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -730,7 +767,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ),
           ),
 
-        // === ИТОГИ (Если всё ок) ===
         if (!_hasMissing && _totals != null)
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -765,13 +801,12 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ),
           ),
 
-        // === ТАБЛИЦА (Наш новый виджет) ===
         if (_resultRows.isNotEmpty) ...[
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
             child: Text('Результаты', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
-          Expanded( // Занимает всё оставшееся место
+          Expanded(
             child: ForAliceResultsTable(
               rows: _resultRows,
               onReorder: (oldIndex, newIndex) {
@@ -785,7 +820,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
           ),
         ],
 
-        // === КНОПКИ ВНИЗУ ===
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(
