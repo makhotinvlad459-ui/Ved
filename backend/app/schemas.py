@@ -8,7 +8,7 @@ from typing import Optional, List
 class CategoryBase(BaseModel):
     name: str
     name_eng: Optional[str] = None
-    prefix_ru: str
+    prefix_ru: Optional[str] = ""
     prefix_eng: Optional[str] = None
     collect_serials: bool = True
     serial_source: str = "serial_number"
@@ -35,7 +35,7 @@ class CategoryResponse(CategoryBase):
     is_active: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
-    
+    serial_source: Optional[str] = None
     class Config:
         from_attributes = True
 

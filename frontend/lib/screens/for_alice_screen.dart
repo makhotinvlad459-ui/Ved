@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import 'for_alice_results_table.dart'; // <-- ДОБАВЛЕН ИМПОРТ
 
 class ForAliceScreen extends StatefulWidget {
   const ForAliceScreen({super.key});
@@ -82,10 +83,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     });
   }
 
-  // ============================================================
-  // ВСТАВКА
-  // ============================================================
-
   Future<void> _pasteNames() async {
     final controller = TextEditingController();
     final result = await _showPasteDialog(
@@ -155,10 +152,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       _showSnack('Вставлено цен: ${lines.length}');
     }
   }
-
-  // ============================================================
-  // ВСПОМОГАТЕЛЬНЫЕ
-  // ============================================================
 
   List<String> _splitLines(String text) {
     return text
@@ -420,7 +413,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   }
 
   // ============================================================
-  // ЭКРАН ВВОДА
+  // ЭКРАН ВВОДА (без изменений)
   // ============================================================
 
   Widget _buildInput() {
@@ -650,17 +643,17 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   }
 
   // ============================================================
-  // ЭКРАН РЕЗУЛЬТАТОВ
+  // ЭКРАН РЕЗУЛЬТАТОВ (ОБНОВЛЕННЫЙ)
   // ============================================================
 
   Widget _buildResults() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (_hasMissing) ...[
-            Container(
+    return Column(
+      children: [
+        // === БЛОК ОШИБОК (Если не хватает весов) ===
+        if (_hasMissing)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: Colors.orange.shade50,
@@ -672,29 +665,21 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.warning_amber,
-                          color: Colors.orange.shade700),
+                      Icon(Icons.warning_amber, color: Colors.orange.shade700),
                       const SizedBox(width: 8),
                       Text(
                         'Не найдены веса: ${_missing.length}',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade900,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900),
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Введите вес — товар создастся автоматически и пересчитается',
-                    style: TextStyle(fontSize: 12, color: Colors.black87),
-                  ),
+                  const Text('Введите вес — товар создастся автоматически и пересчитается', style: TextStyle(fontSize: 12)),
                   const SizedBox(height: 12),
                   ...List.generate(_missing.length, (idx) {
                     final m = _missing[idx];
                     final partNumber = m['part_number'] ?? '—';
                     final name = m['name'] ?? '';
-
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
                       child: Padding(
@@ -704,39 +689,21 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                           children: [
                             Row(
                               children: [
-                                Expanded(
-                                  child: SelectableText(
-                                    partNumber,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                    ),
-                                  ),
-                                ),
+                                Expanded(child: SelectableText(partNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
                                 IconButton(
                                   icon: const Icon(Icons.copy, size: 18),
-                                  tooltip: 'Скопировать артикул',
                                   onPressed: () {
-                                    Clipboard.setData(
-                                        ClipboardData(text: partNumber));
+                                    Clipboard.setData(ClipboardData(text: partNumber));
                                     _showSnack('Артикул скопирован: $partNumber');
                                   },
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 4),
                             Row(
                               children: [
-                                Expanded(
-                                  child: SelectableText(
-                                    name,
-                                    style: TextStyle(
-                                        fontSize: 12, color: Colors.grey[700]),
-                                  ),
-                                ),
+                                Expanded(child: SelectableText(name, style: TextStyle(fontSize: 12, color: Colors.grey[700]))),
                                 IconButton(
                                   icon: const Icon(Icons.copy, size: 18),
-                                  tooltip: 'Скопировать название',
                                   onPressed: () {
                                     Clipboard.setData(ClipboardData(text: name));
                                     _showSnack('Название скопировано');
@@ -744,18 +711,13 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
                             Align(
                               alignment: Alignment.centerRight,
                               child: ElevatedButton.icon(
                                 onPressed: () => _saveWeightAndRecalculate(idx),
-                                icon: const Icon(Icons.add_circle_outline,
-                                    size: 18),
+                                icon: const Icon(Icons.add_circle_outline, size: 18),
                                 label: const Text('Ввести вес'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.orange,
-                                  foregroundColor: Colors.white,
-                                ),
+                                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
                               ),
                             ),
                           ],
@@ -766,172 +728,86 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
 
-          // === ИТОГИ (расширенные) ===
-          if (!_hasMissing && _totals != null) ...[
-            Card(
+        // === ИТОГИ (Если всё ок) ===
+        if (!_hasMissing && _totals != null)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Card(
               color: Colors.teal.shade50,
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Итоги',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                    ),
+                    const Text('Итоги', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     Wrap(
                       spacing: 24,
                       runSpacing: 12,
                       children: [
-                        _info('Общий вес',
-                            '${_num(_totals!['total_weight'])} кг'),
-                        _info('Итого сумма',
-                            '${_num(_totals!['total_sum'])} AED',
-                            highlight: true),
-                        _info('Логистика (USD/кг)',
-                            _num(_totals!['logistics_rate_usd'])),
-                        _info('Курс USD → AED',
-                            _num(_totals!['usd_to_aed'])),
-                        _info('Документы (AED)',
-                            _num(_totals!['documents_cost_aed'])),
-                        _info('Логистика всего (USD)',
-                            _num(_totals!['logistics_total_usd'])),
-                        _info('Логистика всего (AED)',
-                            _num(_totals!['logistics_total_aed'])),
-                        _info('Итого логистика (AED)',
-                            _num(_totals!['total_logistics_aed'])),
-                        _info('Ставка (AED/кг)',
-                            _num(_totals!['rate_aed_per_kg'])),
-                        _info('Ставка (USD/кг)',
-                            _num(_totals!['rate_usd_per_kg'])),
+                        _info('Общий вес', '${_num(_totals!['total_weight'])} кг'),
+                        _info('Итого сумма', '${_num(_totals!['total_sum'])} AED', highlight: true),
+                        _info('Логистика (USD/кг)', _num(_totals!['logistics_rate_usd'])),
+                        _info('Курс USD → AED', _num(_totals!['usd_to_aed'])),
+                        _info('Документы (AED)', _num(_totals!['documents_cost_aed'])),
+                        _info('Логистика всего (USD)', _num(_totals!['logistics_total_usd'])),
+                        _info('Логистика всего (AED)', _num(_totals!['logistics_total_aed'])),
+                        _info('Итого логистика (AED)', _num(_totals!['total_logistics_aed'])),
+                        _info('Ставка (AED/кг)', _num(_totals!['rate_aed_per_kg'])),
+                        _info('Ставка (USD/кг)', _num(_totals!['rate_usd_per_kg'])),
                       ],
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
 
-          // === ТАБЛИЦА (расширенная) ===
-          if (_resultRows.isNotEmpty) ...[
-            const Text(
-              'Результаты',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        // === ТАБЛИЦА (Наш новый виджет) ===
+        if (_resultRows.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            child: Text('Результаты', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+          Expanded( // Занимает всё оставшееся место
+            child: ForAliceResultsTable(
+              rows: _resultRows,
+              onReorder: (oldIndex, newIndex) {
+                setState(() {
+                  if (newIndex > oldIndex) newIndex -= 1;
+                  final item = _resultRows.removeAt(oldIndex);
+                  _resultRows.insert(newIndex, item);
+                });
+              },
             ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: DataTable(
-                columnSpacing: 12,
-                headingRowHeight: 40,
-                dataRowHeight: 60,
-                columns: const [
-                  DataColumn(label: Text('Модель')),
-                  DataColumn(label: Text('P/N')),
-                  DataColumn(label: Text('Наименование')),
-                  DataColumn(label: Text('Кол')),
-                  DataColumn(label: Text('Вес')),
-                  DataColumn(label: Text('Вес+15%')),
-                  DataColumn(label: Text('Общий вес')),
-                  DataColumn(label: Text('Цена (AED)')),
-                  DataColumn(label: Text('Ст-ть партии')),
-                  DataColumn(label: Text('Лог/ед')),
-                  DataColumn(label: Text('Ц+лог')),
-                  DataColumn(label: Text('Ст-ть с лог')),
-                  DataColumn(label: Text('+ЧЗ')),
-                  DataColumn(label: Text('Итог/ед')),
-                  DataColumn(label: Text('Итого')),
-                ],
-                rows: _resultRows.map((r) {
-                  final qty = (r['qty'] as num?)?.toDouble() ?? 0;
-                  final price = (r['price'] as num?)?.toDouble() ?? 0;
-                  final m = (r['m'] as num?)?.toDouble() ?? 0;
-                  final isCz = r['is_cz'] == true;
-
-                  return DataRow(cells: [
-                    DataCell(Text(r['model_number'] ?? '—',
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(r['part_number'] ?? '—',
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(SizedBox(
-                      width: 200,
-                      child: Text(
-                        r['name'] ?? '',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    )),
-                    DataCell(Text('${r['qty'] ?? 0}',
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['weight']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['g']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['h']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['price']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(price * qty),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['l']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['m']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(m * qty),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(
-                      isCz ? '+1.5' : '—',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: isCz ? Colors.green.shade700 : Colors.grey,
-                        fontWeight:
-                            isCz ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    )),
-                    DataCell(Text(_num(r['o']),
-                        style: const TextStyle(fontSize: 11))),
-                    DataCell(Text(_num(r['p']),
-                        style: const TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.bold))),
-                  ]);
-                }).toList(),
-              ),
-            ),
-          ],
-
-          const SizedBox(height: 24),
-
-          if (!_hasMissing && _sessionId != null)
-            ElevatedButton.icon(
-              onPressed: _download,
-              icon: const Icon(Icons.download),
-              label:
-                  const Text('Скачать xlsx', style: TextStyle(fontSize: 16)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.teal,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-
-          const SizedBox(height: 12),
-          TextButton.icon(
-            onPressed: _reset,
-            icon: const Icon(Icons.arrow_back),
-            label: const Text('Назад к вводу'),
           ),
         ],
-      ),
+
+        // === КНОПКИ ВНИЗУ ===
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (!_hasMissing && _sessionId != null)
+                ElevatedButton.icon(
+                  onPressed: _download,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Скачать xlsx'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white),
+                ),
+              const SizedBox(width: 16),
+              TextButton.icon(
+                onPressed: _reset,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Назад к вводу'),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -940,8 +816,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         const SizedBox(height: 2),
         Text(
           value,
