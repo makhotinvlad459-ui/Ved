@@ -1,8 +1,8 @@
 // frontend/lib/screens/for_alice_screen.dart
 import 'dart:html' as html;
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../services/api_service.dart';
 import 'for_alice_results_table.dart';
 
@@ -48,11 +48,14 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   bool _hasMissing = false;
   String? _sessionId;
 
+  final FocusNode _focusNode = FocusNode();
+
   @override
   void dispose() {
     _rateController.dispose();
     _documentsController.dispose();
     _usdToAedController.dispose();
+    _focusNode.dispose();
     for (final r in _rows) {
       r.dispose();
     }
@@ -262,15 +265,11 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     try {
       final api = Provider.of<ApiService>(context, listen: false);
       
-      // Собираем порядок из текущих строк
-      final order = _resultRows.map((r) => r['name'] as String).toList();
-
       final result = await api.forAliceGenerate(
         items: items,
         logisticsRateUsd: rate,
         usdToAed: usdToAed,
         documentsCostAed: documents,
-        order: order.isNotEmpty ? order : null,
       );
 
       if (!mounted) return;
@@ -364,13 +363,22 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
   Future<void> _download() async {
     if (_sessionId == null) return;
-    
-    // Пересчитываем с новым порядком перед скачиванием
-    final items = _collectItems();
+
+    // Собираем items в том порядке, который сейчас в _resultRows
+    final List<Map<String, dynamic>> orderedItems = [];
+    for (final r in _resultRows) {
+      orderedItems.add({
+        'name': r['name'] as String,
+        'qty': (r['qty'] as num?)?.toInt() ?? 0,
+        'price': (r['price'] as num?)?.toDouble() ?? 0.0,
+      });
+    }
+
+    final itemsToSend = orderedItems.isNotEmpty ? orderedItems : _collectItems();
+
     final rate = double.tryParse(_rateController.text.replaceAll(',', '.'));
     final documents = double.tryParse(_documentsController.text.replaceAll(',', '.'));
     final usdToAed = double.tryParse(_usdToAedController.text.replaceAll(',', '.'));
-    final order = _resultRows.map((r) => r['name'] as String).toList();
 
     if (rate == null || documents == null || usdToAed == null) {
       _showError('Проверьте параметры расчёта');
@@ -381,20 +389,17 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      
-      // Генерируем новый xlsx с правильным порядком
+
       final genResult = await api.forAliceGenerate(
-        items: items,
+        items: itemsToSend,
         logisticsRateUsd: rate,
         usdToAed: usdToAed,
         documentsCostAed: documents,
-        order: order.isNotEmpty ? order : null,
       );
-      
+
       final newSessionId = genResult['session_id'];
       if (newSessionId == null) throw Exception('Сессия не создана');
 
-      // Скачиваем
       final response = await api.forAliceDownload(newSessionId);
       final bytes = response.data as List<int>;
       final blob = html.Blob([bytes]);
@@ -687,6 +692,42 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   Widget _buildResults() {
     return Column(
       children: [
+        // === БЛОК ИТОГОВ (БЕЗ НАДПИСИ РЕЗУЛЬТАТЫ) ===
+        if (!_hasMissing && _totals != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0, bottom: 8.0),
+            child: Card(
+              color: Colors.teal.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Итоги', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        _info('Общий вес', '${_num(_totals!['total_weight'])} кг'),
+                        _info('Итого сумма', '${_num(_totals!['total_sum'])} AED', highlight: true),
+                        _info('Логистика (USD/кг)', _num(_totals!['logistics_rate_usd'])),
+                        _info('Курс USD → AED', _num(_totals!['usd_to_aed'])),
+                        _info('Документы (AED)', _num(_totals!['documents_cost_aed'])),
+                        _info('Логистика всего (USD)', _num(_totals!['logistics_total_usd'])),
+                        _info('Логистика всего (AED)', _num(_totals!['logistics_total_aed'])),
+                        _info('Итого логистика (AED)', _num(_totals!['total_logistics_aed'])),
+                        _info('Ставка (AED/кг)', _num(_totals!['rate_aed_per_kg'])),
+                        _info('Ставка (USD/кг)', _num(_totals!['rate_usd_per_kg'])),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+        // === БЛОК ОШИБОК (Если не хватает весов) ===
         if (_hasMissing)
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -767,45 +808,8 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ),
           ),
 
-        if (!_hasMissing && _totals != null)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Card(
-              color: Colors.teal.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Итоги', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 24,
-                      runSpacing: 12,
-                      children: [
-                        _info('Общий вес', '${_num(_totals!['total_weight'])} кг'),
-                        _info('Итого сумма', '${_num(_totals!['total_sum'])} AED', highlight: true),
-                        _info('Логистика (USD/кг)', _num(_totals!['logistics_rate_usd'])),
-                        _info('Курс USD → AED', _num(_totals!['usd_to_aed'])),
-                        _info('Документы (AED)', _num(_totals!['documents_cost_aed'])),
-                        _info('Логистика всего (USD)', _num(_totals!['logistics_total_usd'])),
-                        _info('Логистика всего (AED)', _num(_totals!['logistics_total_aed'])),
-                        _info('Итого логистика (AED)', _num(_totals!['total_logistics_aed'])),
-                        _info('Ставка (AED/кг)', _num(_totals!['rate_aed_per_kg'])),
-                        _info('Ставка (USD/кг)', _num(_totals!['rate_usd_per_kg'])),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-        if (_resultRows.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text('Результаты', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
+        // === ТАБЛИЦА (СРАЗУ ПОСЛЕ ИТОГОВ) ===
+        if (_resultRows.isNotEmpty)
           Expanded(
             child: ForAliceResultsTable(
               rows: _resultRows,
@@ -818,8 +822,8 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
               },
             ),
           ),
-        ],
 
+        // === КНОПКИ ВНИЗУ ===
         Padding(
           padding: const EdgeInsets.all(16.0),
           child: Row(

@@ -77,7 +77,7 @@ async def process_for_alice(
 
 
 # ============================================================
-# СОХРАНЕНИЕ ВЕСА (с автосозданием товара)
+# СОХРАНЕНИЕ ВЕСА
 # ============================================================
 
 @router.post("/save-weight")
@@ -85,10 +85,6 @@ async def save_weight(
     data: SaveWeightRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Сохраняет вес для Product по part_number.
-    Если товара нет — создаёт новый с указанным весом.
-    """
     if not data.part_number:
         raise HTTPException(status_code=400, detail="part_number обязателен")
     if data.weight is None or data.weight <= 0:
@@ -99,7 +95,6 @@ async def save_weight(
     product = result.scalar_one_or_none()
 
     if product:
-        # Обновляем существующий
         product.weight = data.weight
         if data.name and not product.description:
             product.description = data.name
@@ -112,7 +107,6 @@ async def save_weight(
             "product_id": product.id,
         }
     else:
-        # Ищем sibling с таким же description, у которого есть категория
         inherited_category_id = None
         inherited_color_id = None
 
@@ -141,9 +135,7 @@ async def save_weight(
         await db.commit()
         await db.refresh(new_product)
         return {
-            "message": "Товар создан" + (
-                " (категория унаследована)" if inherited_category_id else ""
-            ),
+            "message": "Товар создан",
             "created": True,
             "part_number": data.part_number,
             "weight": data.weight,
@@ -173,6 +165,7 @@ async def generate_for_alice(
 
     try:
         with SyncSession() as sync_db:
+            # Передаем items как есть (в том порядке, в котором они пришли с фронта)
             result = calculate_for_alice(
                 items=[it.dict() for it in data.items],
                 logistics_rate_usd=data.logistics_rate_usd,
