@@ -59,6 +59,14 @@ async def ai_command(
             resp = await groq_chat(messages=messages, tools=TOOLS)
         except GroqError as e:
             logger.error(f"Groq error on iteration {iteration}: {e}")
+            
+            # Если это 429 (Rate Limit) — выводим дружелюбный текст
+            if e.status_code == 429 or "закипели мозги" in str(e):
+                return AICommandResponse(
+                    type="answer",  # Используем answer, чтобы вывелось белым, а не красным
+                    text="Закипели мозги! 🧠🔥 Подожди минуту и попробуй снова.",
+                )
+                
             return AICommandResponse(
                 type="error",
                 text=f"AI недоступен: {e}",

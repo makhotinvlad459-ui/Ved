@@ -3,7 +3,7 @@
 Обёртка над Groq API (OpenAI-совместимый /chat/completions).
 - async httpx
 - timeout 30s
-- retry на 429 / 500 / 502 / 503 (max 2 повтора, backoff 1s, 3s)
+- retry на 429 / 500 / 502 / 503 (max 2 повтора, backoff 3s, 6s)
 - логирование usage (prompt/completion/total tokens)
 """
 
@@ -17,10 +17,11 @@ import httpx
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+# Модель: можно переопределить через env GROQ_MODEL
 DEFAULT_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 TIMEOUT = 30.0
 MAX_RETRIES = 2
-RETRY_BACKOFF = [1.0, 3.0]  # секунды между повторами
+RETRY_BACKOFF = [3.0, 6.0]  # секунды между повторами
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
 
@@ -64,6 +65,7 @@ async def groq_chat(
         body["tool_choice"] = "auto"
     if reasoning_effort:
         body["reasoning_effort"] = reasoning_effort
+        body["reasoning_format"] = "hidden"  # попытка скрыть reasoning
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -87,6 +89,12 @@ async def groq_chat(
                     f"Groq вернул {resp.status_code}: {snippet}",
                     status_code=resp.status_code,
                 )
+                
+                # --- Если 429 (лимит токенов) — не ждем и не ретраим, отдаем красивую ошибку ---
+                if resp.status_code == 429:
+                    raise GroqError("Закипели мозги! 🧠🔥 Подожди минуту.", status_code=429)
+                # ------------------------------------------------------------------------------
+
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_BACKOFF[attempt])
                     continue
