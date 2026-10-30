@@ -90,9 +90,24 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     _inputController.clear();
     _scrollToBottom();
 
+    // --- Собираем историю диалога (последние 6 сообщений) ---
+    final history = <Map<String, String>>[];
+    for (var m in _messages) {
+      if (m.type == AiMsgType.user) {
+        history.add({'role': 'user', 'content': m.text});
+      } else if (m.type == AiMsgType.answer) {
+        history.add({'role': 'assistant', 'content': m.text});
+      }
+    }
+
+    // Берем последние 6 сообщений (3 вопроса, 3 ответа)
+    final recentHistory = history.length > 6 
+        ? history.sublist(history.length - 6) 
+        : history;
+
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      final result = await api.aiCommand(t);
+      final result = await api.aiCommand(t, history: recentHistory);
 
       if (!mounted) return;
 

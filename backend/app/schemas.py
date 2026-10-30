@@ -1,7 +1,7 @@
 # backend/app/schemas.py
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 
 # === Category ===
@@ -473,6 +473,7 @@ class CzGenerateResponse(BaseModel):
 
 class AICommandRequest(BaseModel):
     text: str
+    history: Optional[List[Dict[str, Any]]] = None 
 
 
 class AICommandResponse(BaseModel):

@@ -832,11 +832,14 @@ class ApiService {
   // 14. AI-АССИСТЕНТ
   // ============================================================
 
-  Future<Map<String, dynamic>> aiCommand(String text) async {
+    Future<Map<String, dynamic>> aiCommand(String text, {List<Map<String, String>>? history}) async {
     try {
       final response = await _dio.post(
         '/ai/command',
-        data: {'text': text},
+        data: {
+          'text': text,
+          if (history != null) 'history': history,
+        },
         options: Options(
           sendTimeout: const Duration(seconds: 60),
           receiveTimeout: const Duration(seconds: 90),

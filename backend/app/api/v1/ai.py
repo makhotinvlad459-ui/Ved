@@ -48,10 +48,22 @@ async def ai_command(
     if len(text) > 2000:
         raise HTTPException(status_code=400, detail="Слишком длинный запрос (>2000)")
 
+    # Собираем начальный контекст (Системный промпт + История)
     messages: List[Dict[str, Any]] = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": text},
     ]
+
+    # Подмешиваем историю диалога с фронтенда (если есть)
+    if data.history:
+        for msg in data.history:
+            role = msg.get("role")
+            content = msg.get("content")
+            if role in ("user", "assistant") and content:
+                messages.append({"role": role, "content": content})
+
+    # Добавляем текущий запрос
+    messages.append({"role": "user", "content": text})
+
     tools_used: List[str] = []
 
     for iteration in range(MAX_ITERATIONS):
@@ -61,7 +73,7 @@ async def ai_command(
             logger.error(f"Groq error on iteration {iteration}: {e}")
             
             # Если это 429 (Rate Limit) — выводим дружелюбный текст
-            if e.status_code == 429 or "закипели мозги" in str(e):
+            if e.status_code == 429 or "Закипели мозги" in str(e):
                 return AICommandResponse(
                     type="answer",  # Используем answer, чтобы вывелось белым, а не красным
                     text="Закипели мозги! 🧠🔥 Подожди минуту и попробуй снова.",
