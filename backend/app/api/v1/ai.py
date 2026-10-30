@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/ai", tags=["AI Assistant"])
 
-MAX_ITERATIONS = 5
+MAX_ITERATIONS = 8
 
 
 @router.post("/command", response_model=AICommandResponse)
