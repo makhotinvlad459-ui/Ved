@@ -1,7 +1,10 @@
-# backend/app/services/ai/tools.py
+# # backend/app/services/ai/tools.py
 """
 JSON-схемы tools для Groq Function Calling.
 Модель читает эти описания и решает, какую функцию вызвать.
+
+ВАЖНО: для всех необязательных параметров тип = ["<type>", "null"],
+иначе Groq отбивает запрос с 400, когда модель передаёт null.
 """
 
 TOOLS = [
@@ -17,15 +20,15 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "category_name": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Название категории (например, 'Ноутбуки Lenovo'). Если не указано — все категории."
                     },
                     "has_weight": {
-                        "type": "boolean",
+                        "type": ["boolean", "null"],
                         "description": "true — только с весом, false — только без веса. Если не указано — все."
                     },
                     "pattern": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Подстрока для поиска в description (например, 'sport band')."
                     }
                 },
@@ -46,9 +49,8 @@ TOOLS = [
                         "description": "Подстрока для поиска (например, 'sport band' или 'MT0K3')."
                     },
                     "limit": {
-                        "type": "integer",
-                        "description": "Максимум результатов (по умолчанию 20, максимум 50).",
-                        "default": 20
+                        "type": ["integer", "null"],
+                        "description": "Максимум результатов (по умолчанию 20, максимум 50)."
                     }
                 },
                 "required": ["query"]
@@ -87,7 +89,7 @@ TOOLS = [
                             "type": "object",
                             "properties": {
                                 "part_number": {"type": "string", "description": "Артикул"},
-                                "description": {"type": "string", "description": "Описание (для контекста, может быть пустым)"}
+                                "description": {"type": ["string", "null"], "description": "Описание (для контекста, может быть пустым)"}
                             },
                             "required": ["part_number"]
                         },
@@ -140,11 +142,11 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "part_number": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Артикул конкретного товара. Используй, если нужно обновить один товар."
                     },
                     "pattern": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Подстрока в description для массового обновления (например, 'sport band'). Минимум 3 символа. Нельзя использовать вместе с part_number. Максимум 100 записей за раз."
                     },
                     "new_weight": {
@@ -165,12 +167,12 @@ TOOLS = [
                 "type": "object",
                 "properties": {
                     "part_numbers": {
-                        "type": "array",
+                        "type": ["array", "null"],
                         "items": {"type": "string"},
                         "description": "Список артикулов. Используй, если категория назначается конкретным товарам."
                     },
                     "pattern": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Подстрока в description для массового назначения. Минимум 3 символа. Нельзя вместе с part_numbers."
                     },
                     "category_name": {
@@ -199,7 +201,7 @@ TOOLS = [
                         "description": "Русский префикс для названий товаров (например, 'Робот-пылесос торговой марки')."
                     },
                     "name_eng": {
-                        "type": "string",
+                        "type": ["string", "null"],
                         "description": "Английское название (опционально)."
                     }
                 },
@@ -222,10 +224,10 @@ TOOLS = [
                             "properties": {
                                 "part_number": {"type": "string", "description": "Артикул (обязательно)"},
                                 "description": {"type": "string", "description": "Описание товара (обязательно)"},
-                                "model_number": {"type": "string", "description": "Номер модели (опционально)"},
-                                "category_name": {"type": "string", "description": "Название категории (опционально)"},
-                                "weight": {"type": "number", "description": "Вес в кг (опционально)"},
-                                "coo": {"type": "string", "description": "Страна происхождения (опционально)"}
+                                "model_number": {"type": ["string", "null"], "description": "Номер модели (опционально)"},
+                                "category_name": {"type": ["string", "null"], "description": "Название категории (опционально)"},
+                                "weight": {"type": ["number", "null"], "description": "Вес в кг (опционально)"},
+                                "coo": {"type": ["string", "null"], "description": "Страна происхождения (опционально)"}
                             },
                             "required": ["part_number", "description"]
                         },

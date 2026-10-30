@@ -11,6 +11,7 @@ import json
 from typing import Any, Dict, List, Optional
 from sqlalchemy import select, func, or_, update, insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload  # <-- ДОБАВЛЕНО ДЛЯ ЛЕНИВОЙ ЗАГРУЗКИ
 
 from app.models import Product, Category
 from app.services.ai.tools import LIMITS
@@ -117,6 +118,8 @@ async def search_products(
 
     stmt = (
         select(Product)
+        # ДОБАВЛЕНО: подгружаем связи сразу, чтобы не было ошибок async lazy-load
+        .options(selectinload(Product.category), selectinload(Product.color))
         .where(
             Product.is_active == True,
             or_(
@@ -195,6 +198,8 @@ async def check_products_exist(
 
     stmt = (
         select(Product)
+        # ДОБАВЛЕНО: подгружаем связи
+        .options(selectinload(Product.category), selectinload(Product.color))
         .where(func.upper(Product.part_number).in_(unique_pns))
     )
     result = await db.execute(stmt)
@@ -236,8 +241,11 @@ async def get_product_weight(
     if not pn:
         raise ToolError("part_number пустой.")
 
-    stmt = select(Product).where(
-        func.upper(Product.part_number) == pn.upper()
+    stmt = (
+        select(Product)
+        # ДОБАВЛЕНО: подгружаем связи
+        .options(selectinload(Product.category), selectinload(Product.color))
+        .where(func.upper(Product.part_number) == pn.upper())
     )
     result = await db.execute(stmt)
     product = result.scalar_one_or_none()
@@ -288,16 +296,27 @@ async def update_product_weight_preview(
 
     # Найти товары
     if part_number:
-        stmt = select(Product).where(
-            func.upper(Product.part_number) == part_number.strip().upper(),
-            Product.is_active == True,
+        stmt = (
+            select(Product)
+            # ДОБАВЛЕНО: подгружаем связи
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                func.upper(Product.part_number) == part_number.strip().upper(),
+                Product.is_active == True,
+            )
         )
     else:
         p = _validate_pattern(pattern)
-        stmt = select(Product).where(
-            Product.is_active == True,
-            Product.description.ilike(f"%{p}%"),
-        ).limit(LIMITS["update_product_weight"] + 1)
+        stmt = (
+            select(Product)
+            # ДОБАВЛЕНО: подгружаем связи
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                Product.is_active == True,
+                Product.description.ilike(f"%{p}%"),
+            )
+            .limit(LIMITS["update_product_weight"] + 1)
+        )
 
     result = await db.execute(stmt)
     products = result.scalars().all()
@@ -361,16 +380,27 @@ async def update_product_category_preview(
             raise ToolError("part_numbers пустой после очистки.")
         if len(cleaned) > LIMITS["update_product_category"]:
             raise ToolError(f"Слишком много part_numbers ({len(cleaned)}). Максимум {LIMITS['update_product_category']}.")
-        stmt = select(Product).where(
-            func.upper(Product.part_number).in_(cleaned),
-            Product.is_active == True,
+        stmt = (
+            select(Product)
+            # ДОБАВЛЕНО: подгружаем связи
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                func.upper(Product.part_number).in_(cleaned),
+                Product.is_active == True,
+            )
         )
     else:
         p = _validate_pattern(pattern)
-        stmt = select(Product).where(
-            Product.is_active == True,
-            Product.description.ilike(f"%{p}%"),
-        ).limit(LIMITS["update_product_category"] + 1)
+        stmt = (
+            select(Product)
+            # ДОБАВЛЕНО: подгружаем связи
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                Product.is_active == True,
+                Product.description.ilike(f"%{p}%"),
+            )
+            .limit(LIMITS["update_product_category"] + 1)
+        )
 
     result = await db.execute(stmt)
     products = result.scalars().all()
@@ -552,6 +582,9 @@ async def execute_tool(
     except ToolError as e:
         return {"error": str(e)}
     except Exception as e:
+        # ДОБАВЛЕНО: чтобы хотя бы в консоль падал трейсбек, а не просто "внутренняя ошибка"
+        import traceback
+        traceback.print_exc()
         return {"error": f"Внутренняя ошибка: {e}"}
 
 
@@ -587,16 +620,25 @@ async def _do_update_weight(
     pattern: Optional[str] = None,
 ) -> Dict[str, Any]:
     if part_number:
-        stmt = select(Product).where(
-            func.upper(Product.part_number) == part_number.strip().upper(),
-            Product.is_active == True,
+        stmt = (
+            select(Product)
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                func.upper(Product.part_number) == part_number.strip().upper(),
+                Product.is_active == True,
+            )
         )
     else:
         p = _validate_pattern(pattern)
-        stmt = select(Product).where(
-            Product.is_active == True,
-            Product.description.ilike(f"%{p}%"),
-        ).limit(LIMITS["update_product_weight"] + 1)
+        stmt = (
+            select(Product)
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                Product.is_active == True,
+                Product.description.ilike(f"%{p}%"),
+            )
+            .limit(LIMITS["update_product_weight"] + 1)
+        )
 
     result = await db.execute(stmt)
     products = result.scalars().all()
@@ -630,16 +672,25 @@ async def _do_update_category(
 
     if part_numbers:
         cleaned = [str(x).strip().upper() for x in part_numbers if str(x).strip()]
-        stmt = select(Product).where(
-            func.upper(Product.part_number).in_(cleaned),
-            Product.is_active == True,
+        stmt = (
+            select(Product)
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                func.upper(Product.part_number).in_(cleaned),
+                Product.is_active == True,
+            )
         )
     else:
         p = _validate_pattern(pattern)
-        stmt = select(Product).where(
-            Product.is_active == True,
-            Product.description.ilike(f"%{p}%"),
-        ).limit(LIMITS["update_product_category"] + 1)
+        stmt = (
+            select(Product)
+            .options(selectinload(Product.category), selectinload(Product.color))
+            .where(
+                Product.is_active == True,
+                Product.description.ilike(f"%{p}%"),
+            )
+            .limit(LIMITS["update_product_category"] + 1)
+        )
 
     result = await db.execute(stmt)
     products = result.scalars().all()
