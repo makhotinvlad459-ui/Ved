@@ -107,7 +107,7 @@ async def count_products(
 async def search_products(
     db: AsyncSession,
     query: str,
-    limit: int = 20,
+    limit: int = 8,
 ) -> Dict[str, Any]:
     q = (query or "").strip()
     if not q:
