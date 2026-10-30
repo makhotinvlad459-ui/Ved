@@ -537,6 +537,29 @@ async def create_products_preview(
         },
         "message": f"Создать {len(prepared)} товаров?",
     }
+async def find_products_without_weight(
+    db: AsyncSession,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    limit = min(int(limit or 20), LIMITS["search_products"])
+    
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.category), selectinload(Product.color))
+        .where(
+            Product.is_active == True,
+            or_(Product.weight.is_(None), Product.weight <= 0)
+        )
+        .order_by(Product.part_number)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+
+    return {
+        "count": len(items),
+        "items": [_product_to_dict(p) for p in items],
+    }
 
 
 # ============================================================
@@ -564,6 +587,8 @@ async def execute_tool(
             return await check_products_exist(db, **args)
         elif name == "get_product_weight":
             return await get_product_weight(db, **args)
+        elif name == "find_products_without_weight":  # <-- добавили
+            return await find_products_without_weight(db, **args)
         elif name == "list_categories":
             return await list_categories(db)
 

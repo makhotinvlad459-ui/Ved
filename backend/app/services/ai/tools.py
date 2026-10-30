@@ -103,6 +103,23 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "find_products_without_weight",
+            "description": "Найти список товаров, у которых отсутствует вес (weight = null или 0). Возвращает список с part_number, description и категорией.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": ["integer", "null"],
+                        "description": "Максимум результатов (по умолчанию 20, максимум 50)."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_product_weight",
             "description": "Узнать вес товара по артикулу. Если вес не задан — вернёт null.",
             "parameters": {
@@ -258,6 +275,7 @@ READ_TOOLS = {
     "find_missing_part_numbers",
     "check_products_exist",
     "get_product_weight",
+    "find_products_without_weight"
     "list_categories",
 }
 
