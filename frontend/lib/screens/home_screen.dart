@@ -193,6 +193,21 @@ class HomeScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 32),
+                   // ============ ГРУППА: ИИ-АССИСТЕНТ ============
+                  _GroupLabel(label: 'ИИ-АССИСТЕНТ'),
+                  const SizedBox(height: 12),
+                  _ResponsiveGrid(
+                    items: [
+                      _ServiceItem(
+                        icon: Icons.auto_awesome,
+                        title: 'AI-ассистент',
+                        color: Colors.deepPurple,
+                        route: '/ai-assistant',
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 32),
 
                   // ============ ГРУППА: СПРАВОЧНИКИ ============
                   _GroupLabel(label: 'СПРАВОЧНИКИ'),

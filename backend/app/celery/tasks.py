@@ -300,22 +300,67 @@ def process_invoice(session_id: str):
 def cleanup_old_files():
     import os
     import time
-
+    from datetime import datetime, timedelta
+    from app.models import ProcessingSession, PendingModel
+    
+    # === 1. Удаление старых файлов (как было) ===
     directories = ['/app/uploads', '/app/templates', '/app/output']
-    deleted = 0
-    threshold = time.time() - 86400
+    deleted_files = 0
+    threshold_time = time.time() - 86400  # 1 день
 
     for directory in directories:
         if os.path.exists(directory):
             for filename in os.listdir(directory):
                 filepath = os.path.join(directory, filename)
                 if os.path.isfile(filepath):
-                    if os.path.getmtime(filepath) < threshold:
-                        os.remove(filepath)
-                        deleted += 1
-                        print(f'🗑️ Удален: {filename}')
+                    if os.path.getmtime(filepath) < threshold_time:
+                        try:
+                            os.remove(filepath)
+                            deleted_files += 1
+                            print(f'🗑️ Удален файл: {filename}')
+                        except Exception as e:
+                            print(f'❌ Не удалось удалить файл {filename}: {e}')
 
-    return f'🗑️ Удалено {deleted} файлов старше 1 дня'
+    # === 2. Удаление старых сессий из базы ===
+    # Используем синхронное подключение (Celery работает синхронно)
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    sync_engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=sync_engine)
+
+    deleted_sessions = 0
+    threshold_date = datetime.utcnow() - timedelta(days=30)  # 30 дней
+
+    try:
+        with SessionLocal() as db:
+            # Ищем сессии старше 30 дней
+            old_sessions = db.query(ProcessingSession).filter(
+                ProcessingSession.created_at < threshold_date
+            ).all()
+
+            for session in old_sessions:
+                # Проверяем, есть ли у сессии незавершенные pending-модели
+                pending_count = db.query(PendingModel).filter(
+                    PendingModel.session_id == session.session_id,
+                    PendingModel.status == "pending"
+                ).count()
+
+                if pending_count > 0:
+                    # Пропускаем сессию, если есть незавершенные подтверждения
+                    print(f"⏭️ Пропуск сессии {session.session_id[:8]} — есть {pending_count} pending-моделей")
+                    continue
+
+                # Удаляем сессию
+                db.delete(session)
+                deleted_sessions += 1
+                print(f'🗑️ Удалена сессия: {session.session_id[:8]}')
+
+            db.commit()
+    except Exception as e:
+        print(f"❌ Ошибка очистки сессий: {e}")
+    finally:
+        sync_engine.dispose()
+
+    return f'🗑️ Удалено файлов: {deleted_files}, сессий: {deleted_sessions}'
 
 
 @celery_app.task(name="process_packing_list")

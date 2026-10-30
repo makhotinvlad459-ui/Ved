@@ -466,3 +466,29 @@ class CzGenerateResponse(BaseModel):
     status: str
     files: dict
     zip_name: str
+
+# ============================================================
+# AI-АССИСТЕНТ
+# ============================================================
+
+class AICommandRequest(BaseModel):
+    text: str
+
+
+class AICommandResponse(BaseModel):
+    type: str  # "answer" | "confirmation" | "error"
+    text: Optional[str] = None
+    action_id: Optional[str] = None
+    preview: Optional[dict] = None
+    tools_used: Optional[List[str]] = None
+
+
+class AIConfirmRequest(BaseModel):
+    action_id: str
+    approved: bool = True
+
+
+class AIConfirmResponse(BaseModel):
+    type: str  # "result" | "cancelled" | "error"
+    text: Optional[str] = None
+    result: Optional[dict] = None    

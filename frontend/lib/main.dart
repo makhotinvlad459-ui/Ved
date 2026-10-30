@@ -14,6 +14,7 @@ import 'screens/for_alice_screen.dart';
 import 'services/api_service.dart';
 import 'screens/declaration_screen.dart';
 import 'screens/far_east_screen.dart';
+import 'screens/ai_assistant_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -52,6 +53,7 @@ class MyApp extends StatelessWidget {
           '/for-alice': (context) => const ForAliceScreen(),
           '/declaration': (context) => const DeclarationScreen(),
           '/far-east': (context) => const FarEastScreen(),
+          '/ai-assistant': (context) => const AiAssistantScreen(),
         },
       ),
     );

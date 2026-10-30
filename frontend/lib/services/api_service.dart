@@ -828,4 +828,56 @@ class ApiService {
       throw Exception('Ошибка генерации текста Far East: $e');
     }
   }
+    // ============================================================
+  // 14. AI-АССИСТЕНТ
+  // ============================================================
+
+  Future<Map<String, dynamic>> aiCommand(String text) async {
+    try {
+      final response = await _dio.post(
+        '/ai/command',
+        data: {'text': text},
+        options: Options(
+          sendTimeout: const Duration(seconds: 60),
+          receiveTimeout: const Duration(seconds: 90),
+        ),
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка AI: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> aiConfirm({
+    required String actionId,
+    required bool approved,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/ai/confirm',
+        data: {
+          'action_id': actionId,
+          'approved': approved,
+        },
+        options: Options(
+          receiveTimeout: const Duration(seconds: 60),
+        ),
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка подтверждения: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>> aiCancel(String actionId) async {
+    try {
+      final response = await _dio.post(
+        '/ai/cancel',
+        data: {'action_id': actionId},
+      );
+      return response.data;
+    } catch (e) {
+      throw Exception('Ошибка отмены: $e');
+    }
+  }
 }
