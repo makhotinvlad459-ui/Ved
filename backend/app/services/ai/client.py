@@ -50,14 +50,19 @@ async def _call_openai_compatible(
     api_key: str,
     body: Dict[str, Any],
     provider_name: str,
+    max_tokens_override: Optional[int] = None,
 ) -> Dict[str, Any]:
     """Универсальный вызов OpenAI-совместимого API."""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "http://89.38.131.221", # Для OpenRouter (опционально)
+        "HTTP-Referer": "http://89.38.131.221",
         "X-Title": "VED Processor",
     }
+    
+    # Если передали override — меняем лимит
+    if max_tokens_override is not None:
+        body["max_tokens"] = max_tokens_override
 
     last_error: Optional[Exception] = None
 
@@ -74,7 +79,7 @@ async def _call_openai_compatible(
                     status_code=resp.status_code,
                 )
                 if resp.status_code == 429:
-                    raise last_error  # Не ретраим 429, сразу наверх
+                    raise last_error
                 if attempt < MAX_RETRIES:
                     await asyncio.sleep(RETRY_BACKOFF[attempt])
                     continue
@@ -114,6 +119,56 @@ async def _call_openai_compatible(
 
     raise last_error or GroqError(f"{provider_name}: неизвестная ошибка")
 
+
+async def groq_chat(
+    messages: List[Dict[str, Any]],
+    tools: Optional[List[Dict[str, Any]]] = None,
+    model: str = GROQ_MODEL,
+    temperature: float = 0.0,
+    max_tokens: int = 300,  # Базовый лимит для Groq
+    reasoning_effort: Optional[str] = "low",
+) -> Dict[str, Any]:
+    """
+    Пытается вызвать Groq. При ошибке 429 переключается на OpenRouter.
+    """
+    body: Dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = "auto"
+    if reasoning_effort:
+        body["reasoning_effort"] = reasoning_effort
+        body["reasoning_format"] = "hidden"
+
+    # --- 1. Пробуем Groq ---
+    try:
+        groq_key = _get_groq_key()
+        return await _call_openai_compatible(
+            GROQ_URL, groq_key, body, "Groq", 
+            max_tokens_override=300  # Groq: строго 300
+        )
+    except GroqError as e:
+        logger.warning(f"Groq недоступен ({e}), переключаемся на OpenRouter...")
+
+    # --- 2. Пробуем OpenRouter (fallback) ---
+    openrouter_key = _get_openrouter_key()
+    if not openrouter_key:
+        raise GroqError("Groq недоступен, а OPENROUTER_API_KEY не задан. Добавь ключ в .env для fallback.")
+
+    body["model"] = OPENROUTER_MODEL
+    body.pop("reasoning_effort", None)
+    body.pop("reasoning_format", None)
+
+    logger.info(f"Fallback на OpenRouter (model={OPENROUTER_MODEL})")
+    # OpenRouter: 1500 токенов, чтобы влезали длинные списки
+    return await _call_openai_compatible(
+        OPENROUTER_URL, openrouter_key, body, "OpenRouter",
+        max_tokens_override=1500 
+    )
 
 async def groq_chat(
     messages: List[Dict[str, Any]],
