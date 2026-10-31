@@ -76,7 +76,7 @@ async def ai_command(
             # Если это 429 (Rate Limit) — выводим дружелюбный текст
             if e.status_code == 429 or "Закипели мозги" in str(e):
                 return AICommandResponse(
-                    type="answer",  # Используем answer, чтобы вывелось белым, а не красным
+                    type="answer",
                     text="Закипели мозги! 🧠🔥 Подожди минуту и попробуй снова.",
                 )
                 
@@ -99,7 +99,6 @@ async def ai_command(
             )
 
         # === Есть tool_calls ===
-        # Добавляем assistant-сообщение с tool_calls в историю
         messages.append({
             "role": "assistant",
             "content": None,
@@ -126,33 +125,25 @@ async def ai_command(
             tools_used.append(fn_name)
 
             # === УМНАЯ ПОДСТАНОВКА ДЛЯ WRITE-TOOLS ===
-            # Если модель пытается обновить вес/категорию, но забыла указать part_number (как в случае с iPad и часами),
-            # мы попытаемся вытащить артикул из предыдущего ответа ассистента.
             if fn_name == "update_product_weight" or fn_name == "update_product_category":
                 if not fn_args.get("part_number") and not fn_args.get("part_numbers") and not fn_args.get("pattern"):
-                    # Ищем последний текстовый ответ ассистента
                     last_assistant_content = ""
                     for m in reversed(messages):
                         if m["role"] == "assistant" and m.get("content"):
                             last_assistant_content = m["content"]
                             break
                     
-                    # Ищем артикул по шаблону (например, MCNP4LL/A или MEH34LW/A)
                     match = re.search(r'\b([A-Z0-9]{4,10}/[A-Z0-9]{2,4})\b', last_assistant_content)
                     if match:
                         extracted_part = match.group(1)
                         fn_args["part_number"] = extracted_part
                         logger.info(f"Автоподстановка part_number: {extracted_part}")
-                    else:
-                        # Если не нашли артикул, но нашли товары по паттерну, возможно, это была ошибка
-                        logger.warning("Модель не передала part_number, и в истории нет артикула.")
 
             # === WRITE-TOOL: preview → save_action → return confirmation ===
             if fn_name in WRITE_TOOLS:
                 try:
                     preview_result = await execute_tool(db, fn_name, fn_args)
                 except ToolError as e:
-                    # Ошибку возвращаем модели — она озвучит
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tc["id"],
@@ -195,7 +186,6 @@ async def ai_command(
                 "content": json.dumps(result, ensure_ascii=False, default=str),
             })
 
-    # Не сошлись за MAX_ITERATIONS
     return AICommandResponse(
         type="error",
         text="Слишком много шагов. Уточни запрос.",
@@ -209,6 +199,8 @@ async def ai_confirm_endpoint(
     db: AsyncSession = Depends(get_db),
 ):
     """Подтверждение или отмена отложенного write-действия."""
+    
+    # 1. Получаем действие
     action = await ai_confirm.get_action(data.action_id)
     if not action:
         return AIConfirmResponse(
@@ -216,7 +208,7 @@ async def ai_confirm_endpoint(
             text="Действие не найдено или истекло (TTL 10 мин). Повтори запрос.",
         )
 
-    # === Отмена ===
+    # 2. Если отмена — просто удаляем
     if not data.approved:
         await ai_confirm.delete_action(data.action_id)
         return AIConfirmResponse(
@@ -224,7 +216,15 @@ async def ai_confirm_endpoint(
             text="Действие отменено.",
         )
 
-    # === Подтверждение — выполняем ===
+    # 3. ЗАЩИТА ОТ ДВОЙНОГО КЛИКА: атомарно удаляем action ДО выполнения
+    deleted = await ai_confirm.delete_action(data.action_id)
+    if not deleted:
+        return AIConfirmResponse(
+            type="error",
+            text="Действие уже выполняется или выполнено.",
+        )
+
+    # 4. Выполняем
     try:
         result = await execute_write_tool(
             db,
@@ -232,23 +232,19 @@ async def ai_confirm_endpoint(
             action["args"],
         )
     except ToolError as e:
-        await ai_confirm.delete_action(data.action_id)
+        logger.error(f"ToolError при confirm: {e}")
         return AIConfirmResponse(
             type="error",
             text=f"Ошибка выполнения: {e}",
         )
     except Exception as e:
-        logger.exception(f"AI confirm failed: {e}")
-        await ai_confirm.delete_action(data.action_id)
+        logger.exception(f"Внутренняя ошибка при confirm: {e}")
         return AIConfirmResponse(
             type="error",
             text=f"Внутренняя ошибка: {e}",
         )
 
-    # Удаляем action после успешного выполнения
-    await ai_confirm.delete_action(data.action_id)
-
-    # Формируем человекочитаемый текст
+    # 5. Формируем текст ответа
     tool = action["tool"]
     
     if tool == "update_product_weight":
@@ -268,12 +264,10 @@ async def ai_confirm_endpoint(
         n = result.get("created_count", 0)
         text = f"Создано {n} товаров."
         
-    # --- НОВОЕ: Обработка переименования категории ---
     elif tool == "rename_category":
         old = result.get("old_name")
         new = result.get("new_name")
         text = f"Категория '{old}' успешно переименована в '{new}'."
-    # ------------------------------------------------
         
     else:
         text = "Готово."
@@ -290,7 +284,7 @@ async def ai_cancel(
     data: AIConfirmRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Отмена без выполнения (аналог confirm с approved=false)."""
+    """Отмена без выполнения."""
     await ai_confirm.delete_action(data.action_id)
     return AIConfirmResponse(
         type="cancelled",
