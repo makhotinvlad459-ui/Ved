@@ -15,6 +15,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models import Product, Category
 from app.services.ai.tools import LIMITS
+import logging
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -640,10 +642,12 @@ async def execute_tool(
         else:
             raise ToolError(f"Неизвестный tool: {name}")
     except ToolError as e:
+        logger.warning(f"ToolError в {name}: {e}")
         return {"error": str(e)}
     except Exception as e:
         import traceback
         traceback.print_exc()
+        logger.error(f"Ошибка в {name}: {e}")
         return {"error": f"Внутренняя ошибка: {e}"}
 
 
