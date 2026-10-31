@@ -288,6 +288,29 @@ TOOLS = [
             }
         }
     },
+    # --- НОВЫЙ ИНСТРУМЕНТ: ПЕРЕИМЕНОВАНИЕ КАТЕГОРИИ ---
+    {
+        "type": "function",
+        "function": {
+            "name": "rename_category",
+            "description": "Переименовать существующую категорию. Позволяет изменить название категории (поле name), не затрагивая сами товары. ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "old_name": {
+                        "type": "string",
+                        "description": "Текущее название категории (например, 'Очки')."
+                    },
+                    "new_name": {
+                        "type": "string",
+                        "description": "Новое название категории (например, 'Очки Ray-Ban')."
+                    }
+                },
+                "required": ["old_name", "new_name"]
+            }
+        }
+    },
+    # ----------------------------------------------------
     {
         "type": "function",
         "function": {
@@ -303,7 +326,7 @@ TOOLS = [
                             "properties": {
                                 "part_number": {"type": "string", "description": "Артикул (обязательно)"},
                                 "description": {"type": "string", "description": "Описание товара (обязательно)"},
-                                "model_number": {"type": ["string", "null"], "description": "Номер модели (опционально)"},
+                                "model_number": {"type": ["string", "null"], "description": "Номер модели (опционально). Если не указан, передавай пустую строку."},
                                 "category_name": {"type": ["string", "null"], "description": "Название категории (опционально)"},
                                 "weight": {"type": ["number", "null"], "description": "Вес в кг (опционально)"},
                                 "coo": {"type": ["string", "null"], "description": "Страна происхождения (опционально)"}
@@ -329,6 +352,7 @@ WRITE_TOOLS = {
     "update_product_model_number",
     "create_category",
     "create_products",
+    "rename_category",  # ← ДОБАВЛЕНО
 }
 
 READ_TOOLS = {

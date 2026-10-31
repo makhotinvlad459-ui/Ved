@@ -284,7 +284,31 @@ async def find_products_without_weight(
         "items": [_product_to_dict(p) for p in items],
     }
 
+async def _do_rename_category(
+    db: AsyncSession,
+    old_name: str,
+    new_name: str,
+) -> Dict[str, Any]:
+    cat = await _get_category_by_name(db, old_name)
+    if not cat:
+        raise ToolError(f"Категория '{old_name}' не найдена.")
 
+    # Проверка на уникальность
+    existing = await _get_category_by_name(db, new_name)
+    if existing and existing.id != cat.id:
+        raise ToolError(f"Категория '{new_name}' уже существует.")
+
+    old_display = cat.name
+    cat.name = new_name.strip()
+    await db.commit()
+    await db.refresh(cat)
+
+    return {
+        "renamed": True,
+        "category_id": cat.id,
+        "old_name": old_display,
+        "new_name": cat.name,
+    }
 async def list_categories(db: AsyncSession) -> Dict[str, Any]:
     stmt = select(Category).where(Category.is_active == True).order_by(Category.name)
     result = await db.execute(stmt)
@@ -640,6 +664,8 @@ async def execute_write_tool(
         return await _do_update_weight(db, **args)
     elif name == "update_product_category":
         return await _do_update_category(db, **args)
+    elif name == "rename_category":
+        return await _do_rename_category(db, **args)
     elif name == "create_category":
         return await _do_create_category(db, **args)
     elif name == "create_products":
@@ -738,7 +764,55 @@ async def _do_update_category(
         "part_numbers": [p.part_number for p in products],
         "category_name": cat.name,
     }
+async def rename_category_preview(
+    db: AsyncSession,
+    old_name: str,
+    new_name: str,
+) -> Dict[str, Any]:
+    old_n = (old_name or "").strip()
+    new_n = (new_name or "").strip()
+    if not old_n or not new_n:
+        raise ToolError("old_name и new_name обязательны.")
+    if old_n.lower() == new_n.lower():
+        raise ToolError("Новое название совпадает со старым.")
 
+    existing_old = await _get_category_by_name(db, old_n)
+    if not existing_old:
+        raise ToolError(f"Категория '{old_n}' не найдена.")
+
+    existing_new = await _get_category_by_name(db, new_n)
+    if existing_new:
+        raise ToolError(f"Категория с именем '{new_n}' уже существует.")
+
+    # Сколько товаров привязано
+    products_count = (
+        await db.execute(
+            select(func.count(Product.id)).where(
+                Product.category_id == existing_old.id,
+                Product.is_active == True,
+            )
+        )
+    ).scalar() or 0
+
+    return {
+        "requires_confirmation": True,
+        "action": {
+            "tool": "rename_category",
+            "args": {
+                "old_name": existing_old.name,
+                "new_name": new_n,
+            },
+        },
+        "preview": {
+            "old_name": existing_old.name,
+            "new_name": new_n,
+            "products_count": products_count,
+        },
+        "message": (
+            f"Переименовать категорию '{existing_old.name}' → '{new_n}'? "
+            f"Товаров затронется: {products_count}."
+        ),
+    }
 
 async def _do_create_category(
     db: AsyncSession,

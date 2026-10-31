@@ -250,19 +250,31 @@ async def ai_confirm_endpoint(
 
     # Формируем человекочитаемый текст
     tool = action["tool"]
+    
     if tool == "update_product_weight":
         n = result.get("updated_count", 0)
         w = result.get("new_weight")
         text = f"Обновлено {n} товаров. Новый вес: {w} кг."
+        
     elif tool == "update_product_category":
         n = result.get("updated_count", 0)
         cat = result.get("category_name")
         text = f"Назначена категория '{cat}' для {n} товаров."
+        
     elif tool == "create_category":
         text = f"Категория '{result.get('name')}' создана (id={result.get('category_id')})."
+        
     elif tool == "create_products":
         n = result.get("created_count", 0)
         text = f"Создано {n} товаров."
+        
+    # --- НОВОЕ: Обработка переименования категории ---
+    elif tool == "rename_category":
+        old = result.get("old_name")
+        new = result.get("new_name")
+        text = f"Категория '{old}' успешно переименована в '{new}'."
+    # ------------------------------------------------
+        
     else:
         text = "Готово."
 
