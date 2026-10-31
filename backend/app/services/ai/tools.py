@@ -1,4 +1,4 @@
-# # backend/app/services/ai/tools.py
+# backend/app/services/ai/tools.py
 """
 JSON-схемы tools для Groq Function Calling.
 Модель читает эти описания и решает, какую функцию вызвать.
@@ -103,23 +103,6 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "find_products_without_weight",
-            "description": "Найти список товаров, у которых отсутствует вес (weight = null или 0). Возвращает список с part_number, description и категорией.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "limit": {
-                        "type": ["integer", "null"],
-                        "description": "Максимум результатов (по умолчанию 20, максимум 50)."
-                    }
-                },
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "get_product_weight",
             "description": "Узнать вес товара по артикулу. Если вес не задан — вернёт null.",
             "parameters": {
@@ -131,6 +114,23 @@ TOOLS = [
                     }
                 },
                 "required": ["part_number"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_products_without_weight",
+            "description": "Найти список товаров, у которых отсутствует вес (weight = null или 0). Возвращает список с part_number, description и категорией.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": ["integer", "null"],
+                        "description": "Максимум результатов (по умолчанию 20, максимум 50)."
+                    }
+                },
+                "required": []
             }
         }
     },
@@ -167,11 +167,11 @@ TOOLS = [
                         "description": "Подстрока в description для массового обновления (например, 'sport band'). Минимум 3 символа. Нельзя использовать вместе с part_number. Максимум 100 записей за раз."
                     },
                     "new_weight": {
-                        "type": "number",
-                        "description": "Новый вес в кг (например, 0.6)."
+                        "type": ["number", "null"],
+                        "description": "Новый вес в кг (например, 0.6). Если пользователь не указал точную цифру в текущем сообщении, передай null."
                     }
                 },
-                "required": ["new_weight"]
+                "required": [] # <-- ВАЖНО: убрали new_weight из обязательных
             }
         }
     },
@@ -275,7 +275,7 @@ READ_TOOLS = {
     "find_missing_part_numbers",
     "check_products_exist",
     "get_product_weight",
-    "find_products_without_weight"
+    "find_products_without_weight",
     "list_categories",
 }
 
