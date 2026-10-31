@@ -775,7 +775,7 @@ async def _do_create_products(
     created = []
     for it in products:
         prod = Product(
-            part_number=it["part_number"],
+            part_number=it["part_number"] or "",
             description=it["description"],
             model_number=it.get("model_number"),
             category_id=it.get("category_id"),

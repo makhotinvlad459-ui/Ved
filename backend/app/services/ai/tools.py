@@ -8,7 +8,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "count_products",
-            "description": "Посчитать количество товаров в базе. Можно с фильтрами: по категории, наличию веса, подстроке в описании.",
+            "description": "Посчитать количество товаров в базе. Можно с фильтрами: по категории, наличию веса, наличию модели, подстроке в описании.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -19,6 +19,10 @@ TOOLS = [
                     "has_weight": {
                         "type": ["boolean", "null"],
                         "description": "true — только с весом, false — только без веса. Если не указано — все."
+                    },
+                    "has_model_number": {
+                        "type": ["boolean", "null"],
+                        "description": "true — только с моделью, false — только без модели (пустая строка)."
                     },
                     "pattern": {
                         "type": ["string", "null"],
@@ -33,7 +37,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "search_products",
-            "description": "Найти товары по подстроке в part_number или description. Возвращает список с id, part_number, description, weight, category.",
+            "description": "Найти товары по подстроке в part_number или description. Возвращает список с id, part_number, description, weight, category, model_number.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -130,6 +134,44 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "find_products_by_category",
+            "description": "Найти список товаров в конкретной категории. Возвращает part_number, description, weight, model_number.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category_name": {
+                        "type": "string",
+                        "description": "Название категории (например, 'Ноутбуки Lenovo')."
+                    },
+                    "limit": {
+                        "type": ["integer", "null"],
+                        "description": "Максимум результатов (по умолчанию 20, максимум 50)."
+                    }
+                },
+                "required": ["category_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_products_without_model_number",
+            "description": "Найти товары, у которых не указан номер модели (model_number пустой или NULL).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {
+                        "type": ["integer", "null"],
+                        "description": "Максимум результатов (по умолчанию 20, максимум 50)."
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "list_categories",
             "description": "Получить список всех активных категорий с их префиксами.",
             "parameters": {
@@ -169,7 +211,7 @@ TOOLS = [
                         "description": "Новый вес в кг (например, 0.6). Если пользователь не указал точную цифру в текущем сообщении, передай null."
                     }
                 },
-                "required": [] # <-- ВАЖНО: убрали new_weight из обязательных
+                "required": []
             }
         }
     },
@@ -196,6 +238,28 @@ TOOLS = [
                     }
                 },
                 "required": ["category_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_product_model_number",
+            "description": "Назначить один и тот же номер модели (model_number) списку товаров по артикулам. ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ. Максимум 100 записей.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "part_numbers": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Список артикулов (например, ['ABC123', 'XYZ789'])."
+                    },
+                    "model_number": {
+                        "type": "string",
+                        "description": "Номер модели, который нужно установить (например, 'A2890')."
+                    }
+                },
+                "required": ["part_numbers", "model_number"]
             }
         }
     },
@@ -262,6 +326,7 @@ TOOLS = [
 WRITE_TOOLS = {
     "update_product_weight",
     "update_product_category",
+    "update_product_model_number",
     "create_category",
     "create_products",
 }
@@ -273,6 +338,8 @@ READ_TOOLS = {
     "check_products_exist",
     "get_product_weight",
     "find_products_without_weight",
+    "find_products_by_category",
+    "find_products_without_model_number",
     "list_categories",
 }
 
@@ -280,6 +347,7 @@ READ_TOOLS = {
 LIMITS = {
     "update_product_weight": 100,
     "update_product_category": 100,
+    "update_product_model_number": 100,
     "create_products": 20,
     "check_products_exist": 200,
     "search_products": 50,

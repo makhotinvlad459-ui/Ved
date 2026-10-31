@@ -18,7 +18,7 @@ class _AiMessage {
   final Map<String, dynamic>? preview;
   final List<String>? toolsUsed;
   final DateTime createdAt;
-  bool resolved; // для confirmation: подтверждено/отменено/истекло
+  bool resolved;
 
   _AiMessage({
     required this.type,
@@ -50,7 +50,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final List<_AiMessage> _messages = [];
   bool _isSending = false;
 
-  // Список возможностей для пустого экрана
+  // Статичный список возможностей
   final List<Map<String, dynamic>> _capabilities = [
     {
       'icon': Icons.inventory_2_outlined,
@@ -114,7 +114,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final t = text.trim();
     if (t.isEmpty || _isSending) return;
 
-    // === ПЕРЕХВАТ ТЕКСТОВОГО ПОДТВЕРЖДЕНИЯ ===
+    // Перехват текстового подтверждения
     final lowerText = t.toLowerCase();
     if (lowerText == 'да' || lowerText == 'yes' || lowerText == 'ок' || lowerText == 'подтверждаю') {
       for (var i = _messages.length - 1; i >= 0; i--) {
@@ -136,7 +136,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         }
       }
     }
-    // ==========================================
 
     setState(() {
       _messages.add(_AiMessage(type: AiMsgType.user, text: t));
@@ -145,7 +144,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     _inputController.clear();
     _scrollToBottom();
 
-    // --- Собираем историю диалога (последние 6 сообщений) ---
     final history = <Map<String, String>>[];
     for (var m in _messages) {
       if (m.type == AiMsgType.user) {
@@ -342,10 +340,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  // ============================================================
-  // СПИСОК СООБЩЕНИЙ
-  // ============================================================
-
   Widget _buildMessages() {
     if (_messages.isEmpty) {
       return _buildEmptyState();
@@ -400,102 +394,67 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Я умею работать с базой товаров. Выбери, что тебя интересует, или напиши свой вопрос.',
+            'Я умею работать с базой товаров. Вот список того, что я могу:',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
           ),
           const SizedBox(height: 32),
           
-          // Сетка возможностей
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
-              return GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: crossAxisCount,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.3,
-                ),
-                itemCount: _capabilities.length,
-                itemBuilder: (context, index) {
-                  final cap = _capabilities[index];
-                  return _buildCapabilityCard(
-                    icon: cap['icon'],
-                    color: cap['color'],
-                    title: cap['title'],
-                    desc: cap['desc'],
-                  );
-                },
-              );
-            },
-          ),
+          // Список возможностей
+          ..._capabilities.map((cap) => _buildCapabilityRow(
+            icon: cap['icon'],
+            color: cap['color'],
+            title: cap['title'],
+            desc: cap['desc'],
+          )),
+          
           const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Widget _buildCapabilityCard({
+  Widget _buildCapabilityRow({
     required IconData icon,
     required Color color,
     required String title,
     required String desc,
   }) {
-    return InkWell(
-      onTap: () {
-        // При клике подставляем шаблонный текст в поле ввода
-        _inputController.text = desc;
-        _focusNode.requestFocus();
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade200),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.02),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 4),
-            Expanded(
-              child: Text(
-                desc,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey.shade600,
-                  height: 1.4,
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                 ),
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
-              ),
+                const SizedBox(height: 4),
+                Text(
+                  desc,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey.shade600,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
