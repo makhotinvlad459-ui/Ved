@@ -777,7 +777,7 @@ async def _do_create_products(
         prod = Product(
             part_number=it["part_number"] or "",
             description=it["description"],
-            model_number=it.get("model_number"),
+            model_number=(it.get("model_number") or "").strip(),
             category_id=it.get("category_id"),
             weight=it.get("weight"),
             coo=it.get("coo"),

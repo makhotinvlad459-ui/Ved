@@ -43,7 +43,7 @@ class Product(Base):
     __tablename__ = "products"
     
     id = Column(Integer, primary_key=True, index=True)
-    model_number = Column(String(50), nullable=False)
+    model_number = Column(String(50), nullable=True)
     part_number = Column(String(50), unique=True, nullable=False, index=True)
     description = Column(Text)
     model_name = Column(String(255))
