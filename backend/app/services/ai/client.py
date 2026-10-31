@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 # Модель: можно переопределить через env GROQ_MODEL
-DEFAULT_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+DEFAULT_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 TIMEOUT = 30.0
 MAX_RETRIES = 2
 RETRY_BACKOFF = [3.0, 6.0]  # секунды между повторами
