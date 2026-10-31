@@ -153,8 +153,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       }
     }
 
-    final recentHistory = history.length > 6 
-        ? history.sublist(history.length - 6) 
+    final recentHistory = history.length > 4 
+        ? history.sublist(history.length - 4) 
         : history;
 
     try {
