@@ -638,6 +638,8 @@ async def execute_tool(
             return await create_category_preview(db, **args)
         elif name == "create_products":
             return await create_products_preview(db, **args)
+        elif name == "rename_category":
+            return await rename_category_preview(db, **args)
 
         else:
             raise ToolError(f"Неизвестный tool: {name}")
