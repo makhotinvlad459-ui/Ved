@@ -1,7 +1,7 @@
 # backend/app/api/v1/ai.py
 """
 AI-ассистент: POST /api/v1/ai/command, /ai/confirm, /ai/cancel
-Цикл tool calling (max 5 итераций).
+Цикл tool calling (max 8 итераций).
 Read-tools выполняются сразу.
 Write-tools → preview → save_action в Redis → ответ confirmation.
 Confirm → execute_write_tool → ответ result.
@@ -9,6 +9,7 @@ Confirm → execute_write_tool → ответ result.
 
 import json
 import logging
+import re
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -123,6 +124,28 @@ async def ai_command(
                 fn_args = {}
 
             tools_used.append(fn_name)
+
+            # === УМНАЯ ПОДСТАНОВКА ДЛЯ WRITE-TOOLS ===
+            # Если модель пытается обновить вес/категорию, но забыла указать part_number (как в случае с iPad и часами),
+            # мы попытаемся вытащить артикул из предыдущего ответа ассистента.
+            if fn_name == "update_product_weight" or fn_name == "update_product_category":
+                if not fn_args.get("part_number") and not fn_args.get("part_numbers") and not fn_args.get("pattern"):
+                    # Ищем последний текстовый ответ ассистента
+                    last_assistant_content = ""
+                    for m in reversed(messages):
+                        if m["role"] == "assistant" and m.get("content"):
+                            last_assistant_content = m["content"]
+                            break
+                    
+                    # Ищем артикул по шаблону (например, MCNP4LL/A или MEH34LW/A)
+                    match = re.search(r'\b([A-Z0-9]{4,10}/[A-Z0-9]{2,4})\b', last_assistant_content)
+                    if match:
+                        extracted_part = match.group(1)
+                        fn_args["part_number"] = extracted_part
+                        logger.info(f"Автоподстановка part_number: {extracted_part}")
+                    else:
+                        # Если не нашли артикул, но нашли товары по паттерну, возможно, это была ошибка
+                        logger.warning("Модель не передала part_number, и в истории нет артикула.")
 
             # === WRITE-TOOL: preview → save_action → return confirmation ===
             if fn_name in WRITE_TOOLS:
