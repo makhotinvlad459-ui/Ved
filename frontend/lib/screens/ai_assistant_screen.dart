@@ -50,13 +50,44 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final List<_AiMessage> _messages = [];
   bool _isSending = false;
 
-  static const _quickPrompts = [
-    'Сколько товаров в базе?',
-    'Какие категории есть?',
-    'Проверь артикулы ABC123, XYZ789',
-    'Найди sport band',
-    'Кто тебя сделал?',
-    'Расскажи анекдот',
+  // Список возможностей для пустого экрана
+  final List<Map<String, dynamic>> _capabilities = [
+    {
+      'icon': Icons.inventory_2_outlined,
+      'color': Colors.blue,
+      'title': 'Поиск и статистика',
+      'desc': '«Сколько всего товаров?», «Найди sport band», «Покажи категории»',
+    },
+    {
+      'icon': Icons.scale_outlined,
+      'color': Colors.orange,
+      'title': 'Управление весами',
+      'desc': '«Поставь вес 0.5 кг для артикула ABC123», «Какие товары без веса?»',
+    },
+    {
+      'icon': Icons.category_outlined,
+      'color': Colors.purple,
+      'title': 'Категории и теги',
+      'desc': '«Назначь категорию Ноутбуки для Lenovo», «Создай категорию Роботы»',
+    },
+    {
+      'icon': Icons.add_box_outlined,
+      'color': Colors.green,
+      'title': 'Добавление товаров',
+      'desc': '«Создай товар iPhone 15 Pro с артикулом M123»',
+    },
+    {
+      'icon': Icons.fact_check_outlined,
+      'color': Colors.teal,
+      'title': 'Проверка списков',
+      'desc': 'Вставь список артикулов и спроси «Каких из них нет в базе?»',
+    },
+    {
+      'icon': Icons.smart_toy_outlined,
+      'color': Colors.pink,
+      'title': 'Просто поболтать',
+      'desc': '«Кто тебя сделал?», «Расскажи анекдот»',
+    },
   ];
 
   @override
@@ -83,6 +114,30 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final t = text.trim();
     if (t.isEmpty || _isSending) return;
 
+    // === ПЕРЕХВАТ ТЕКСТОВОГО ПОДТВЕРЖДЕНИЯ ===
+    final lowerText = t.toLowerCase();
+    if (lowerText == 'да' || lowerText == 'yes' || lowerText == 'ок' || lowerText == 'подтверждаю') {
+      for (var i = _messages.length - 1; i >= 0; i--) {
+        final msg = _messages[i];
+        if (msg.type == AiMsgType.confirmation && !msg.resolved) {
+          _inputController.clear();
+          await _confirm(msg, true);
+          return;
+        }
+      }
+    }
+    if (lowerText == 'нет' || lowerText == 'no' || lowerText == 'отмена') {
+      for (var i = _messages.length - 1; i >= 0; i--) {
+        final msg = _messages[i];
+        if (msg.type == AiMsgType.confirmation && !msg.resolved) {
+          _inputController.clear();
+          await _confirm(msg, false);
+          return;
+        }
+      }
+    }
+    // ==========================================
+
     setState(() {
       _messages.add(_AiMessage(type: AiMsgType.user, text: t));
       _isSending = true;
@@ -100,7 +155,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       }
     }
 
-    // Берем последние 6 сообщений (3 вопроса, 3 ответа)
     final recentHistory = history.length > 6 
         ? history.sublist(history.length - 6) 
         : history;
@@ -309,74 +363,146 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
+  // ============================================================
+  // ПУСТОЙ ЭКРАН (СПИСОК ВОЗМОЖНОСТЕЙ)
+  // ============================================================
+
   Widget _buildEmptyState() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          const SizedBox(height: 20),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.deepPurple.shade600, Colors.deepPurple.shade300],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.deepPurple.shade100,
+                  blurRadius: 20,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.auto_awesome, color: Colors.white, size: 40),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'AI-ассистент VED',
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Я умею работать с базой товаров. Выбери, что тебя интересует, или напиши свой вопрос.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+          ),
+          const SizedBox(height: 32),
+          
+          // Сетка возможностей
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final crossAxisCount = constraints.maxWidth > 600 ? 3 : 2;
+              return GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 1.3,
+                ),
+                itemCount: _capabilities.length,
+                itemBuilder: (context, index) {
+                  final cap = _capabilities[index];
+                  return _buildCapabilityCard(
+                    icon: cap['icon'],
+                    color: cap['color'],
+                    title: cap['title'],
+                    desc: cap['desc'],
+                  );
+                },
+              );
+            },
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCapabilityCard({
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String desc,
+  }) {
+    return InkWell(
+      onTap: () {
+        // При клике подставляем шаблонный текст в поле ввода
+        _inputController.text = desc;
+        _focusNode.requestFocus();
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 88,
-              height: 88,
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.deepPurple.shade600, Colors.deepPurple.shade300],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.deepPurple.shade100,
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.auto_awesome,
-                  color: Colors.white, size: 44),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'AI-ассистент VED',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Спроси о товарах, обнови веса, проверь артикулы',
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 28),
-            const Text(
-              'Попробуй:',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey,
-                fontWeight: FontWeight.w600,
-              ),
+              child: Icon(icon, color: color, size: 20),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: _quickPrompts.map((p) {
-                return ActionChip(
-                  avatar: const Icon(Icons.north_west, size: 14),
-                  label: Text(p, style: const TextStyle(fontSize: 12)),
-                  onPressed: () => _send(p),
-                  backgroundColor: Colors.white,
-                  side: BorderSide(color: Colors.grey.shade300),
-                );
-              }).toList(),
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            Expanded(
+              child: Text(
+                desc,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.grey.shade600,
+                  height: 1.4,
+                ),
+                maxLines: 4,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  // ============================================================
+  // ИНДИКАТОР ЗАГРУЗКИ И ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ
+  // ============================================================
 
   Widget _buildThinkingIndicator() {
     return Padding(
