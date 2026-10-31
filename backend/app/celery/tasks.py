@@ -300,68 +300,209 @@ def process_invoice(session_id: str):
 def cleanup_old_files():
     import os
     import time
-    from datetime import datetime, timedelta
-    from app.models import ProcessingSession, PendingModel
-    
-    # === 1. Удаление старых файлов (как было) ===
-    directories = ['/app/uploads', '/app/templates', '/app/output']
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import or_
+
+    from app.models import (
+        ProcessingSession,
+        PendingModel,
+        PendingWeight,
+        PendingGtin,
+    )
+
+    # ============================================================
+    # 0. Константы
+    # ============================================================
+    PENDING_TTL_DAYS = 3       # через сколько pending считается брошенным
+    SESSION_TTL_DAYS = 3      # через сколько удаляем сессии
+    FILE_TTL_HOURS = 24        # файлы старше N часов удаляем
+
+    now = datetime.now(timezone.utc)
+
+    # ============================================================
+    # 1. Удаление старых файлов
+    # ============================================================
+    directories = ["/app/uploads", "/app/templates", "/app/output"]
     deleted_files = 0
-    threshold_time = time.time() - 86400  # 1 день
+    threshold_time = time.time() - FILE_TTL_HOURS * 3600
 
     for directory in directories:
-        if os.path.exists(directory):
-            for filename in os.listdir(directory):
-                filepath = os.path.join(directory, filename)
-                if os.path.isfile(filepath):
-                    if os.path.getmtime(filepath) < threshold_time:
-                        try:
-                            os.remove(filepath)
-                            deleted_files += 1
-                            print(f'🗑️ Удален файл: {filename}')
-                        except Exception as e:
-                            print(f'❌ Не удалось удалить файл {filename}: {e}')
+        if not os.path.exists(directory):
+            continue
+        for filename in os.listdir(directory):
+            filepath = os.path.join(directory, filename)
+            if not os.path.isfile(filepath):
+                continue
+            if os.path.getmtime(filepath) >= threshold_time:
+                continue
+            try:
+                os.remove(filepath)
+                deleted_files += 1
+                print(f"🗑️ Удален файл: {filename}")
+            except Exception as e:
+                print(f"❌ Не удалось удалить файл {filename}: {e}")
 
-    # === 2. Удаление старых сессий из базы ===
-    # Используем синхронное подключение (Celery работает синхронно)
+    # ============================================================
+    # 2. Работа с БД
+    # ============================================================
     DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        return f"🗑️ Удалено файлов: {deleted_files}, БД пропущена (нет DATABASE_URL)"
+
     sync_engine = create_engine(DATABASE_URL)
     SessionLocal = sessionmaker(bind=sync_engine)
 
     deleted_sessions = 0
-    threshold_date = datetime.utcnow() - timedelta(days=30)  # 30 дней
+    skipped_pending = {"models": 0, "weights": 0, "gtins": 0}
+    pending_cutoff = now - timedelta(days=PENDING_TTL_DAYS)
+    session_cutoff = now - timedelta(days=SESSION_TTL_DAYS)
 
     try:
         with SessionLocal() as db:
-            # Ищем сессии старше 30 дней
-            old_sessions = db.query(ProcessingSession).filter(
-                ProcessingSession.created_at < threshold_date
-            ).all()
+            # ----------------------------------------------------
+            # 2.1 Автоскип pending старше 3 дней
+            # ----------------------------------------------------
+            n = (
+                db.query(PendingModel)
+                .filter(
+                    PendingModel.status == "pending",
+                    PendingModel.created_at < pending_cutoff,
+                )
+                .update(
+                    {"status": "skipped", "updated_at": now},
+                    synchronize_session=False,
+                )
+            )
+            skipped_pending["models"] = n or 0
 
-            for session in old_sessions:
-                # Проверяем, есть ли у сессии незавершенные pending-модели
-                pending_count = db.query(PendingModel).filter(
-                    PendingModel.session_id == session.session_id,
-                    PendingModel.status == "pending"
-                ).count()
+            n = (
+                db.query(PendingWeight)
+                .filter(
+                    PendingWeight.status == "pending",
+                    PendingWeight.created_at < pending_cutoff,
+                )
+                .update(
+                    {"status": "skipped", "updated_at": now},
+                    synchronize_session=False,
+                )
+            )
+            skipped_pending["weights"] = n or 0
 
-                if pending_count > 0:
-                    # Пропускаем сессию, если есть незавершенные подтверждения
-                    print(f"⏭️ Пропуск сессии {session.session_id[:8]} — есть {pending_count} pending-моделей")
-                    continue
-
-                # Удаляем сессию
-                db.delete(session)
-                deleted_sessions += 1
-                print(f'🗑️ Удалена сессия: {session.session_id[:8]}')
+            n = (
+                db.query(PendingGtin)
+                .filter(
+                    PendingGtin.status == "pending",
+                    PendingGtin.created_at < pending_cutoff,
+                )
+                .update(
+                    {"status": "skipped", "updated_at": now},
+                    synchronize_session=False,
+                )
+            )
+            skipped_pending["gtins"] = n or 0
 
             db.commit()
+
+            if any(skipped_pending.values()):
+                print(
+                    f"⏭️ Автоскип pending старше {PENDING_TTL_DAYS} дн.: "
+                    f"models={skipped_pending['models']}, "
+                    f"weights={skipped_pending['weights']}, "
+                    f"gtins={skipped_pending['gtins']}"
+                )
+
+            # ----------------------------------------------------
+            # 2.2 Помечаем зависшие сессии как error
+            # (те, что старше 30 дней и всё ещё в pending_*)
+            # ----------------------------------------------------
+            stuck_statuses = ("pending_approval", "pending_weights")
+            stuck_sessions = (
+                db.query(ProcessingSession)
+                .filter(
+                    ProcessingSession.created_at < session_cutoff,
+                    ProcessingSession.status.in_(stuck_statuses),
+                )
+                .all()
+            )
+            for s in stuck_sessions:
+                s.status = "error"
+                s.errors = (
+                    "Автоматически отменено: сессия зависла в "
+                    f"'{s.status}' более {SESSION_TTL_DAYS} дней"
+                )
+                print(f"⚠️ Сессия {s.session_id[:8]} помечена как error (зависла)")
+
+            db.commit()
+
+            # ----------------------------------------------------
+            # 2.3 Удаление старых сессий (без активных pending)
+            # ----------------------------------------------------
+            old_sessions = (
+                db.query(ProcessingSession)
+                .filter(ProcessingSession.created_at < session_cutoff)
+                .all()
+            )
+
+            for session in old_sessions:
+                sid = session.session_id
+
+                # Проверяем ВСЕ три таблицы pending
+                has_models = (
+                    db.query(PendingModel.id)
+                    .filter(
+                        PendingModel.session_id == sid,
+                        PendingModel.status == "pending",
+                    )
+                    .first()
+                    is not None
+                )
+                has_weights = (
+                    db.query(PendingWeight.id)
+                    .filter(
+                        PendingWeight.session_id == sid,
+                        PendingWeight.status == "pending",
+                    )
+                    .first()
+                    is not None
+                )
+                has_gtins = (
+                    db.query(PendingGtin.id)
+                    .filter(
+                        PendingGtin.session_id == sid,
+                        PendingGtin.status == "pending",
+                    )
+                    .first()
+                    is not None
+                )
+
+                if has_models or has_weights or has_gtins:
+                    print(
+                        f"⏭️ Пропуск сессии {sid[:8]} — "
+                        f"есть pending (models={has_models}, "
+                        f"weights={has_weights}, gtins={has_gtins})"
+                    )
+                    continue
+
+                db.delete(session)
+                deleted_sessions += 1
+                print(f"🗑️ Удалена сессия: {sid[:8]}")
+
+            db.commit()
+
     except Exception as e:
         print(f"❌ Ошибка очистки сессий: {e}")
+        import traceback
+
+        traceback.print_exc()
     finally:
         sync_engine.dispose()
 
-    return f'🗑️ Удалено файлов: {deleted_files}, сессий: {deleted_sessions}'
-
+    return (
+        f"🗑️ Удалено файлов: {deleted_files}, сессий: {deleted_sessions}; "
+        f"автоскип pending: models={skipped_pending['models']}, "
+        f"weights={skipped_pending['weights']}, "
+        f"gtins={skipped_pending['gtins']}"
+    )
 
 @celery_app.task(name="process_packing_list")
 def process_packing_list(session_id: str):
