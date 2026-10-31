@@ -18,11 +18,10 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 # --- Конфигурация OpenRouter (fallback) ---
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-# Для OpenRouter можно использовать те же модели, либо другие (например, google/gemini-2.5-flash)
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "openai/gpt-oss-20b") 
 
 TIMEOUT = 30.0
-MAX_RETRIES = 1  # Уменьшили, чтобы быстрее переключаться
+MAX_RETRIES = 1
 RETRY_BACKOFF = [3.0]
 RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
@@ -125,7 +124,7 @@ async def groq_chat(
     tools: Optional[List[Dict[str, Any]]] = None,
     model: str = GROQ_MODEL,
     temperature: float = 0.0,
-    max_tokens: int = 300,  # Базовый лимит для Groq
+    max_tokens: int = 300,
     reasoning_effort: Optional[str] = "low",
 ) -> Dict[str, Any]:
     """
@@ -149,7 +148,7 @@ async def groq_chat(
         groq_key = _get_groq_key()
         return await _call_openai_compatible(
             GROQ_URL, groq_key, body, "Groq", 
-            max_tokens_override=300  # Groq: строго 300
+            max_tokens_override=300  # Groq: строго 300 токенов
         )
     except GroqError as e:
         logger.warning(f"Groq недоступен ({e}), переключаемся на OpenRouter...")
@@ -157,64 +156,15 @@ async def groq_chat(
     # --- 2. Пробуем OpenRouter (fallback) ---
     openrouter_key = _get_openrouter_key()
     if not openrouter_key:
-        raise GroqError("Groq недоступен, а OPENROUTER_API_KEY не задан. Добавь ключ в .env для fallback.")
+        raise GroqError("Groq недоступен, а OPENROUTER_API_KEY не задан.")
 
     body["model"] = OPENROUTER_MODEL
     body.pop("reasoning_effort", None)
     body.pop("reasoning_format", None)
 
     logger.info(f"Fallback на OpenRouter (model={OPENROUTER_MODEL})")
-    # OpenRouter: 1500 токенов, чтобы влезали длинные списки
+    # OpenRouter: 3000 токенов, чтобы влезали длинные списки
     return await _call_openai_compatible(
         OPENROUTER_URL, openrouter_key, body, "OpenRouter",
-        max_tokens_override=1500 
+        max_tokens_override=3000 
     )
-
-async def groq_chat(
-    messages: List[Dict[str, Any]],
-    tools: Optional[List[Dict[str, Any]]] = None,
-    model: str = GROQ_MODEL,
-    temperature: float = 0.0,
-    max_tokens: int = 300,
-    reasoning_effort: Optional[str] = "low",
-) -> Dict[str, Any]:
-    """
-    Пытается вызвать Groq. При ошибке 429 (или другой) переключается на OpenRouter.
-    """
-    body: Dict[str, Any] = {
-        "model": model,
-        "messages": messages,
-        "temperature": temperature,
-        "max_tokens": max_tokens,
-    }
-    if tools:
-        body["tools"] = tools
-        body["tool_choice"] = "auto"
-    if reasoning_effort:
-        body["reasoning_effort"] = reasoning_effort
-        body["reasoning_format"] = "hidden"
-
-    # --- 1. Пробуем Groq ---
-    try:
-        groq_key = _get_groq_key()
-        return await _call_openai_compatible(GROQ_URL, groq_key, body, "Groq")
-    except GroqError as e:
-        logger.warning(f"Groq недоступен ({e}), переключаемся на OpenRouter...")
-        # Продолжаем выполнение, чтобы попробовать OpenRouter
-
-    # --- 2. Пробуем OpenRouter (fallback) ---
-    openrouter_key = _get_openrouter_key()
-    if not openrouter_key:
-        raise GroqError(
-            "Groq недоступен, а OPENROUTER_API_KEY не задан. "
-            "Добавь ключ в .env для fallback."
-        )
-
-    # Для OpenRouter используем свою модель
-    body["model"] = OPENROUTER_MODEL
-    # Убираем reasoning_effort, если OpenRouter его не поддерживает (обычно не поддерживает)
-    body.pop("reasoning_effort", None)
-    body.pop("reasoning_format", None)
-
-    logger.info(f"Fallback на OpenRouter (model={OPENROUTER_MODEL})")
-    return await _call_openai_compatible(OPENROUTER_URL, openrouter_key, body, "OpenRouter")
