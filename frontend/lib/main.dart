@@ -31,11 +31,47 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'VED Processor',
-        theme: ThemeData(
-          primarySwatch: Colors.blue,
-          useMaterial3: true,
-        ),
         debugShowCheckedModeBanner: false,
+
+        // ============================================================
+        // СВЕТЛАЯ ТЕМА
+        // ============================================================
+        theme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.light,
+          primarySwatch: Colors.blue,
+          scaffoldBackgroundColor: const Color(0xFFF5F6F8),
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+            elevation: 0,
+          ),
+          cardColor: Colors.white,
+          dialogBackgroundColor: Colors.white,
+        ),
+
+        // ============================================================
+        // ТЕМНАЯ ТЕМА
+        // ============================================================
+        darkTheme: ThemeData(
+          useMaterial3: true,
+          brightness: Brightness.dark,
+          primarySwatch: Colors.blue,
+          scaffoldBackgroundColor: const Color(0xFF121212), // Темный фон
+          appBarTheme: const AppBarTheme(
+            backgroundColor: Color(0xFF1E1E1E),
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+          cardColor: const Color(0xFF1E1E1E), // Темные карточки
+          dialogBackgroundColor: const Color(0xFF2C2C2C), // Темные диалоги
+          dividerColor: Colors.grey.shade800,
+        ),
+
+        // Подстраиваться под систему (светлая/темная на телефоне/ПК)
+        // Если хочешь принудительно включить темную — поставь ThemeMode.dark
+        themeMode: ThemeMode.system,
+
         // Basic Auth на nginx уже проверил пользователя —
         // сразу открываем главный экран.
         home: const HomeScreen(),

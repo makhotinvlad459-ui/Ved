@@ -7,8 +7,11 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      // Фон берется из темы (в светлой - #F5F6F8, в темной - #121212)
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
@@ -33,7 +36,7 @@ class HomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.shade100,
+                              color: Colors.blue.shade100.withOpacity(isDark ? 0.1 : 1.0),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -63,7 +66,7 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  // ============ ЗАГОЛОВОК + ЧАСЫ В СТРОКУ ============
+                  // ============ ЗАГОЛОВОК + ЧАСЫ ============
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth >= 800;
@@ -89,7 +92,6 @@ class HomeScreen extends StatelessWidget {
                         ],
                       );
 
-                      // На узких экранах часы уходят вниз, на широких — справа
                       if (!isWide) {
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,13 +269,15 @@ class _GroupLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Row(
       children: [
         Container(
           width: 4,
           height: 16,
           decoration: BoxDecoration(
-            color: Colors.blue.shade400,
+            color: isDark ? Colors.blue.shade300 : Colors.blue.shade400,
             borderRadius: BorderRadius.circular(2),
           ),
         ),
@@ -283,7 +287,7 @@ class _GroupLabel extends StatelessWidget {
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
-            color: Colors.grey.shade700,
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
             letterSpacing: 1.2,
           ),
         ),
@@ -340,8 +344,11 @@ class _CompactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Material(
-      color: Colors.white,
+      // Фон карточки берется из темы (в темной - #1E1E1E)
+      color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(14),
       elevation: 0,
       child: InkWell(
@@ -351,10 +358,15 @@ class _CompactCard extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey.shade200, width: 1),
+            border: Border.all(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, 
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: isDark 
+                    ? Colors.black.withOpacity(0.2) 
+                    : Colors.black.withOpacity(0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -368,8 +380,8 @@ class _CompactCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      item.color.withOpacity(0.15),
-                      item.color.withOpacity(0.05),
+                      item.color.withOpacity(isDark ? 0.25 : 0.15),
+                      item.color.withOpacity(isDark ? 0.1 : 0.05),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -392,7 +404,7 @@ class _CompactCard extends StatelessWidget {
               ),
               Icon(
                 Icons.chevron_right,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                 size: 20,
               ),
             ],

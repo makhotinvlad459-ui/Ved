@@ -50,13 +50,12 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   final List<_AiMessage> _messages = [];
   bool _isSending = false;
 
-  // Статичный список возможностей
   final List<Map<String, dynamic>> _capabilities = [
     {
       'icon': Icons.inventory_2_outlined,
       'color': Colors.blue,
       'title': 'Поиск и статистика',
-      'desc': '«Сколько всего товаров?», «Найди sport band», «Покажи категории»',
+      'desc': '«Сколько всего товаров?», «Покажи категории»',
     },
     {
       'icon': Icons.scale_outlined,
@@ -81,12 +80,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       'color': Colors.teal,
       'title': 'Проверка списков',
       'desc': 'Вставь список артикулов и спроси «Каких из них нет в базе?»',
-    },
-    {
-      'icon': Icons.smart_toy_outlined,
-      'color': Colors.pink,
-      'title': 'Просто поболтать',
-      'desc': '«Кто тебя сделал?», «Расскажи анекдот»',
     },
   ];
 
@@ -114,13 +107,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     final t = text.trim();
     if (t.isEmpty || _isSending) return;
 
-    // Перехват текстового подтверждения
     final lowerText = t.toLowerCase();
     if (lowerText == 'да' || lowerText == 'yes' || lowerText == 'ок' || lowerText == 'подтверждаю') {
       for (var i = _messages.length - 1; i >= 0; i--) {
         final msg = _messages[i];
         if (msg.type == AiMsgType.confirmation && !msg.resolved) {
           _inputController.clear();
+          setState(() => msg.resolved = true); // Блокируем кнопку сразу
           await _confirm(msg, true);
           return;
         }
@@ -131,6 +124,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
         final msg = _messages[i];
         if (msg.type == AiMsgType.confirmation && !msg.resolved) {
           _inputController.clear();
+          setState(() => msg.resolved = true);
           await _confirm(msg, false);
           return;
         }
@@ -294,6 +288,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -314,13 +310,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             const SizedBox(width: 10),
             const Text('AI-ассистент'),
           ],
-        ),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
         ),
         actions: [
           if (_messages.isNotEmpty)
@@ -356,10 +345,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
       },
     );
   }
-
-  // ============================================================
-  // ПУСТОЙ ЭКРАН (СПИСОК ВОЗМОЖНОСТЕЙ)
-  // ============================================================
 
   Widget _buildEmptyState() {
     return SingleChildScrollView(
@@ -400,7 +385,6 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           ),
           const SizedBox(height: 32),
           
-          // Список возможностей
           ..._capabilities.map((cap) => _buildCapabilityRow(
             icon: cap['icon'],
             color: cap['color'],
@@ -459,11 +443,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  // ============================================================
-  // ИНДИКАТОР ЗАГРУЗКИ И ОСТАЛЬНЫЕ ЭЛЕМЕНТЫ
-  // ============================================================
-
   Widget _buildThinkingIndicator() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
@@ -473,7 +454,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
               borderRadius: BorderRadius.circular(16),
             ),
             child: Row(
@@ -487,7 +468,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 const SizedBox(width: 10),
                 Text(
                   'Думаю...',
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                    fontSize: 13,
+                  ),
                 ),
               ],
             ),
@@ -569,6 +553,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Widget _bubbleAi(_AiMessage m, {required Color iconColor, bool isError = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -580,9 +566,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isError ? Colors.red.shade50 : Colors.white,
+                color: isError 
+                    ? (isDark ? Colors.red.shade900.withOpacity(0.2) : Colors.red.shade50) 
+                    : (isDark ? const Color(0xFF1E1E1E) : Colors.white),
                 border: Border.all(
-                  color: isError ? Colors.red.shade200 : Colors.grey.shade200,
+                  color: isError 
+                      ? Colors.red.shade200 
+                      : (isDark ? Colors.grey.shade700 : Colors.grey.shade200),
                 ),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
@@ -594,14 +584,24 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SelectableText(
-                    m.text,
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.45,
-                      color: isError ? Colors.red.shade900 : Colors.black87,
+                  // --- СКРОЛЛ ДЛЯ ДЛИННЫХ СООБЩЕНИЙ ---
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 400),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        m.text,
+                        style: TextStyle(
+                          fontSize: 14,
+                          height: 1.45,
+                          color: isError 
+                              ? (isDark ? Colors.red.shade200 : Colors.red.shade900) 
+                              : (isDark ? Colors.grey.shade200 : Colors.black87),
+                        ),
+                      ),
                     ),
                   ),
+                  // ------------------------------------
+                  
                   if (m.toolsUsed != null && m.toolsUsed!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
@@ -613,14 +613,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.blueGrey.shade50,
+                              color: isDark ? Colors.grey.shade800 : Colors.blueGrey.shade50,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
                               t,
                               style: TextStyle(
                                 fontSize: 10,
-                                color: Colors.blueGrey.shade700,
+                                color: isDark ? Colors.grey.shade300 : Colors.blueGrey.shade700,
                                 fontFamily: 'monospace',
                               ),
                             ),
@@ -667,6 +667,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
   }
 
   Widget _bubbleConfirmation(_AiMessage m) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final preview = m.preview ?? {};
     final items = (preview['items'] as List?) ?? [];
     final count = preview['count'] ?? items.length;
@@ -682,7 +683,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           Flexible(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
                 border: Border.all(color: Colors.orange.shade200),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
@@ -698,7 +699,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
+                      color: isDark ? Colors.orange.shade900.withOpacity(0.2) : Colors.orange.shade50,
                       borderRadius: const BorderRadius.only(
                         topRight: Radius.circular(16),
                         topLeft: Radius.circular(4),
@@ -707,7 +708,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                     child: Row(
                       children: [
                         Icon(Icons.warning_amber_rounded,
-                            size: 18, color: Colors.orange.shade800),
+                            size: 18, color: isDark ? Colors.orange.shade300 : Colors.orange.shade800),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -715,7 +716,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
-                              color: Colors.orange.shade900,
+                              color: isDark ? Colors.orange.shade200 : Colors.orange.shade900,
                             ),
                           ),
                         ),
@@ -738,14 +739,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                             constraints: const BoxConstraints(maxHeight: 220),
                             child: Container(
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
+                                color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: ListView.separated(
                                 shrinkWrap: true,
                                 itemCount: items.length,
                                 separatorBuilder: (_, __) =>
-                                    Divider(height: 1, color: Colors.grey.shade200),
+                                    Divider(height: 1, color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
                                 itemBuilder: (context, idx) {
                                   final it = items[idx] as Map<String, dynamic>;
                                   return Padding(
@@ -769,7 +770,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             fontSize: 11,
-                                            color: Colors.grey.shade700,
+                                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
                                           ),
                                         ),
                                         if (it.containsKey('old_weight') ||
@@ -780,7 +781,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                                               '${it['old_weight'] ?? '—'} кг → ${it['new_weight']} кг',
                                               style: TextStyle(
                                                 fontSize: 11,
-                                                color: Colors.orange.shade800,
+                                                color: isDark ? Colors.orange.shade300 : Colors.orange.shade800,
                                                 fontWeight: FontWeight.w500,
                                               ),
                                             ),
@@ -815,14 +816,14 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                             children: [
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: _isSending
+                                  onPressed: (_isSending || isResolved)
                                       ? null
                                       : () => _confirm(m, false),
                                   icon: const Icon(Icons.close, size: 16),
                                   label: const Text('Отмена'),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.grey.shade700,
-                                    side: BorderSide(color: Colors.grey.shade300),
+                                    foregroundColor: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                                    side: BorderSide(color: isDark ? Colors.grey.shade600 : Colors.grey.shade300),
                                     padding:
                                         const EdgeInsets.symmetric(vertical: 10),
                                   ),
@@ -832,7 +833,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                               Expanded(
                                 flex: 2,
                                 child: ElevatedButton.icon(
-                                  onPressed: _isSending
+                                  onPressed: (_isSending || isResolved)
                                       ? null
                                       : () => _confirm(m, true),
                                   icon: const Icon(Icons.check, size: 16),
@@ -859,18 +860,16 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
     );
   }
 
-  // ============================================================
-  // ПОЛЕ ВВОДА
-  // ============================================================
-
   Widget _buildInput() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        border: Border(top: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.03),
+            color: isDark ? Colors.black.withOpacity(0.2) : Colors.black.withOpacity(0.03),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
@@ -884,7 +883,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
             child: Container(
               constraints: const BoxConstraints(maxHeight: 140),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(22),
               ),
               child: TextField(
@@ -894,11 +893,12 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
                 maxLines: 5,
                 textInputAction: TextInputAction.send,
                 onSubmitted: _send,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Спроси что-нибудь...',
+                  hintStyle: TextStyle(color: isDark ? Colors.grey.shade500 : Colors.grey),
                   border: InputBorder.none,
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
                 style: const TextStyle(fontSize: 14),
               ),
@@ -906,7 +906,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           ),
           const SizedBox(width: 8),
           Material(
-            color: _isSending ? Colors.grey.shade300 : Colors.deepPurple,
+            color: _isSending 
+                ? Colors.grey.shade300 
+                : Colors.deepPurple,
             borderRadius: BorderRadius.circular(22),
             child: InkWell(
               onTap: _isSending

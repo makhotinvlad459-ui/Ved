@@ -435,9 +435,6 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('For Alice'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -460,6 +457,8 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   // ============================================================
 
   Widget _buildInput() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -587,8 +586,9 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                     child: Padding(
                       padding: const EdgeInsets.only(top: 12),
                       child: Text('${idx + 1}',
-                          style: const TextStyle(
-                              fontSize: 12, color: Colors.grey)),
+                          style: TextStyle(
+                              fontSize: 12, 
+                              color: isDark ? Colors.grey.shade500 : Colors.grey)),
                     ),
                   ),
                   const SizedBox(width: 6),
@@ -690,14 +690,17 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   // ============================================================
 
   Widget _buildResults() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       children: [
-        // === БЛОК ИТОГОВ (БЕЗ НАДПИСИ РЕЗУЛЬТАТЫ) ===
+        // === БЛОК ИТОГОВ ===
         if (!_hasMissing && _totals != null)
           Padding(
             padding: const EdgeInsets.only(top: 16.0, left: 16.0, right: 16.0, bottom: 8.0),
             child: Card(
-              color: Colors.teal.shade50,
+              // Фон карточки из темы
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.teal.shade50,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Column(
@@ -709,16 +712,16 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                       spacing: 16,
                       runSpacing: 8,
                       children: [
-                        _info('Общий вес', '${_num(_totals!['total_weight'])} кг'),
-                        _info('Итого сумма', '${_num(_totals!['total_sum'])} AED', highlight: true),
-                        _info('Логистика (USD/кг)', _num(_totals!['logistics_rate_usd'])),
-                        _info('Курс USD → AED', _num(_totals!['usd_to_aed'])),
-                        _info('Документы (AED)', _num(_totals!['documents_cost_aed'])),
-                        _info('Логистика всего (USD)', _num(_totals!['logistics_total_usd'])),
-                        _info('Логистика всего (AED)', _num(_totals!['logistics_total_aed'])),
-                        _info('Итого логистика (AED)', _num(_totals!['total_logistics_aed'])),
-                        _info('Ставка (AED/кг)', _num(_totals!['rate_aed_per_kg'])),
-                        _info('Ставка (USD/кг)', _num(_totals!['rate_usd_per_kg'])),
+                        _info('Общий вес', '${_num(_totals!['total_weight'])} кг', isDark: isDark),
+                        _info('Итого сумма', '${_num(_totals!['total_sum'])} AED', highlight: true, isDark: isDark),
+                        _info('Логистика (USD/кг)', _num(_totals!['logistics_rate_usd']), isDark: isDark),
+                        _info('Курс USD → AED', _num(_totals!['usd_to_aed']), isDark: isDark),
+                        _info('Документы (AED)', _num(_totals!['documents_cost_aed']), isDark: isDark),
+                        _info('Логистика всего (USD)', _num(_totals!['logistics_total_usd']), isDark: isDark),
+                        _info('Логистика всего (AED)', _num(_totals!['logistics_total_aed']), isDark: isDark),
+                        _info('Итого логистика (AED)', _num(_totals!['total_logistics_aed']), isDark: isDark),
+                        _info('Ставка (AED/кг)', _num(_totals!['rate_aed_per_kg']), isDark: isDark),
+                        _info('Ставка (USD/кг)', _num(_totals!['rate_usd_per_kg']), isDark: isDark),
                       ],
                     ),
                   ],
@@ -734,20 +737,23 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             child: Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: isDark ? Colors.orange.shade900.withOpacity(0.2) : Colors.orange.shade50,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade300),
+                border: Border.all(color: isDark ? Colors.orange.shade700 : Colors.orange.shade300),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.warning_amber, color: Colors.orange.shade700),
+                      Icon(Icons.warning_amber, color: isDark ? Colors.orange.shade300 : Colors.orange.shade700),
                       const SizedBox(width: 8),
                       Text(
                         'Не найдены веса: ${_missing.length}',
-                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, 
+                          color: isDark ? Colors.orange.shade200 : Colors.orange.shade900,
+                        ),
                       ),
                     ],
                   ),
@@ -760,6 +766,8 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                     final name = m['name'] ?? '';
                     return Card(
                       margin: const EdgeInsets.only(bottom: 8),
+                      // Фон карточки из темы
+                      color: Theme.of(context).cardColor,
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Column(
@@ -779,7 +787,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
                             ),
                             Row(
                               children: [
-                                Expanded(child: SelectableText(name, style: TextStyle(fontSize: 12, color: Colors.grey[700]))),
+                                Expanded(child: SelectableText(name, style: TextStyle(fontSize: 12, color: isDark ? Colors.grey.shade400 : Colors.grey[700]))),
                                 IconButton(
                                   icon: const Icon(Icons.copy, size: 18),
                                   onPressed: () {
@@ -808,7 +816,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
             ),
           ),
 
-        // === ТАБЛИЦА (СРАЗУ ПОСЛЕ ИТОГОВ) ===
+        // === ТАБЛИЦА ===
         if (_resultRows.isNotEmpty)
           Expanded(
             child: ForAliceResultsTable(
@@ -849,19 +857,21 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     );
   }
 
-  Widget _info(String label, String value, {bool highlight = false}) {
+  Widget _info(String label, String value, {bool highlight = false, bool isDark = false}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text(label, style: TextStyle(fontSize: 11, color: isDark ? Colors.grey.shade500 : Colors.grey.shade600)),
         const SizedBox(height: 2),
         Text(
           value,
           style: TextStyle(
             fontSize: 14,
             fontWeight: highlight ? FontWeight.bold : FontWeight.w500,
-            color: highlight ? Colors.teal.shade900 : Colors.black87,
+            color: highlight 
+                ? (isDark ? Colors.teal.shade200 : Colors.teal.shade900) 
+                : (isDark ? Colors.white : Colors.black87),
           ),
         ),
       ],
