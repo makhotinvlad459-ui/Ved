@@ -1,4 +1,3 @@
-import 'dart:html' as html;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
@@ -26,7 +25,7 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
       if (result != null && result.files.single.bytes != null) {
         setState(() {
           _invoiceResult = result;
-          _textResult = ''; // сброс
+          _textResult = '';
         });
       }
     } catch (e) {
@@ -53,19 +52,17 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
 
     try {
       final api = Provider.of<ApiService>(context, listen: false);
-      
-      // Отправляем на НОВЫЙ эндпоинт (мгновенный парсинг)
+
       final result = await api.getDeclarationText(
         bytes: bytes,
         fileName: _invoiceResult!.files.single.name,
       );
-      
+
       if (!mounted) return;
       setState(() {
         _textResult = result['text'] ?? 'Нет данных';
         _isLoading = false;
       });
-      
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -84,11 +81,20 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Адаптивные цвета
+    final cardBg = scheme.surfaceContainerHighest;
+    final resultBg = scheme.surfaceContainerLow;
+    final borderColor = scheme.outlineVariant;
+    final mutedText = scheme.onSurfaceVariant;
+
     return Scaffold(
+      // AppBar без ручных цветов — берёт из темы автоматически
       appBar: AppBar(
         title: const Text('Декларирование'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -100,14 +106,18 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Загрузка инвойса',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: scheme.onSurface, // явный цвет — иначе в тёмной теме может пропасть
+              ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Выберите инвойс — мы извлечем модели и сформируем текст для письма.',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(color: mutedText),
             ),
             const SizedBox(height: 24),
 
@@ -116,10 +126,10 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
               child: Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: cardBg,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: _invoiceResult != null ? Colors.blue : Colors.grey.shade300,
+                    color: _invoiceResult != null ? scheme.primary : borderColor,
                     width: _invoiceResult != null ? 2 : 1,
                   ),
                 ),
@@ -129,23 +139,26 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.1),
+                        color: scheme.primary.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.description, color: Colors.blue),
+                      child: Icon(Icons.description, color: scheme.primary),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Инвойс (xlsx)', style: TextStyle(fontSize: 14, color: Colors.grey)),
+                          Text('Инвойс (xlsx)',
+                              style: TextStyle(fontSize: 14, color: mutedText)),
                           Text(
                             _invoiceResult?.files.single.name ?? 'Нажмите для выбора',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w500,
-                              color: _invoiceResult != null ? Colors.black : Colors.grey,
+                              color: _invoiceResult != null
+                                  ? scheme.onSurface
+                                  : mutedText,
                             ),
                           ),
                         ],
@@ -161,22 +174,32 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
               onPressed: _isLoading ? null : _uploadAndProcess,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
+                backgroundColor: scheme.primary,
+                foregroundColor: scheme.onPrimary,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
               child: _isLoading
-                  ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                  : const Text('Сгенерировать текст', style: TextStyle(fontSize: 16)),
+                  ? SizedBox(
+                      height: 24,
+                      width: 24,
+                      child: CircularProgressIndicator(
+                          color: scheme.onPrimary, strokeWidth: 2),
+                    )
+                  : const Text('Сгенерировать текст',
+                      style: TextStyle(fontSize: 16)),
             ),
 
             if (_textResult.isNotEmpty) ...[
               const SizedBox(height: 32),
               Row(
                 children: [
-                  const Text(
+                  Text(
                     'Результат:',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: scheme.onSurface,
+                    ),
                   ),
                   const Spacer(),
                   ElevatedButton.icon(
@@ -184,7 +207,9 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
                     icon: const Icon(Icons.copy, size: 18),
                     label: const Text('Скопировать'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
+                      backgroundColor: isDark
+                          ? Colors.teal.shade400
+                          : Colors.teal,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -195,14 +220,20 @@ class _DeclarationScreenState extends State<DeclarationScreen> {
                 child: Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: resultBg,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: borderColor),
                   ),
                   child: SingleChildScrollView(
                     child: SelectableText(
                       _textResult,
-                      style: const TextStyle(fontSize: 15, height: 1.6, fontFamily: 'monospace'),
+                      // ЯВНО задаём цвет — иначе в тёмной теме текст не видно
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.6,
+                        fontFamily: 'monospace',
+                        color: scheme.onSurface,
+                      ),
                     ),
                   ),
                 ),
