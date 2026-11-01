@@ -22,6 +22,16 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
   List<dynamic> _items = [];
   bool _showItems = false;
 
+  // === Поиск по GTIN ===
+  final TextEditingController _gtinController = TextEditingController();
+  String _gtinQuery = '';
+
+  @override
+  void dispose() {
+    _gtinController.dispose();
+    super.dispose();
+  }
+
   Future<void> _pickFile() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -34,6 +44,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
           _showItems = false;
           _items = [];
           _selectedParts.clear();
+          _gtinController.clear();
+          _gtinQuery = '';
         });
       }
     } catch (e) {
@@ -74,6 +86,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
         _items = result['items'] ?? [];
         _showItems = true;
         _isLoading = false;
+        _gtinQuery = '';
+        _gtinController.clear();
         // По умолчанию НИЧЕГО не выбрано
       });
 
@@ -135,16 +149,24 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
     }
   }
 
-  void _toggleAll() {
+  // === Фильтрация по GTIN ===
+  List<dynamic> get _filteredItems {
+    final q = _gtinQuery.trim();
+    if (q.isEmpty) return _items;
+    return _items.where((it) {
+      final gtin = (it['gtin'] ?? '').toString();
+      return gtin.contains(q);
+    }).toList();
+  }
+
+  // === Выбрать все (по отфильтрованному списку) ===
+  void _toggleAll(List<dynamic> source) {
     setState(() {
-      final allParts = _items
-          .map((it) => it['part_number'] as String)
-          .toSet()
-          .cast<String>();
-      if (_selectedParts.length == allParts.length && allParts.isNotEmpty) {
-        _selectedParts.clear();
+      final allParts =
+          source.map((it) => it['part_number'] as String).toSet();
+      if (_selectedParts.containsAll(allParts)) {
+        _selectedParts.removeAll(allParts);
       } else {
-        _selectedParts.clear();
         _selectedParts.addAll(allParts);
       }
     });
@@ -190,7 +212,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
                 ),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.credit_card_outlined, color: Colors.white, size: 30),
+              child: const Icon(Icons.credit_card_outlined,
+                  color: Colors.white, size: 30),
             ),
             const SizedBox(width: 16),
             const Expanded(
@@ -199,7 +222,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
                 children: [
                   Text(
                     'Создание карточек ЧЗ',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                    style:
+                        TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
                   Text(
@@ -232,7 +256,9 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: hasFile ? Colors.purple.withOpacity(0.15) : Colors.grey.shade100,
+                    color: hasFile
+                        ? Colors.purple.withOpacity(0.15)
+                        : Colors.grey.shade100,
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -284,7 +310,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
               ? const SizedBox(
                   height: 24,
                   width: 24,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
                 )
               : const Text('Распознать инвойс', style: TextStyle(fontSize: 16)),
         ),
@@ -293,19 +320,48 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
   }
 
   Widget _buildItemsList() {
-    final allParts = _items.map((it) => it['part_number'] as String).toSet();
+    final filtered = _filteredItems;
+    final allParts =
+        filtered.map((it) => it['part_number'] as String).toSet();
     final allSelected =
-        allParts.isNotEmpty && _selectedParts.length == allParts.length;
+        allParts.isNotEmpty && _selectedParts.containsAll(allParts);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // === Поиск по GTIN ===
+        TextField(
+          controller: _gtinController,
+          keyboardType: TextInputType.number,
+          onChanged: (v) => setState(() => _gtinQuery = v),
+          decoration: InputDecoration(
+            hintText: 'Поиск по GTIN',
+            prefixIcon: const Icon(Icons.qr_code_2),
+            suffixIcon: _gtinQuery.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _gtinController.clear();
+                      setState(() => _gtinQuery = '');
+                    },
+                  )
+                : null,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          ),
+        ),
+        const SizedBox(height: 12),
+
         Row(
           children: [
             Expanded(
               child: Text(
-                'Найдено позиций: ${_items.length}',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                'Найдено позиций: ${filtered.length}',
+                style: const TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
             Text(
@@ -320,7 +376,7 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
           children: [
             Checkbox(
               value: allSelected,
-              onChanged: (_) => _toggleAll(),
+              onChanged: (_) => _toggleAll(filtered),
             ),
             const Text('Выбрать все'),
             const Spacer(),
@@ -331,6 +387,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
                   _items = [];
                   _selectedParts.clear();
                   _invoiceResult = null;
+                  _gtinController.clear();
+                  _gtinQuery = '';
                 });
               },
               icon: const Icon(Icons.refresh, size: 18),
@@ -341,61 +399,82 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
         const SizedBox(height: 8),
 
         Expanded(
-          child: ListView.builder(
-            itemCount: _items.length,
-            itemBuilder: (context, index) {
-              final it = _items[index];
-              final partNumber = it['part_number'] as String;
-              final isSelected = _selectedParts.contains(partNumber);
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text(
+                    _gtinQuery.isEmpty
+                        ? 'Нет позиций'
+                        : 'По GTIN «$_gtinQuery» ничего не найдено',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                )
+              : ListView.builder(
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    final it = filtered[index];
+                    final partNumber = it['part_number'] as String;
+                    final isSelected = _selectedParts.contains(partNumber);
 
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: CheckboxListTile(
-                  value: isSelected,
-                  onChanged: (v) {
-                    setState(() {
-                      if (v == true) {
-                        _selectedParts.add(partNumber);
-                      } else {
-                        _selectedParts.remove(partNumber);
-                      }
-                    });
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        onChanged: (v) {
+                          setState(() {
+                            if (v == true) {
+                              _selectedParts.add(partNumber);
+                            } else {
+                              _selectedParts.remove(partNumber);
+                            }
+                          });
+                        },
+                        title: Text(
+                          partNumber,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              it['description'] ?? '',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.grey[700]),
+                            ),
+                            const SizedBox(height: 6),
+                            // === GTIN отдельной строкой ===
+                            Text(
+                              'GTIN: ${it['gtin'] ?? '—'}',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blueGrey.shade700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _badge(it['category'] ?? '—', Colors.purple),
+                                if (it['rom_gb'] != null)
+                                  _badge(
+                                      '${it['rom_gb']}GB', Colors.orange),
+                                if (it['cpu_model'] != null)
+                                  _badge(it['cpu_model'], Colors.green),
+                              ],
+                            ),
+                          ],
+                        ),
+                        activeColor: Colors.purple,
+                        controlAffinity: ListTileControlAffinity.leading,
+                      ),
+                    );
                   },
-                  title: Text(
-                    partNumber,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text(
-                        it['description'] ?? '',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 6),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 4,
-                        children: [
-                          _badge(it['category'] ?? '—', Colors.purple),
-                          _badge('GTIN: ${it['gtin'] ?? ''}', Colors.blueGrey),
-                          if (it['rom_gb'] != null)
-                            _badge('${it['rom_gb']}GB', Colors.orange),
-                          if (it['cpu_model'] != null)
-                            _badge(it['cpu_model'], Colors.green),
-                        ],
-                      ),
-                    ],
-                  ),
-                  activeColor: Colors.purple,
-                  controlAffinity: ListTileControlAffinity.leading,
                 ),
-              );
-            },
-          ),
         ),
         const SizedBox(height: 12),
 
@@ -413,7 +492,8 @@ class _CzCardsScreenState extends State<CzCardsScreen> {
               ? const SizedBox(
                   height: 24,
                   width: 24,
-                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                      color: Colors.white, strokeWidth: 2),
                 )
               : Text(
                   'Сгенерировать выбранные (${_selectedParts.length})',
@@ -471,7 +551,8 @@ class _CzCardsResultScreenState extends State<CzCardsResultScreen> {
       final blob = html.Blob([bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
       final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'cz_cards_${widget.sessionId.substring(0, 8)}.zip')
+        ..setAttribute(
+            'download', 'cz_cards_${widget.sessionId.substring(0, 8)}.zip')
         ..click();
       html.Url.revokeObjectUrl(url);
 
@@ -519,7 +600,8 @@ class _CzCardsResultScreenState extends State<CzCardsResultScreen> {
                   color: Colors.green.shade50,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(Icons.check_circle, color: Colors.green.shade500, size: 48),
+                child: Icon(Icons.check_circle,
+                    color: Colors.green.shade500, size: 48),
               ),
               const SizedBox(height: 24),
               const Text(
@@ -573,12 +655,14 @@ class _CzCardsResultScreenState extends State<CzCardsResultScreen> {
                 icon: const Icon(Icons.download),
                 label: const Text(
                   'Скачать архив',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  style:
+                      TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
