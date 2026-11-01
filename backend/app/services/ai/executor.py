@@ -8,16 +8,23 @@
 """
 
 import json
+import os
+import logging
 from typing import Any, Dict, List, Optional
-from sqlalchemy import select, func, or_, update, insert
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from sqlalchemy import select, func, or_, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from app.models import Product, Category
 from app.services.ai.tools import LIMITS
-import logging
+
 logger = logging.getLogger(__name__)
 
+# --- Настройка Read-Only движка для SQL ---
+AI_DB_URL = os.getenv("AI_DATABASE_URL")
+ai_engine = create_async_engine(AI_DB_URL, echo=False) if AI_DB_URL else None
+AiSessionLocal = async_sessionmaker(ai_engine, expire_on_commit=False) if ai_engine else None
 
 # ============================================================
 # УТИЛИТЫ
@@ -64,7 +71,6 @@ def _validate_pattern(pattern: Optional[str]) -> Optional[str]:
             f"Минимум {LIMITS['pattern_min_length']}. Уточни запрос."
         )
     return p
-
 
 # ============================================================
 # READ TOOLS — выполняются сразу
@@ -141,6 +147,37 @@ async def search_products(
     }
 
 
+async def find_products_by_category(
+    db: AsyncSession,
+    category_name: str,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    cat = await _get_category_by_name(db, category_name)
+    if not cat:
+        raise ToolError(f"Категория '{category_name}' не найдена.")
+
+    limit = min(int(limit or 20), LIMITS["search_products"])
+
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.category), selectinload(Product.color))
+        .where(
+            Product.is_active == True,
+            Product.category_id == cat.id,
+        )
+        .order_by(Product.part_number)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+
+    return {
+        "category": cat.name,
+        "count": len(items),
+        "items": [_product_to_dict(p) for p in items],
+    }
+
+
 async def find_missing_part_numbers(
     db: AsyncSession,
     part_numbers: List[str],
@@ -181,7 +218,6 @@ async def check_products_exist(
             f"Максимум {LIMITS['check_products_exist']} за раз."
         )
 
-    # Собираем part_numbers (upper)
     input_items = []
     for it in products:
         pn = str(it.get("part_number", "")).strip().upper()
@@ -286,31 +322,7 @@ async def find_products_without_weight(
         "items": [_product_to_dict(p) for p in items],
     }
 
-async def _do_rename_category(
-    db: AsyncSession,
-    old_name: str,
-    new_name: str,
-) -> Dict[str, Any]:
-    cat = await _get_category_by_name(db, old_name)
-    if not cat:
-        raise ToolError(f"Категория '{old_name}' не найдена.")
 
-    # Проверка на уникальность
-    existing = await _get_category_by_name(db, new_name)
-    if existing and existing.id != cat.id:
-        raise ToolError(f"Категория '{new_name}' уже существует.")
-
-    old_display = cat.name
-    cat.name = new_name.strip()
-    await db.commit()
-    await db.refresh(cat)
-
-    return {
-        "renamed": True,
-        "category_id": cat.id,
-        "old_name": old_display,
-        "new_name": cat.name,
-    }
 async def list_categories(db: AsyncSession) -> Dict[str, Any]:
     stmt = select(Category).where(Category.is_active == True).order_by(Category.name)
     result = await db.execute(stmt)
@@ -319,10 +331,42 @@ async def list_categories(db: AsyncSession) -> Dict[str, Any]:
     return {
         "count": len(cats),
         "categories": [
-            {"id": c.id, "name": c.name, "prefix_ru": c.prefix_ru}
+            {"id": c.id, "name": c.name}
             for c in cats
         ],
     }
+
+
+async def execute_read_sql(query: str) -> Dict[str, Any]:
+    """Выполняет только SELECT-запросы от имени read-only пользователя."""
+    q_clean = query.strip().upper()
+    
+    if not q_clean.startswith("SELECT"):
+        raise ToolError("Разрешены только SELECT-запросы.")
+    
+    forbidden = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE", "GRANT", "CREATE"]
+    q_no_end = q_clean.rstrip(";")
+    for word in forbidden:
+        if word in q_no_end:
+            raise ToolError(f"Запрещенное слово в запросе: {word}")
+
+    if not AiSessionLocal:
+        raise ToolError("AI_DATABASE_URL не настроен.")
+
+    try:
+        async with AiSessionLocal() as session:
+            result = await session.execute(text(query))
+            rows = result.fetchall()
+            
+            data = [dict(row._mapping) for row in rows[:100]]
+            
+            return {
+                "count": len(data),
+                "total_found": len(rows),
+                "rows": data
+            }
+    except Exception as e:
+        raise ToolError(f"Ошибка SQL: {e}")
 
 
 # ============================================================
@@ -345,7 +389,6 @@ async def update_product_weight_preview(
     if new_weight is None or new_weight <= 0:
         raise ToolError("new_weight должен быть > 0.")
 
-    # Найти товары
     stmt = (
         select(Product)
         .options(selectinload(Product.category), selectinload(Product.color))
@@ -382,7 +425,6 @@ async def update_product_weight_preview(
             f"Уточни pattern (сейчас '{pattern}')."
         )
 
-    # Предпросмотр изменений
     preview = []
     for p in products:
         preview.append({
@@ -537,7 +579,6 @@ async def create_products_preview(
             f"Максимум {LIMITS['create_products']} за раз."
         )
 
-    # Валидация + подстановка category_id
     prepared = []
     for it in products:
         pn = str(it.get("part_number", "")).strip()
@@ -572,7 +613,6 @@ async def create_products_preview(
             "coo": it.get("coo"),
         })
 
-    # Проверить дубли в БД
     pns = [p["part_number"].upper() for p in prepared]
     stmt = select(Product.part_number).where(func.upper(Product.part_number).in_(pns))
     result = await db.execute(stmt)
@@ -599,6 +639,56 @@ async def create_products_preview(
     }
 
 
+async def rename_category_preview(
+    db: AsyncSession,
+    old_name: str,
+    new_name: str,
+) -> Dict[str, Any]:
+    old_n = (old_name or "").strip()
+    new_n = (new_name or "").strip()
+    if not old_n or not new_n:
+        raise ToolError("old_name и new_name обязательны.")
+    if old_n.lower() == new_n.lower():
+        raise ToolError("Новое название совпадает со старым.")
+
+    existing_old = await _get_category_by_name(db, old_n)
+    if not existing_old:
+        raise ToolError(f"Категория '{old_n}' не найдена.")
+
+    existing_new = await _get_category_by_name(db, new_n)
+    if existing_new:
+        raise ToolError(f"Категория с именем '{new_n}' уже существует.")
+
+    products_count = (
+        await db.execute(
+            select(func.count(Product.id)).where(
+                Product.category_id == existing_old.id,
+                Product.is_active == True,
+            )
+        )
+    ).scalar() or 0
+
+    return {
+        "requires_confirmation": True,
+        "action": {
+            "tool": "rename_category",
+            "args": {
+                "old_name": existing_old.name,
+                "new_name": new_n,
+            },
+        },
+        "preview": {
+            "old_name": existing_old.name,
+            "new_name": new_n,
+            "products_count": products_count,
+        },
+        "message": (
+            f"Переименовать категорию '{existing_old.name}' → '{new_n}'? "
+            f"Товаров затронется: {products_count}."
+        ),
+    }
+
+
 # ============================================================
 # ДИСПЕТЧЕР
 # ============================================================
@@ -618,6 +708,8 @@ async def execute_tool(
             return await count_products(db, **args)
         elif name == "search_products":
             return await search_products(db, **args)
+        elif name == "find_products_by_category":
+            return await find_products_by_category(db, **args)
         elif name == "find_missing_part_numbers":
             return await find_missing_part_numbers(db, **args)
         elif name == "check_products_exist":
@@ -628,6 +720,8 @@ async def execute_tool(
             return await find_products_without_weight(db, **args)
         elif name == "list_categories":
             return await list_categories(db)
+        elif name == "execute_read_sql":
+            return await execute_read_sql(**args)
 
         # WRITE — preview
         elif name == "update_product_weight":
@@ -662,10 +756,6 @@ async def execute_write_tool(
     name: str,
     args: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """
-    Выполняет write-tool. Вызывается только после подтверждения.
-    Args — те же, что в preview.action.args.
-    """
     if name == "update_product_weight":
         return await _do_update_weight(db, **args)
     elif name == "update_product_category":
@@ -770,55 +860,33 @@ async def _do_update_category(
         "part_numbers": [p.part_number for p in products],
         "category_name": cat.name,
     }
-async def rename_category_preview(
+
+
+async def _do_rename_category(
     db: AsyncSession,
     old_name: str,
     new_name: str,
 ) -> Dict[str, Any]:
-    old_n = (old_name or "").strip()
-    new_n = (new_name or "").strip()
-    if not old_n or not new_n:
-        raise ToolError("old_name и new_name обязательны.")
-    if old_n.lower() == new_n.lower():
-        raise ToolError("Новое название совпадает со старым.")
+    cat = await _get_category_by_name(db, old_name)
+    if not cat:
+        raise ToolError(f"Категория '{old_name}' не найдена.")
 
-    existing_old = await _get_category_by_name(db, old_n)
-    if not existing_old:
-        raise ToolError(f"Категория '{old_n}' не найдена.")
+    existing = await _get_category_by_name(db, new_name)
+    if existing and existing.id != cat.id:
+        raise ToolError(f"Категория '{new_name}' уже существует.")
 
-    existing_new = await _get_category_by_name(db, new_n)
-    if existing_new:
-        raise ToolError(f"Категория с именем '{new_n}' уже существует.")
-
-    # Сколько товаров привязано
-    products_count = (
-        await db.execute(
-            select(func.count(Product.id)).where(
-                Product.category_id == existing_old.id,
-                Product.is_active == True,
-            )
-        )
-    ).scalar() or 0
+    old_display = cat.name
+    cat.name = new_name.strip()
+    await db.commit()
+    await db.refresh(cat)
 
     return {
-        "requires_confirmation": True,
-        "action": {
-            "tool": "rename_category",
-            "args": {
-                "old_name": existing_old.name,
-                "new_name": new_n,
-            },
-        },
-        "preview": {
-            "old_name": existing_old.name,
-            "new_name": new_n,
-            "products_count": products_count,
-        },
-        "message": (
-            f"Переименовать категорию '{existing_old.name}' → '{new_n}'? "
-            f"Товаров затронется: {products_count}."
-        ),
+        "renamed": True,
+        "category_id": cat.id,
+        "old_name": old_display,
+        "new_name": cat.name,
     }
+
 
 async def _do_create_category(
     db: AsyncSession,

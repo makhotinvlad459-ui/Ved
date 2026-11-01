@@ -2,7 +2,7 @@
 
 TOOLS = [
     # ============================================================
-    # READ-ONLY
+    # READ-ONLY (Безопасные запросы)
     # ============================================================
     {
         "type": "function",
@@ -181,6 +181,24 @@ TOOLS = [
             }
         }
     },
+    # --- НОВЫЙ ИНСТРУМЕНТ: ВЫПОЛНЕНИЕ SQL ---
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_read_sql",
+            "description": "Выполнить SELECT-запрос к базе данных. Используй для сложной фильтрации, сортировки, агрегации (COUNT, SUM, AVG, GROUP BY), JOIN-ов. ЗАПРЕЩЕНО использовать UPDATE, DELETE, INSERT. Схема: products(id, part_number, description, weight, model_number, category_id, coo), categories(id, name, prefix_ru), colors(id, eng, rus).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "SQL SELECT запрос. Пример: SELECT part_number, description FROM products WHERE description ILIKE '%iphone%' ORDER BY weight DESC LIMIT 50;"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
 
     # ============================================================
     # WRITE (требуют подтверждения)
@@ -288,7 +306,6 @@ TOOLS = [
             }
         }
     },
-    # --- НОВЫЙ ИНСТРУМЕНТ: ПЕРЕИМЕНОВАНИЕ КАТЕГОРИИ ---
     {
         "type": "function",
         "function": {
@@ -310,7 +327,6 @@ TOOLS = [
             }
         }
     },
-    # ----------------------------------------------------
     {
         "type": "function",
         "function": {
@@ -352,7 +368,7 @@ WRITE_TOOLS = {
     "update_product_model_number",
     "create_category",
     "create_products",
-    "rename_category",  # ← ДОБАВЛЕНО
+    "rename_category",
 }
 
 READ_TOOLS = {
@@ -365,6 +381,7 @@ READ_TOOLS = {
     "find_products_by_category",
     "find_products_without_model_number",
     "list_categories",
+    "execute_read_sql",  # ← ДОБАВЛЕНО
 }
 
 # Лимиты (используются в executor для валидации)
