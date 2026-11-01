@@ -113,12 +113,11 @@ class _CzUploadScreenState extends State<CzUploadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Загрузка кодов ЧЗ'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -134,9 +133,11 @@ class _CzUploadScreenState extends State<CzUploadScreen> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Инвойс + Спецификация + Файл кодов ЧЗ',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -202,6 +203,7 @@ class _CzUploadScreenState extends State<CzUploadScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fileName = result?.files.single.name;
 
     return GestureDetector(
@@ -209,10 +211,12 @@ class _CzUploadScreenState extends State<CzUploadScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: fileName != null ? color : Colors.grey.shade300,
+            color: fileName != null
+                ? color
+                : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
             width: fileName != null ? 2 : 1,
           ),
         ),
@@ -232,14 +236,21 @@ class _CzUploadScreenState extends State<CzUploadScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(label,
-                      style: const TextStyle(fontSize: 14, color: Colors.grey)),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey,
+                    ),
+                  ),
                   Text(
                     fileName ?? 'Нажмите для выбора',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: fileName != null ? Colors.black : Colors.grey,
+                      color: fileName != null
+                          ? (isDark ? Colors.white : Colors.black)
+                          : (isDark ? Colors.grey.shade500 : Colors.grey),
                     ),
                   ),
                 ],
@@ -248,7 +259,11 @@ class _CzUploadScreenState extends State<CzUploadScreen> {
             if (fileName != null)
               Icon(Icons.check_circle, color: color, size: 24)
             else
-              Icon(Icons.upload_file, color: Colors.grey.shade400, size: 24),
+              Icon(
+                Icons.upload_file,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+                size: 24,
+              ),
           ],
         ),
       ),
@@ -315,7 +330,8 @@ class _CzStatusScreenState extends State<CzStatusScreen> {
       final bytes = response.data as List<int>;
       final blob = html.Blob([bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
-      final name = 'ЧЗ - код №${_specNumber ?? widget.sessionId.substring(0, 8)}.xlsx';
+      final name =
+          'ЧЗ - код №${_specNumber ?? widget.sessionId.substring(0, 8)}.xlsx';
       final anchor = html.AnchorElement(href: url)
         ..setAttribute('download', name)
         ..click();
@@ -338,12 +354,11 @@ class _CzStatusScreenState extends State<CzStatusScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Статус обработки ЧЗ'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -361,12 +376,16 @@ class _CzStatusScreenState extends State<CzStatusScreen> {
             ] else if (_status == 'error') ...[
               const Icon(Icons.error, color: Colors.red, size: 64),
               const SizedBox(height: 20),
-              const Text('Ошибка обработки',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text(
+                'Ошибка обработки',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 10),
-              Text(_error,
-                  style: const TextStyle(color: Colors.red),
-                  textAlign: TextAlign.center),
+              Text(
+                _error,
+                style: const TextStyle(color: Colors.red),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
@@ -375,26 +394,38 @@ class _CzStatusScreenState extends State<CzStatusScreen> {
             ] else if (_isCompleted) ...[
               const Icon(Icons.check_circle, color: Colors.green, size: 64),
               const SizedBox(height: 20),
-              const Text('Готово!',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const Text(
+                'Готово!',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
               if (_specNumber != null)
-                Text('Номер спецификации: $_specNumber',
-                    style: const TextStyle(color: Colors.grey)),
+                Text(
+                  'Номер спецификации: $_specNumber',
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade400 : Colors.grey,
+                  ),
+                ),
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: _download,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
                 ),
                 child: const Text('📥 Скачать файл'),
               ),
             ] else ...[
               const CircularProgressIndicator(),
               const SizedBox(height: 20),
-              Text('Статус: $_status',
-                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              Text(
+                'Статус: $_status',
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ],
         ),

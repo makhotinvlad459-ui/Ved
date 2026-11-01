@@ -106,12 +106,11 @@ class _CzColorsScreenState extends State<CzColorsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Цвета ЧЗ'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -143,7 +142,10 @@ class _CzColorsScreenState extends State<CzColorsScreen> {
                 Expanded(
                   child: Text(
                     'Найдено: ${_colors.length}',
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey,
+                    ),
                   ),
                 ),
                 ElevatedButton.icon(
@@ -158,14 +160,14 @@ class _CzColorsScreenState extends State<CzColorsScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Expanded(child: _buildBody()),
+            Expanded(child: _buildBody(isDark)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(bool isDark) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -175,8 +177,13 @@ class _CzColorsScreenState extends State<CzColorsScreen> {
       );
     }
     if (_colors.isEmpty) {
-      return const Center(
-        child: Text('Ничего не найдено', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Text(
+          'Ничего не найдено',
+          style: TextStyle(
+            color: isDark ? Colors.grey.shade400 : Colors.grey,
+          ),
+        ),
       );
     }
 
@@ -205,7 +212,7 @@ class _CzColorsScreenState extends State<CzColorsScreen> {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: Colors.red.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: const Text(
@@ -326,7 +333,8 @@ class _ColorEditDialogState extends State<_ColorEditDialog> {
           ),
           if (_error.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text(_error, style: const TextStyle(color: Colors.red, fontSize: 13)),
+            Text(_error,
+                style: const TextStyle(color: Colors.red, fontSize: 13)),
           ],
         ],
       ),

@@ -52,7 +52,9 @@ class _UploadScreenState extends State<UploadScreen> {
   }
 
   Future<void> _upload() async {
-    if (_invoiceResult == null || _manifestResult == null || _templateResult == null) {
+    if (_invoiceResult == null ||
+        _manifestResult == null ||
+        _templateResult == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Выберите все три файла!'),
@@ -66,7 +68,9 @@ class _UploadScreenState extends State<UploadScreen> {
     final manifestBytes = _manifestResult!.files.single.bytes;
     final templateBytes = _templateResult!.files.single.bytes;
 
-    if (invoiceBytes == null || manifestBytes == null || templateBytes == null) {
+    if (invoiceBytes == null ||
+        manifestBytes == null ||
+        templateBytes == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Ошибка чтения файлов!'),
@@ -122,12 +126,11 @@ class _UploadScreenState extends State<UploadScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Генерация спецификации'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -143,9 +146,11 @@ class _UploadScreenState extends State<UploadScreen> {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Выберите инвойс, манифест и шаблон спецификации',
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                color: isDark ? Colors.grey.shade400 : Colors.grey,
+              ),
             ),
             const SizedBox(height: 24),
 
@@ -222,6 +227,7 @@ class _UploadScreenState extends State<UploadScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fileName = result?.files.single.name;
 
     return GestureDetector(
@@ -229,10 +235,12 @@ class _UploadScreenState extends State<UploadScreen> {
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: fileName != null ? color : Colors.grey.shade300,
+            color: fileName != null
+                ? color
+                : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
             width: fileName != null ? 2 : 1,
           ),
         ),
@@ -254,9 +262,9 @@ class _UploadScreenState extends State<UploadScreen> {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: Colors.grey,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey,
                     ),
                   ),
                   Text(
@@ -264,7 +272,9 @@ class _UploadScreenState extends State<UploadScreen> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: fileName != null ? Colors.black : Colors.grey,
+                      color: fileName != null
+                          ? (isDark ? Colors.white : Colors.black)
+                          : (isDark ? Colors.grey.shade500 : Colors.grey),
                     ),
                   ),
                 ],
@@ -279,7 +289,7 @@ class _UploadScreenState extends State<UploadScreen> {
             else
               Icon(
                 Icons.upload_file,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
                 size: 24,
               ),
           ],
@@ -318,19 +328,19 @@ class _StatusScreenState extends State<StatusScreen> {
     try {
       _attempts++;
       print('🔄 Проверка статуса #$_attempts для ${widget.sessionId}');
-      
+
       final api = Provider.of<ApiService>(context, listen: false);
       final result = await api.getStatus(widget.sessionId);
-      
+
       print('📊 Статус: ${result['status']}');
       print('📊 Номер спецификации: ${result['spec_number']}');
-      
+
       setState(() {
         _status = result['status'] ?? 'unknown';
         _error = result['errors'] ?? '';
         _isLoading = false;
         _specNumber = result['spec_number'] ?? '';
-        
+
         if (_status == 'completed') {
           _isCompleted = true;
         }
@@ -363,7 +373,7 @@ class _StatusScreenState extends State<StatusScreen> {
         _isLoading = false;
         _error = 'Ошибка соединения с сервером: $e';
       });
-      
+
       await Future.delayed(const Duration(seconds: 3));
       if (mounted && _status != 'completed' && _status != 'error') {
         _checkStatus();
@@ -378,12 +388,11 @@ class _StatusScreenState extends State<StatusScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Статус обработки'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -416,7 +425,8 @@ class _StatusScreenState extends State<StatusScreen> {
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Назад'),
               ),
-            ] else if (_status == 'pending_models' || _status == 'pending_approval') ...[
+            ] else if (_status == 'pending_models' ||
+                _status == 'pending_approval') ...[
               const Icon(Icons.warning, color: Colors.orange, size: 64),
               const SizedBox(height: 20),
               const Text(
@@ -461,12 +471,16 @@ class _StatusScreenState extends State<StatusScreen> {
               const SizedBox(height: 10),
               Text(
                 'Сессия: ${widget.sessionId.substring(0, 8)}...',
-                style: const TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey,
+                ),
               ),
               if (_specNumber != null && _specNumber!.isNotEmpty)
                 Text(
                   'Номер спецификации: $_specNumber',
-                  style: const TextStyle(color: Colors.grey),
+                  style: TextStyle(
+                    color: isDark ? Colors.grey.shade400 : Colors.grey,
+                  ),
                 ),
               const SizedBox(height: 20),
               ElevatedButton(
@@ -474,7 +488,8 @@ class _StatusScreenState extends State<StatusScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 40, vertical: 16),
                 ),
                 child: const Text('📥 Скачать спецификацию'),
               ),
@@ -491,14 +506,19 @@ class _StatusScreenState extends State<StatusScreen> {
                 style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'Пожалуйста, подождите...',
-                style: TextStyle(color: Colors.grey),
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey,
+                ),
               ),
               const SizedBox(height: 10),
               Text(
                 'Статус: $_status',
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade500 : Colors.grey,
+                  fontSize: 12,
+                ),
               ),
               const SizedBox(height: 10),
               TextButton(

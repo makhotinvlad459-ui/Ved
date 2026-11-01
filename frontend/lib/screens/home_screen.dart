@@ -1,5 +1,8 @@
 // frontend/lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import '../services/theme_provider.dart';
 import '../widgets/world_clock_widget.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -8,7 +11,7 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Scaffold(
       // Фон берется из темы (в светлой - #F5F6F8, в темной - #121212)
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -21,7 +24,7 @@ class HomeScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ============ ЛОГОТИП ============
+                  // ============ ЛОГОТИП + ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ ============
                   Row(
                     children: [
                       Container(
@@ -36,7 +39,8 @@ class HomeScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.blue.shade100.withOpacity(isDark ? 0.1 : 1.0),
+                              color: Colors.blue.shade100
+                                  .withOpacity(isDark ? 0.1 : 1.0),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -60,6 +64,27 @@ class HomeScreen extends StatelessWidget {
                           fontSize: 22,
                           fontWeight: FontWeight.w600,
                         ),
+                      ),
+                      const Spacer(),
+                      // === ПЕРЕКЛЮЧАТЕЛЬ ТЕМЫ ===
+                      Consumer<ThemeProvider>(
+                        builder: (context, themeProvider, _) {
+                          final isDarkMode =
+                              Theme.of(context).brightness == Brightness.dark;
+                          return IconButton(
+                            tooltip:
+                                isDarkMode ? 'Светлая тема' : 'Тёмная тема',
+                            icon: Icon(
+                              isDarkMode
+                                  ? Icons.light_mode_outlined
+                                  : Icons.dark_mode_outlined,
+                              color: isDarkMode
+                                  ? Colors.amber.shade400
+                                  : Colors.blueGrey,
+                            ),
+                            onPressed: themeProvider.toggleTheme,
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -123,9 +148,9 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   // ============ ГРУППА: ОБРАБОТКА ДОКУМЕНТОВ ============
-                  _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
+                  const _GroupLabel(label: 'ОБРАБОТКА ДОКУМЕНТОВ'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.description_outlined,
@@ -169,9 +194,9 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   // ============ ГРУППА: ЧЕСТНЫЙ ЗНАК ============
-                  _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
+                  const _GroupLabel(label: 'ЧЕСТНЫЙ ЗНАК'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.qr_code_2,
@@ -195,10 +220,11 @@ class HomeScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 32),
-                   // ============ ГРУППА: ИИ-АССИСТЕНТ ============
-                  _GroupLabel(label: 'ИИ-АССИСТЕНТ'),
+
+                  // ============ ГРУППА: ИИ-АССИСТЕНТ ============
+                  const _GroupLabel(label: 'ИИ-АССИСТЕНТ'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.auto_awesome,
@@ -212,9 +238,9 @@ class HomeScreen extends StatelessWidget {
                   const SizedBox(height: 32),
 
                   // ============ ГРУППА: СПРАВОЧНИКИ ============
-                  _GroupLabel(label: 'СПРАВОЧНИКИ'),
+                  const _GroupLabel(label: 'СПРАВОЧНИКИ'),
                   const SizedBox(height: 12),
-                  _ResponsiveGrid(
+                  const _ResponsiveGrid(
                     items: [
                       _ServiceItem(
                         icon: Icons.inventory_outlined,
@@ -270,7 +296,7 @@ class _GroupLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Row(
       children: [
         Container(
@@ -359,13 +385,13 @@ class _CompactCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, 
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: isDark 
-                    ? Colors.black.withOpacity(0.2) 
+                color: isDark
+                    ? Colors.black.withOpacity(0.2)
                     : Colors.black.withOpacity(0.03),
                 blurRadius: 8,
                 offset: const Offset(0, 2),

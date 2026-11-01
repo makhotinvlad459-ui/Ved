@@ -254,7 +254,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
   Future<void> _openColorEditor() async {
     final result = await showDialog<bool>(
       context: context,
-      builder: (context) => _QuickColorDialog(),
+      builder: (context) => const _QuickColorDialog(),
     );
     if (result == true) {
       await _reloadCategoriesAndColors();
@@ -279,9 +279,6 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isNew ? 'Новый товар' : 'Товар'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
@@ -606,6 +603,7 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
       child: Material(
         elevation: 4,
         borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).cardColor,
         child: ConstrainedBox(
           constraints: BoxConstraints(maxHeight: 300, maxWidth: width),
           child: ListView.builder(
@@ -635,6 +633,8 @@ class _ProductEditScreenState extends State<ProductEditScreen> {
 // ============================================================
 
 class _QuickColorDialog extends StatefulWidget {
+  const _QuickColorDialog();
+
   @override
   State<_QuickColorDialog> createState() => _QuickColorDialogState();
 }

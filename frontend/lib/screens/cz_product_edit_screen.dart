@@ -155,7 +155,8 @@ class _CzProductEditScreenState extends State<CzProductEditScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Удалить модель?'),
-        content: Text('Модель «${_modelNameController.text}» будет скрыта из справочника.'),
+        content: Text(
+            'Модель «${_modelNameController.text}» будет скрыта из справочника.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -195,9 +196,6 @@ class _CzProductEditScreenState extends State<CzProductEditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isNew ? 'Новая модель' : 'Модель'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
@@ -214,7 +212,8 @@ class _CzProductEditScreenState extends State<CzProductEditScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _error.isNotEmpty
               ? Center(
-                  child: Text(_error, style: const TextStyle(color: Colors.red)),
+                  child:
+                      Text(_error, style: const TextStyle(color: Colors.red)),
                 )
               : ListView(
                   padding: const EdgeInsets.all(16),
@@ -244,7 +243,9 @@ class _CzProductEditScreenState extends State<CzProductEditScreen> {
                         Expanded(
                           child: TextField(
                             controller: _screenController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                                const TextInputType.numberWithOptions(
+                                    decimal: true),
                             decoration: const InputDecoration(
                               labelText: 'Экран, дюйм',
                               hintText: '6.3',
@@ -293,7 +294,8 @@ class _CzProductEditScreenState extends State<CzProductEditScreen> {
                         value: _isActive,
                         onChanged: (v) => setState(() => _isActive = v),
                         title: const Text('Активна'),
-                        subtitle: const Text('Неактивные модели не участвуют в генерации'),
+                        subtitle: const Text(
+                            'Неактивные модели не участвуют в генерации'),
                         contentPadding: EdgeInsets.zero,
                       ),
                     const SizedBox(height: 16),

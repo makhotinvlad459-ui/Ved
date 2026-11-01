@@ -95,12 +95,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Товары'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
@@ -152,7 +151,10 @@ class _ProductsScreenState extends State<ProductsScreen> {
                 Expanded(
                   child: Text(
                     'Найдено: ${_products.length}',
-                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey,
+                    ),
                   ),
                 ),
                 ElevatedButton.icon(
@@ -167,14 +169,14 @@ class _ProductsScreenState extends State<ProductsScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Expanded(child: _buildBody()),
+            Expanded(child: _buildBody(isDark)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildBody() {
+  Widget _buildBody(bool isDark) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -184,31 +186,42 @@ class _ProductsScreenState extends State<ProductsScreen> {
       );
     }
     if (!_hasSearched) {
-      return const Center(
+      return Center(
         child: Text(
           'Введите запрос для поиска',
-          style: TextStyle(color: Colors.grey, fontSize: 16),
+          style: TextStyle(
+            color: isDark ? Colors.grey.shade400 : Colors.grey,
+            fontSize: 16,
+          ),
         ),
       );
     }
     if (_products.isEmpty) {
       if (_missingCategoryFilter) {
-        return const Center(
+        return Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle, color: Colors.green, size: 64),
-              SizedBox(height: 16),
+              const Icon(Icons.check_circle, color: Colors.green, size: 64),
+              const SizedBox(height: 16),
               Text(
                 'Товаров без категории нет',
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey,
+                ),
               ),
             ],
           ),
         );
       }
-      return const Center(
-        child: Text('Ничего не найдено', style: TextStyle(color: Colors.grey)),
+      return Center(
+        child: Text(
+          'Ничего не найдено',
+          style: TextStyle(
+            color: isDark ? Colors.grey.shade400 : Colors.grey,
+          ),
+        ),
       );
     }
 
@@ -252,7 +265,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
+                            color: Colors.red.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -268,7 +281,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       model,
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.blue.shade700,
+                        color: isDark ? Colors.blue.shade300 : Colors.blue.shade700,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -279,7 +292,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       desc,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(color: Colors.grey[700]),
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade300 : Colors.grey[700],
+                      ),
                     ),
                   ],
                   const SizedBox(height: 8),
@@ -288,17 +303,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     runSpacing: 4,
                     children: [
                       if (weight != null)
-                        _chip('⚖️ ${weight.toString()} кг',
-                            Colors.orange.shade50, Colors.orange.shade700),
+                        _chip(
+                          '⚖️ ${weight.toString()} кг',
+                          Colors.orange,
+                          isDark,
+                        ),
                       if (category != null)
-                        _chip(category, Colors.purple.shade50,
-                            Colors.purple.shade700),
+                        _chip(category, Colors.purple, isDark),
                       if (category == null)
-                        _chip('нет категории', Colors.red.shade50,
-                            Colors.red.shade700),
+                        _chip('нет категории', Colors.red, isDark),
                       if (colorRus != null)
-                        _chip(colorRus, Colors.teal.shade50,
-                            Colors.teal.shade700),
+                        _chip(colorRus, Colors.teal, isDark),
                     ],
                   ),
                 ],
@@ -310,16 +325,20 @@ class _ProductsScreenState extends State<ProductsScreen> {
     );
   }
 
-  Widget _chip(String text, Color bg, Color fg) {
+  /// Универсальная «плашка» — работает в обеих темах.
+  Widget _chip(String text, MaterialColor color, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: bg,
+        color: isDark ? color.withOpacity(0.15) : color.shade50,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         text,
-        style: TextStyle(fontSize: 12, color: fg),
+        style: TextStyle(
+          fontSize: 12,
+          color: isDark ? color.shade200 : color.shade700,
+        ),
       ),
     );
   }

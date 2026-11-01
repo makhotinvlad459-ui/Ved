@@ -130,7 +130,8 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(_isNew ? '✅ Категория создана' : '✅ Категория сохранена'),
+          content:
+              Text(_isNew ? '✅ Категория создана' : '✅ Категория сохранена'),
           backgroundColor: Colors.green,
         ),
       );
@@ -179,9 +180,6 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_isNew ? 'Новая категория' : 'Категория'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context, false),
@@ -192,6 +190,8 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   }
 
   Widget _buildBody() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator());
     }
@@ -229,7 +229,8 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
           maxLines: 2,
           decoration: const InputDecoration(
             labelText: 'Префикс (рус) *',
-            hintText: 'Портативный персональный компьютер торговой марки Lenovo',
+            hintText:
+                'Портативный персональный компьютер торговой марки Lenovo',
             border: OutlineInputBorder(),
           ),
         ),
@@ -282,9 +283,12 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
           value: _cleanSerialPrefix,
           onChanged: (v) => setState(() => _cleanSerialPrefix = v),
           title: const Text('Убирать префикс "S" у серийников'),
-          subtitle: const Text(
+          subtitle: Text(
             'Для Apple — да. Для Lenovo/Samsung — нет.',
-            style: TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.grey.shade400 : Colors.grey,
+            ),
           ),
           contentPadding: EdgeInsets.zero,
         ),
