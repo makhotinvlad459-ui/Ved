@@ -18,36 +18,53 @@ class ForAliceResultsTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    // Адаптивные цвета под тему
+    final headerBg = isDark
+        ? theme.colorScheme.surfaceContainerHighest // тёмный нейтральный фон
+        : Colors.grey.shade200;
+    final headerTextColor = isDark
+        ? theme.colorScheme.onSurface
+        : Colors.black87;
+    final dragHandleColor =
+        isDark ? Colors.grey.shade500 : Colors.grey;
+
     return SelectionArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // === ФИКСИРОВАННЫЙ ЗАГОЛОВОК ===
           Container(
-            color: Colors.grey.shade200,
+            color: headerBg,
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: const Row(
+            child: Row(
               children: [
-                SizedBox(width: 30, child: Icon(Icons.drag_handle, size: 18, color: Colors.grey)),
-                Expanded(flex: 15, child: Text('Модель', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 15, child: Text('P/N', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 40, child: Text('Наименование', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 6, child: Text('Кол', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 8, child: Text('Вес', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 8, child: Text('+15%', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 8, child: Text('Общий', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 10, child: Text('Цена', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 10, child: Text('Ст-ть', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 8, child: Text('Лог', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 8, child: Text('Ц+лог', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 10, child: Text('С лог', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 6, child: Text('+ЧЗ', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 8, child: Text('Итог/ед', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                Expanded(flex: 10, child: Text('Итого', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
+                SizedBox(
+                  width: 30,
+                  child: Icon(Icons.drag_handle,
+                      size: 18, color: dragHandleColor),
+                ),
+                _HeaderCell('Модель', flex: 15, color: headerTextColor),
+                _HeaderCell('P/N', flex: 15, color: headerTextColor),
+                _HeaderCell('Наименование', flex: 40, color: headerTextColor),
+                _HeaderCell('Кол', flex: 6, color: headerTextColor, center: true),
+                _HeaderCell('Вес', flex: 8, color: headerTextColor, center: true),
+                _HeaderCell('+15%', flex: 8, color: headerTextColor, center: true),
+                _HeaderCell('Общий', flex: 8, color: headerTextColor, center: true),
+                _HeaderCell('Цена', flex: 10, color: headerTextColor, center: true),
+                _HeaderCell('Ст-ть', flex: 10, color: headerTextColor, center: true),
+                _HeaderCell('Лог', flex: 8, color: headerTextColor, center: true),
+                _HeaderCell('Ц+лог', flex: 8, color: headerTextColor, center: true),
+                _HeaderCell('С лог', flex: 10, color: headerTextColor, center: true),
+                _HeaderCell('+ЧЗ', flex: 6, color: headerTextColor, center: true),
+                _HeaderCell('Итог/ед', flex: 8, color: headerTextColor, center: true),
+                _HeaderCell('Итого', flex: 10, color: headerTextColor, center: true),
               ],
             ),
           ),
-          
+
           // === СПИСОК С ПЕРЕТАСКИВАНИЕМ ===
           Expanded(
             child: ReorderableListView.builder(
@@ -70,37 +87,54 @@ class ForAliceResultsTable extends StatelessWidget {
                       children: [
                         ReorderableDragStartListener(
                           index: index,
-                          child: const SizedBox(
+                          child: SizedBox(
                             width: 30,
-                            child: Icon(Icons.drag_handle, size: 16, color: Colors.grey),
+                            child: Icon(Icons.drag_handle,
+                                size: 16, color: dragHandleColor),
                           ),
                         ),
-                        Expanded(flex: 15, child: Text(r['model_number'] ?? '—', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                        Expanded(flex: 15, child: Text(r['part_number'] ?? '—', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                        Expanded(flex: 40, child: Text(r['name'] ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 6, child: Text('${r['qty'] ?? 0}', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 8, child: Text(_num(r['weight']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 8, child: Text(_num(r['g']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 8, child: Text(_num(r['h']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 10, child: Text(_num(r['price']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 10, child: Text(_num(price * qty), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 8, child: Text(_num(r['l']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 8, child: Text(_num(r['m']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 10, child: Text(_num(m * qty), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
+                        _Cell(r['model_number'] ?? '—', flex: 15),
+                        _Cell(r['part_number'] ?? '—', flex: 15),
+                        _Cell(r['name'] ?? '', flex: 40),
+                        _Cell('${r['qty'] ?? 0}', flex: 6, center: true),
+                        _Cell(_num(r['weight']), flex: 8, center: true),
+                        _Cell(_num(r['g']), flex: 8, center: true),
+                        _Cell(_num(r['h']), flex: 8, center: true),
+                        _Cell(_num(r['price']), flex: 10, center: true),
+                        _Cell(_num(price * qty), flex: 10, center: true),
+                        _Cell(_num(r['l']), flex: 8, center: true),
+                        _Cell(_num(r['m']), flex: 8, center: true),
+                        _Cell(_num(m * qty), flex: 10, center: true),
                         Expanded(
-                          flex: 6, 
+                          flex: 6,
                           child: Text(
                             isCz ? '+1.5' : '—',
-                            textAlign: TextAlign.center, 
+                            textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 11, 
-                              color: isCz ? Colors.green.shade700 : Colors.grey,
-                              fontWeight: isCz ? FontWeight.bold : FontWeight.normal,
-                            )
-                          )
+                              fontSize: 11,
+                              color: isCz
+                                  ? (isDark
+                                      ? Colors.green.shade300
+                                      : Colors.green.shade700)
+                                  : theme.colorScheme.onSurfaceVariant,
+                              fontWeight:
+                                  isCz ? FontWeight.bold : FontWeight.normal,
+                            ),
+                          ),
                         ),
-                        Expanded(flex: 8, child: Text(_num(r['o']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11))),
-                        Expanded(flex: 10, child: Text(_num(r['p']), textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                        _Cell(_num(r['o']), flex: 8, center: true),
+                        Expanded(
+                          flex: 10,
+                          child: Text(
+                            _num(r['p']),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -109,6 +143,57 @@ class ForAliceResultsTable extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Ячейка заголовка
+class _HeaderCell extends StatelessWidget {
+  final String text;
+  final int flex;
+  final Color color;
+  final bool center;
+
+  const _HeaderCell(this.text,
+      {required this.flex, required this.color, this.center = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(
+        text,
+        textAlign: center ? TextAlign.center : TextAlign.start,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+/// Обычная ячейка строки
+class _Cell extends StatelessWidget {
+  final String text;
+  final int flex;
+  final bool center;
+
+  const _Cell(this.text, {required this.flex, this.center = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      flex: flex,
+      child: Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: center ? TextAlign.center : TextAlign.start,
+        style: const TextStyle(fontSize: 11),
       ),
     );
   }
