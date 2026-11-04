@@ -84,9 +84,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     }
   }
 
-  // ============================================================
-  // ДИАЛОГ ВЫБОРА КАТЕГОРИИ
-  // ============================================================
   Future<void> _showCategoryPicker(int id) async {
     final selected = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -108,9 +105,6 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
     }
   }
 
-  // ============================================================
-  // ДИАЛОГ ВЫБОРА ЦВЕТА
-  // ============================================================
   Future<void> _showColorPicker(int id) async {
     final selected = await showDialog<Map<String, dynamic>>(
       context: context,
@@ -231,316 +225,332 @@ class _PendingModelsScreenState extends State<PendingModelsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Новые модели'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        // Оставил цвета из темы, чтобы не ломалось в темной теме
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Обнаружены новые модели',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Подтвердите добавление моделей в базу данных',
-              style: TextStyle(color: Colors.grey[600]),
-            ),
-            const SizedBox(height: 16),
-
-            if (_isLoading)
-              const Expanded(
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else if (_error.isNotEmpty)
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error, color: Colors.red, size: 48),
-                      const SizedBox(height: 16),
-                      Text(_error, textAlign: TextAlign.center),
-                    ],
-                  ),
-                ),
-              )
-            else if (_models.isEmpty)
-              const Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.check_circle, color: Colors.green, size: 48),
-                      SizedBox(height: 16),
-                      Text('Все модели уже подтверждены'),
-                    ],
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.builder(
-                  itemCount: _models.length,
-                  itemBuilder: (context, index) {
-                    final model = _models[index];
-                    final id = model['id'];
-
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    model['part_number'] ?? '',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                                if (model['type'] == 'missing_category')
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange.shade50,
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                    child: Text(
-                                      'нет категории',
-                                      style: TextStyle(
-                                        color: Colors.orange.shade700,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ),
-                                const SizedBox(width: 8),
-                                TextButton(
-                                  onPressed: () => _approveModel(model),
-                                  child: const Text('✅ Добавить'),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              model['description'] ?? '',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                            const SizedBox(height: 12),
-
-                            // === КАТЕГОРИЯ (клик → диалог) ===
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () => _showCategoryPicker(id),
-                                    child: InputDecorator(
-                                      decoration: const InputDecoration(
-                                        labelText: 'Категория',
-                                        border: OutlineInputBorder(),
-                                        contentPadding:
-                                            EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 12),
-                                        prefixIcon: Icon(
-                                            Icons.category_outlined,
-                                            size: 18),
-                                        suffixIcon: Icon(Icons.arrow_drop_down),
-                                      ),
-                                      child: Text(
-                                        _getCategoryName(id).isEmpty
-                                            ? 'Нажмите для выбора'
-                                            : _getCategoryName(id),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: _getCategoryName(id).isEmpty
-                                              ? Colors.grey
-                                              : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    _isNewCategory[id] == true
-                                        ? Icons.close
-                                        : Icons.add_circle_outline,
-                                    size: 18,
-                                  ),
-                                  tooltip: _isNewCategory[id] == true
-                                      ? 'Отменить создание'
-                                      : 'Создать новую категорию',
-                                  onPressed: () {
-                                    setState(() {
-                                      _isNewCategory[id] =
-                                          !(_isNewCategory[id] ?? false);
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                            if (_isNewCategory[id] == true) ...[
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _categoryNameController[id],
-                                decoration: const InputDecoration(
-                                  labelText: 'Название новой категории',
-                                  hintText: 'Например: Роботы',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                ),
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                              const SizedBox(height: 8),
-                              TextField(
-                                controller: _categoryPrefixController[id],
-                                decoration: const InputDecoration(
-                                  labelText: 'Префикс (рус)',
-                                  hintText:
-                                      'Например: Робот-пылесос торговой марки',
-                                  border: OutlineInputBorder(),
-                                  contentPadding: EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                ),
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-
-                            // === ЦВЕТ (клик → диалог) ===
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () => _showColorPicker(id),
-                                    child: InputDecorator(
-                                      decoration: const InputDecoration(
-                                        labelText: 'Цвет',
-                                        border: OutlineInputBorder(),
-                                        contentPadding:
-                                            EdgeInsets.symmetric(
-                                                horizontal: 12, vertical: 12),
-                                        prefixIcon:
-                                            Icon(Icons.palette, size: 18),
-                                        suffixIcon: Icon(Icons.arrow_drop_down),
-                                      ),
-                                      child: Text(
-                                        _getColorName(id).isEmpty
-                                            ? 'Нажмите для выбора'
-                                            : _getColorName(id),
-                                        style: TextStyle(
-                                          fontSize: 14,
-                                          color: _getColorName(id).isEmpty
-                                              ? Colors.grey
-                                              : Colors.black,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: Icon(
-                                    _isNewColor[id] == true
-                                        ? Icons.close
-                                        : Icons.add_circle_outline,
-                                    size: 18,
-                                  ),
-                                  tooltip: _isNewColor[id] == true
-                                      ? 'Отменить создание'
-                                      : 'Создать новый цвет',
-                                  onPressed: () {
-                                    setState(() {
-                                      _isNewColor[id] =
-                                          !(_isNewColor[id] ?? false);
-                                    });
-                                  },
-                                ),
-                              ],
-                            ),
-                            if (_isNewColor[id] == true) ...[
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _colorRusController[id],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Цвет (рус)',
-                                        hintText: 'Розовое золото',
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 8),
-                                      ),
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: TextField(
-                                      controller: _colorEngController[id],
-                                      decoration: const InputDecoration(
-                                        labelText: 'Цвет (англ)',
-                                        hintText: 'Rose Gold',
-                                        border: OutlineInputBorder(),
-                                        contentPadding: EdgeInsets.symmetric(
-                                            horizontal: 12, vertical: 8),
-                                      ),
-                                      style: const TextStyle(fontSize: 14),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-
-                            TextField(
-                              controller: _nameRuController[id],
-                              decoration: const InputDecoration(
-                                labelText: 'Название товара (без префикса)',
-                                hintText: 'Apple Watch Series 11',
-                                border: OutlineInputBorder(),
-                                contentPadding: EdgeInsets.symmetric(
-                                    horizontal: 12, vertical: 8),
-                              ),
-                              style: const TextStyle(fontSize: 14),
-                            ),
-                          ],
-                        ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : _error.isNotEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error, color: Colors.red, size: 48),
+                          const SizedBox(height: 16),
+                          Text(_error, textAlign: TextAlign.center),
+                        ],
                       ),
-                    );
-                  },
+                    )
+                  : _models.isEmpty
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle,
+                                  color: Colors.green, size: 48),
+                              SizedBox(height: 16),
+                              Text('Все модели уже подтверждены'),
+                            ],
+                          ),
+                        )
+                      : _buildModelsList(isDark),
+        ),
+      ),
+    );
+  }
+
+  // ============================================================
+  // СПИСОК МОДЕЛЕЙ (адаптивный)
+  // ============================================================
+  Widget _buildModelsList(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Обнаружены новые модели',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Подтвердите добавление моделей в базу данных',
+          style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey),
+        ),
+        const SizedBox(height: 16),
+        Expanded(
+          // Заменили ListView.builder на ListView с карточками,
+          // но при этом карточки могут быть выше экрана — все ок,
+          // они будут скроллиться.
+          child: ListView.builder(
+            itemCount: _models.length,
+            itemBuilder: (context, index) {
+              final model = _models[index];
+              final id = model['id'];
+              return _buildModelCard(model, id, isDark);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildModelCard(
+      Map<String, dynamic> model, int id, bool isDark) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ===== Заголовок карточки (Адаптивный) =====
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Text(
+                  model['part_number'] ?? '',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
                 ),
+                if (model['type'] == 'missing_category')
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.orange.shade900.withOpacity(0.2) : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'нет категории',
+                      style: TextStyle(
+                        color: isDark ? Colors.orange.shade300 : Colors.orange.shade700,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                TextButton(
+                  onPressed: () => _approveModel(model),
+                  child: const Text('✅ Добавить'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              model['description'] ?? '',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey[600]),
+            ),
+            const SizedBox(height: 12),
+
+            // === КАТЕГОРИЯ ===
+            _buildCategoryRow(id, isDark),
+            if (_isNewCategory[id] == true) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _categoryNameController[id],
+                decoration: const InputDecoration(
+                  labelText: 'Название новой категории',
+                  hintText: 'Например: Роботы',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                ),
+                style: const TextStyle(fontSize: 14),
               ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _categoryPrefixController[id],
+                decoration: const InputDecoration(
+                  labelText: 'Префикс (рус)',
+                  hintText: 'Например: Робот-пылесос торговой марки',
+                  border: OutlineInputBorder(),
+                  contentPadding: EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                ),
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+            const SizedBox(height: 8),
+
+            // === ЦВЕТ ===
+            _buildColorRow(id, isDark),
+            if (_isNewColor[id] == true) ...[
+              const SizedBox(height: 8),
+              // Адаптивный Row для цветов (если места мало — перенос)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width > 500
+                        ? (MediaQuery.of(context).size.width - 100) / 2
+                        : MediaQuery.of(context).size.width - 80,
+                    child: TextField(
+                      controller: _colorRusController[id],
+                      decoration: const InputDecoration(
+                        labelText: 'Цвет (рус)',
+                        hintText: 'Розовое золото',
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                  SizedBox(
+                    width: MediaQuery.of(context).size.width > 500
+                        ? (MediaQuery.of(context).size.width - 100) / 2
+                        : MediaQuery.of(context).size.width - 80,
+                    child: TextField(
+                      controller: _colorEngController[id],
+                      decoration: const InputDecoration(
+                        labelText: 'Цвет (англ)',
+                        hintText: 'Rose Gold',
+                        border: OutlineInputBorder(),
+                        contentPadding:
+                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 8),
+
+            TextField(
+              controller: _nameRuController[id],
+              decoration: const InputDecoration(
+                labelText: 'Название товара (без префикса)',
+                hintText: 'Apple Watch Series 11',
+                border: OutlineInputBorder(),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              ),
+              style: const TextStyle(fontSize: 14),
+            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildCategoryRow(int id, bool isDark) {
+    final hasCategory = _getCategoryName(id).isNotEmpty;
+    return Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            onTap: () => _showCategoryPicker(id),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Категория',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                prefixIcon: Icon(Icons.category_outlined, size: 18),
+                suffixIcon: Icon(Icons.arrow_drop_down),
+              ),
+              child: Text(
+                hasCategory ? _getCategoryName(id) : 'Нажмите для выбора',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: hasCategory
+                      ? (isDark ? Colors.white : Colors.black)
+                      : (isDark ? Colors.grey.shade500 : Colors.grey),
+                ),
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          icon: Icon(
+            _isNewCategory[id] == true
+                ? Icons.close
+                : Icons.add_circle_outline,
+            size: 18,
+          ),
+          tooltip: _isNewCategory[id] == true
+              ? 'Отменить создание'
+              : 'Создать новую категорию',
+          onPressed: () {
+            setState(() {
+              _isNewCategory[id] = !(_isNewCategory[id] ?? false);
+            });
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildColorRow(int id, bool isDark) {
+    final hasColor = _getColorName(id).isNotEmpty;
+    return Row(
+      children: [
+        Expanded(
+          child: InkWell(
+            onTap: () => _showColorPicker(id),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Цвет',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                prefixIcon: Icon(Icons.palette, size: 18),
+                suffixIcon: Icon(Icons.arrow_drop_down),
+              ),
+              child: Text(
+                hasColor ? _getColorName(id) : 'Нажмите для выбора',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: hasColor
+                      ? (isDark ? Colors.white : Colors.black)
+                      : (isDark ? Colors.grey.shade500 : Colors.grey),
+                ),
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          icon: Icon(
+            _isNewColor[id] == true
+                ? Icons.close
+                : Icons.add_circle_outline,
+            size: 18,
+          ),
+          tooltip: _isNewColor[id] == true
+              ? 'Отменить создание'
+              : 'Создать новый цвет',
+          onPressed: () {
+            setState(() {
+              _isNewColor[id] = !(_isNewColor[id] ?? false);
+            });
+          },
+        ),
+      ],
+    );
+  }
 }
 
 // ============================================================
-// ДИАЛОГ ВЫБОРА (категория / цвет)
+// ДИАЛОГ ВЫБОРА (категория / цвет) — адаптивный
 // ============================================================
-
 class _PickerDialog extends StatefulWidget {
   final String title;
   final List<dynamic> items;
@@ -581,8 +591,8 @@ class _PickerDialogState extends State<_PickerDialog> {
     return AlertDialog(
       title: Text(widget.title),
       content: SizedBox(
-        width: 500,
-        height: 500,
+        width: MediaQuery.of(context).size.width * 0.9,
+        height: MediaQuery.of(context).size.height * 0.7,
         child: Column(
           children: [
             TextField(
