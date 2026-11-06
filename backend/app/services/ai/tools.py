@@ -181,7 +181,7 @@ TOOLS = [
             }
         }
     },
-    # --- НОВЫЙ ИНСТРУМЕНТ: ВЫПОЛНЕНИЕ SQL ---
+    # --- ВЫПОЛНЕНИЕ SQL ---
     {
         "type": "function",
         "function": {
@@ -381,7 +381,7 @@ READ_TOOLS = {
     "find_products_by_category",
     "find_products_without_model_number",
     "list_categories",
-    "execute_read_sql",  # ← ДОБАВЛЕНО
+    "execute_read_sql",
 }
 
 # Лимиты (используются в executor для валидации)

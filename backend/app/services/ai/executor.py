@@ -80,6 +80,7 @@ async def count_products(
     db: AsyncSession,
     category_name: Optional[str] = None,
     has_weight: Optional[bool] = None,
+    has_model_number: Optional[bool] = None,
     pattern: Optional[str] = None,
 ) -> Dict[str, Any]:
     stmt = select(func.count(Product.id)).where(Product.is_active == True)
@@ -95,6 +96,11 @@ async def count_products(
     elif has_weight is False:
         stmt = stmt.where(or_(Product.weight.is_(None), Product.weight <= 0))
 
+    if has_model_number is True:
+        stmt = stmt.where(Product.model_number.isnot(None), Product.model_number != "")
+    elif has_model_number is False:
+        stmt = stmt.where(or_(Product.model_number.is_(None), Product.model_number == ""))
+
     if pattern:
         p = _validate_pattern(pattern)
         stmt = stmt.where(Product.description.ilike(f"%{p}%"))
@@ -107,6 +113,7 @@ async def count_products(
         "filters": {
             "category_name": category_name,
             "has_weight": has_weight,
+            "has_model_number": has_model_number,
             "pattern": pattern,
         },
     }
@@ -323,6 +330,31 @@ async def find_products_without_weight(
     }
 
 
+async def find_products_without_model_number(
+    db: AsyncSession,
+    limit: int = 20,
+) -> Dict[str, Any]:
+    limit = min(int(limit or 20), LIMITS["search_products"])
+
+    stmt = (
+        select(Product)
+        .options(selectinload(Product.category), selectinload(Product.color))
+        .where(
+            Product.is_active == True,
+            or_(Product.model_number.is_(None), Product.model_number == "")
+        )
+        .order_by(Product.part_number)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+
+    return {
+        "count": len(items),
+        "items": [_product_to_dict(p) for p in items],
+    }
+
+
 async def list_categories(db: AsyncSession) -> Dict[str, Any]:
     stmt = select(Category).where(Category.is_active == True).order_by(Category.name)
     result = await db.execute(stmt)
@@ -337,7 +369,10 @@ async def list_categories(db: AsyncSession) -> Dict[str, Any]:
     }
 
 
-async def execute_read_sql(query: str) -> Dict[str, Any]:
+async def execute_read_sql(
+    db: AsyncSession,
+    query: str,
+) -> Dict[str, Any]:
     """Выполняет только SELECT-запросы от имени read-only пользователя."""
     q_clean = query.strip().upper()
     
@@ -718,10 +753,12 @@ async def execute_tool(
             return await get_product_weight(db, **args)
         elif name == "find_products_without_weight":
             return await find_products_without_weight(db, **args)
+        elif name == "find_products_without_model_number":
+            return await find_products_without_model_number(db, **args)
         elif name == "list_categories":
             return await list_categories(db)
         elif name == "execute_read_sql":
-            return await execute_read_sql(**args)
+            return await execute_read_sql(db, **args)
 
         # WRITE — preview
         elif name == "update_product_weight":
