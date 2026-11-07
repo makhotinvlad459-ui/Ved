@@ -14,7 +14,6 @@ class HomeScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      // Фон берется из темы (в светлой - #F5F6F8, в темной - #121212)
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -396,7 +395,6 @@ class _CompactCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Material(
-      // Фон карточки берется из темы (в темной - #1E1E1E)
       color: Theme.of(context).cardColor,
       borderRadius: BorderRadius.circular(14),
       elevation: 0,
@@ -465,7 +463,7 @@ class _CompactCard extends StatelessWidget {
 }
 
 // ============================================================
-// 3D МОДЕЛЬ 
+// 3D МОДЕЛЬ (БЕЗ БЕЛОГО ФОНА)
 // ============================================================
 class Iphone3DViewer extends StatefulWidget {
   const Iphone3DViewer({super.key});
@@ -477,31 +475,24 @@ class Iphone3DViewer extends StatefulWidget {
 class _Iphone3DViewerState extends State<Iphone3DViewer> {
   final Flutter3DController _controller = Flutter3DController();
 
-
-
   @override
   Widget build(BuildContext context) {
-    // Получаем цвет фона страницы (светло-серый или темный)
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
-
-    return Container(
-      // Убрали явный white background
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: ColorFiltered(
-          // Этот фильтр делает белый цвет (255, 255, 255) прозрачным
-          colorFilter: const ColorFilter.mode(
-            Colors.white, 
-            BlendMode.dstOut,
-          ),
-          child: Flutter3DViewer(
-            controller: _controller,
-            src: 'assets/assets/models/mastertux-compass-1679.glb',
-            onLoad: (modelAddress) {
-              _controller.startRotation(rotationSpeed: 15);
-            },
-            enableTouch: true, 
-            activeGestureInterceptor: true,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: ColorFiltered(
+        // Этот фильтр делает белый цвет полностью прозрачным
+        colorFilter: const ColorFilter.mode(
+          Colors.white,
+          BlendMode.dstOut,
+        ),
+        child: Flutter3DViewer(
+          controller: _controller,
+          src: 'assets/assets/models/mastertux-compass-1679.glb',
+          onLoad: (modelAddress) {
+            _controller.startRotation(rotationSpeed: 15);
+          },
+          enableTouch: true,
+          activeGestureInterceptor: true,
         ),
       ),
     );
