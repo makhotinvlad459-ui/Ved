@@ -495,7 +495,7 @@ class _Iphone3DViewerState extends State<Iphone3DViewer> {
         borderRadius: BorderRadius.circular(24),
         child: Flutter3DViewer(
           controller: _controller,
-          src: 'assets/assets/models/mastertux-compass-1679.glbс', // Убедись, что файл так называется
+          src: 'assets/assets/models/mastertux-compass-1679.glb', // Убедись, что файл так называется
           onLoad: (modelAddress) {
             // Запускаем медленное авто-вращение после загрузки
             _controller.startRotation(rotationSpeed: 15);
