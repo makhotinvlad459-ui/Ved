@@ -482,27 +482,23 @@ class _Iphone3DViewerState extends State<Iphone3DViewer> {
   @override
   Widget build(BuildContext context) {
     return Container(
+      // Убрали color: Theme.of(context).cardColor, чтобы фон стал прозрачным
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? Colors.grey.shade800
-              : Colors.grey.shade200,
-        ),
+        // Рамку тоже можно убрать, если она не нужна
+        // border: Border.all(...) 
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: Flutter3DViewer(
           controller: _controller,
-          src: 'assets/assets/models/mastertux-compass-1679.glb', // Убедись, что файл так называется
+          src: 'assets/assets/models/mastertux-compass-1679.glb',
+          // ДОБАВЛЯЕМ ПРОЗРАЧНЫЙ ФОН ДЛЯ САМОГО 3D-ДВИЖКА
+          backgroundColor: Colors.transparent, 
           onLoad: (modelAddress) {
-            // Запускаем медленное авто-вращение после загрузки
             _controller.startRotation(rotationSpeed: 15);
           },
-          // Позволяем пользователю крутить мышкой/пальцем
           enableTouch: true, 
-          // Защита от конфликтов со скроллом страницы
           activeGestureInterceptor: true,
         ),
       ),
