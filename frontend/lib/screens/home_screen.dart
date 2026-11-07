@@ -124,8 +124,8 @@ class HomeScreen extends StatelessWidget {
 
                       // Новый блок с 3D-моделью
                       final iphoneBlock = const SizedBox(
-                        height: 350,
-                        width: double.infinity,
+                        height: 220,
+                        width: 250,
                         child: Iphone3DViewer(),
                       );
 
