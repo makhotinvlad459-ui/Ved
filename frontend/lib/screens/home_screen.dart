@@ -477,11 +477,7 @@ class Iphone3DViewer extends StatefulWidget {
 class _Iphone3DViewerState extends State<Iphone3DViewer> {
   final Flutter3DController _controller = Flutter3DController();
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {
