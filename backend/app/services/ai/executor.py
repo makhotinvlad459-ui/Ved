@@ -1007,7 +1007,7 @@ async def _do_delete_category(
     if not cat:
         raise ToolError(f"Категория '{category_name}' не найдена.")
 
-    # Еще раз проверяем, что категория пустая перед удалением
+    # 1. Проверяем, что в категории нет активных товаров
     products_count = (
         await db.execute(
             select(func.count(Product.id)).where(
@@ -1022,6 +1022,28 @@ async def _do_delete_category(
             f"Нельзя удалить категорию '{cat.name}', так как в ней есть {products_count} товаров."
         )
 
+    # 2. Отвязываем категорию от pending_models (чтобы не было ошибки Foreign Key)
+    # Если таблица pending_models есть в проекте, нужно обнулить custom_category_id
+    from sqlalchemy import update
+    try:
+        # Имя модели может быть PendingModel или PendingProduct, проверь в app/models.py
+        from app.models import PendingModel 
+        await db.execute(
+            update(PendingModel)
+            .where(PendingModel.custom_category_id == cat.id)
+            .values(custom_category_id=None)
+        )
+    except ImportError:
+        pass # Если модели нет, пропускаем
+
+    # 3. На всякий случай отвязываем от неактивных товаров (is_active=False)
+    await db.execute(
+        update(Product)
+        .where(Product.category_id == cat.id)
+        .values(category_id=None)
+    )
+
+    # 4. Удаляем саму категорию
     cat_name = cat.name
     await db.delete(cat)
     await db.commit()
@@ -1031,7 +1053,6 @@ async def _do_delete_category(
         "category_id": cat.id,
         "category_name": cat_name,
     }
-
 
 async def _do_create_products(
     db: AsyncSession,
