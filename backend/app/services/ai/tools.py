@@ -330,6 +330,23 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "delete_category",
+            "description": "Удалить пустую категорию (в которой 0 товаров). Если в категории есть товары, удаление будет отклонено с ошибкой. ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "category_name": {
+                        "type": "string",
+                        "description": "Название категории, которую нужно удалить."
+                    }
+                },
+                "required": ["category_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "create_products",
             "description": "Создать один или несколько товаров. ТРЕБУЕТ ПОДТВЕРЖДЕНИЯ. Каждый товар должен иметь part_number и description. Если категория не указана — товар создастся без категории (потом можно назначить через update_product_category).",
             "parameters": {
@@ -369,6 +386,7 @@ WRITE_TOOLS = {
     "create_category",
     "create_products",
     "rename_category",
+    "delete_category",
 }
 
 READ_TOOLS = {

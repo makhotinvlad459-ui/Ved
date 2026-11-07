@@ -602,6 +602,48 @@ async def create_category_preview(
     }
 
 
+async def delete_category_preview(
+    db: AsyncSession,
+    category_name: str,
+) -> Dict[str, Any]:
+    n = (category_name or "").strip()
+    if not n:
+        raise ToolError("category_name обязателен.")
+
+    existing = await _get_category_by_name(db, n)
+    if not existing:
+        raise ToolError(f"Категория '{n}' не найдена.")
+
+    # Проверяем, что категория пустая
+    products_count = (
+        await db.execute(
+            select(func.count(Product.id)).where(
+                Product.category_id == existing.id,
+                Product.is_active == True,
+            )
+        )
+    ).scalar() or 0
+
+    if products_count > 0:
+        raise ToolError(
+            f"Нельзя удалить категорию '{existing.name}', так как в ней есть {products_count} товаров. "
+            f"Сначала переместите или удалите товары."
+        )
+
+    return {
+        "requires_confirmation": True,
+        "action": {
+            "tool": "delete_category",
+            "args": {"category_name": existing.name},
+        },
+        "preview": {
+            "category_name": existing.name,
+            "id": existing.id,
+        },
+        "message": f"Вы уверены, что хотите удалить пустую категорию '{existing.name}'?",
+    }
+
+
 async def create_products_preview(
     db: AsyncSession,
     products: List[Dict[str, Any]],
@@ -771,6 +813,8 @@ async def execute_tool(
             return await create_products_preview(db, **args)
         elif name == "rename_category":
             return await rename_category_preview(db, **args)
+        elif name == "delete_category":
+            return await delete_category_preview(db, **args)
 
         else:
             raise ToolError(f"Неизвестный tool: {name}")
@@ -803,6 +847,8 @@ async def execute_write_tool(
         return await _do_create_category(db, **args)
     elif name == "create_products":
         return await _do_create_products(db, **args)
+    elif name == "delete_category":
+        return await _do_delete_category(db, **args)
     else:
         raise ToolError(f"Неизвестный write-tool: {name}")
 
@@ -950,6 +996,40 @@ async def _do_create_category(
         "category_id": cat.id,
         "name": cat.name,
         "prefix_ru": cat.prefix_ru,
+    }
+
+
+async def _do_delete_category(
+    db: AsyncSession,
+    category_name: str,
+) -> Dict[str, Any]:
+    cat = await _get_category_by_name(db, category_name)
+    if not cat:
+        raise ToolError(f"Категория '{category_name}' не найдена.")
+
+    # Еще раз проверяем, что категория пустая перед удалением
+    products_count = (
+        await db.execute(
+            select(func.count(Product.id)).where(
+                Product.category_id == cat.id,
+                Product.is_active == True,
+            )
+        )
+    ).scalar() or 0
+
+    if products_count > 0:
+        raise ToolError(
+            f"Нельзя удалить категорию '{cat.name}', так как в ней есть {products_count} товаров."
+        )
+
+    cat_name = cat.name
+    await db.delete(cat)
+    await db.commit()
+
+    return {
+        "deleted": True,
+        "category_id": cat.id,
+        "category_name": cat_name,
     }
 
 
