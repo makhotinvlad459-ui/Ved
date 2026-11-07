@@ -14,6 +14,7 @@ dependencies:
   provider: ^6.1.1
   shared_preferences: ^2.2.2
   data_table_2: ^2.5.19
+  flutter_3d_controller: ^2.3.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -21,3 +22,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/models/

@@ -1,6 +1,7 @@
 // frontend/lib/screens/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 
 import '../services/theme_provider.dart';
 import '../widgets/world_clock_widget.dart';
@@ -91,7 +92,7 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  // ============ ЗАГОЛОВОК + ЧАСЫ ============
+                  // ============ ЗАГОЛОВОК + ЧАСЫ + 3D ============
                   LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth >= 800;
@@ -117,12 +118,27 @@ class HomeScreen extends StatelessWidget {
                         ],
                       );
 
+                      final clockBlock = const SizedBox(
+                        width: 360,
+                        child: WorldClockWidget(compact: true),
+                      );
+
+                      // Новый блок с 3D-моделью
+                      final iphoneBlock = const SizedBox(
+                        height: 350,
+                        width: double.infinity,
+                        child: Iphone3DViewer(),
+                      );
+
                       if (!isWide) {
+                        // На мобильных/узких экранах: Заголовок -> 3D -> Часы
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             titleBlock,
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 24),
+                            iphoneBlock,
+                            const SizedBox(height: 24),
                             const SizedBox(
                               width: double.infinity,
                               child: WorldClockWidget(compact: true),
@@ -131,15 +147,22 @@ class HomeScreen extends StatelessWidget {
                         );
                       }
 
+                      // На широких экранах: Слева Заголовок + 3D, Справа Часы
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(child: titleBlock),
-                          const SizedBox(width: 24),
-                          const SizedBox(
-                            width: 360,
-                            child: WorldClockWidget(compact: true),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                titleBlock,
+                                const SizedBox(height: 24),
+                                iphoneBlock,
+                              ],
+                            ),
                           ),
+                          const SizedBox(width: 24),
+                          clockBlock,
                         ],
                       );
                     },
@@ -435,6 +458,56 @@ class _CompactCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ============================================================
+// 3D МОДЕЛЬ 
+// ============================================================
+class Iphone3DViewer extends StatefulWidget {
+  const Iphone3DViewer({super.key});
+
+  @override
+  State<Iphone3DViewer> createState() => _Iphone3DViewerState();
+}
+
+class _Iphone3DViewerState extends State<Iphone3DViewer> {
+  final Flutter3DController _controller = Flutter3DController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey.shade800
+              : Colors.grey.shade200,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: Flutter3DViewer(
+          controller: _controller,
+          src: 'assets/models/iphone.glb', // Убедись, что файл так называется
+          onLoad: (modelAddress) {
+            // Запускаем медленное авто-вращение после загрузки
+            _controller.startRotation(rotationSpeed: 15);
+          },
+          // Позволяем пользователю крутить мышкой/пальцем
+          enableTouch: true, 
+          // Защита от конфликтов со скроллом страницы
+          activeGestureInterceptor: true,
         ),
       ),
     );
