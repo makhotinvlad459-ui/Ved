@@ -5,7 +5,7 @@ import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 
 import '../services/theme_provider.dart';
 import '../widgets/world_clock_widget.dart';
-import '../widgets/apple_news_widget.dart'; // <-- ДОБАВЛЕН ИМПОРТ
+import '../widgets/apple_news_widget.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -123,16 +123,6 @@ class HomeScreen extends StatelessWidget {
                         child: WorldClockWidget(compact: true),
                       );
 
-                      // Блок с 3D-моделью
-                      final iphoneBlock = const SizedBox(
-                        height: 250,
-                        width: double.infinity,
-                        child: Iphone3DViewer(),
-                      );
-
-                      // Блок с новостями
-                      final newsBlock = const AppleNewsWidget();
-
                       if (!isWide) {
                         // На мобильных/узких экранах: всё друг под другом
                         return Column(
@@ -140,9 +130,13 @@ class HomeScreen extends StatelessWidget {
                           children: [
                             titleBlock,
                             const SizedBox(height: 24),
-                            iphoneBlock,
+                            const SizedBox(
+                              height: 250,
+                              width: double.infinity,
+                              child: Iphone3DViewer(),
+                            ),
                             const SizedBox(height: 16),
-                            newsBlock,
+                            const AppleNewsWidget(),
                             const SizedBox(height: 24),
                             const SizedBox(
                               width: double.infinity,
@@ -153,35 +147,56 @@ class HomeScreen extends StatelessWidget {
                       }
 
                       // На широких экранах: Слева (Заголовок + [3D + Новости]), Справа Часы
-                      return Row(
+                      return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: titleBlock),
+                              const SizedBox(width: 24),
+                              clockBlock,
+                            ],
+                          ),
+                          const SizedBox(height: 32),
+                          
+                          // === НОВАЯ СЕТКА (КОМПАС + НОВОСТИ) ===
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                titleBlock,
-                                const SizedBox(height: 24),
-                                // Компас и новости встают рядом друг с другом
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(
-                                      flex: 2,
-                                      child: iphoneBlock,
+                                // КОМПАС (слева, по центру)
+                                Expanded(
+                                  flex: 2,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(context).cardColor,
+                                      borderRadius: BorderRadius.circular(24),
+                                      border: Border.all(
+                                        color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                                      ),
                                     ),
-                                    const SizedBox(width: 16),
-                                    const Expanded(
-                                      flex: 3,
-                                      child: AppleNewsWidget(),
+                                    child: const Center(
+                                      child: SizedBox(
+                                        height: 250,
+                                        width: 250,
+                                        child: Iphone3DViewer(),
+                                      ),
                                     ),
-                                  ],
+                                  ),
+                                ),
+                                const SizedBox(width: 24),
+                                // НОВОСТИ (справа, фиксированная высота)
+                                const Expanded(
+                                  flex: 3,
+                                  child: SizedBox(
+                                    height: 400, // Высота блока новостей
+                                    child: AppleNewsWidget(),
+                                  ),
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(width: 24),
-                          clockBlock,
                         ],
                       );
                     },
@@ -500,7 +515,6 @@ class _Iphone3DViewerState extends State<Iphone3DViewer> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: ColorFiltered(
-        // Этот фильтр делает белый цвет полностью прозрачным
         colorFilter: const ColorFilter.mode(
           Colors.white,
           BlendMode.dstOut,
