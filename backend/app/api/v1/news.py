@@ -12,8 +12,8 @@ async def get_apple_news():
         raise HTTPException(status_code=500, detail="NEWS_API_KEY не настроен")
 
     # Ищем новости строго по темам Apple, сортируем по дате
-    query = "Apple Inc OR iPhone OR MacBook OR iPad"
-    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=5&apiKey={api_key}"
+    query = '"Apple Inc" OR iPhone OR MacBook OR iPad OR "Apple Vision"'
+    url = f"https://newsapi.org/v2/everything?q={query}&language=en&sortBy=publishedAt&pageSize=5&searchIn=title,description&apiKey={api_key}"
     
     try:
         async with httpx.AsyncClient() as client:
