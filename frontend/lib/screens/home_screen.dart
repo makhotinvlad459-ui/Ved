@@ -5,6 +5,7 @@ import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 
 import '../services/theme_provider.dart';
 import '../widgets/world_clock_widget.dart';
+import '../widgets/apple_news_widget.dart'; // <-- ДОБАВЛЕН ИМПОРТ
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -91,10 +92,10 @@ class HomeScreen extends StatelessWidget {
 
                   const SizedBox(height: 40),
 
-                  // ============ ЗАГОЛОВОК + ЧАСЫ + 3D ============
+                  // ============ ЗАГОЛОВОК + ЧАСЫ + 3D + НОВОСТИ ============
                   LayoutBuilder(
                     builder: (context, constraints) {
-                      final isWide = constraints.maxWidth >= 800;
+                      final isWide = constraints.maxWidth >= 900;
 
                       final titleBlock = Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -122,21 +123,26 @@ class HomeScreen extends StatelessWidget {
                         child: WorldClockWidget(compact: true),
                       );
 
-                      // Новый блок с 3D-моделью
+                      // Блок с 3D-моделью
                       final iphoneBlock = const SizedBox(
-                        height: 220,
-                        width: 250,
+                        height: 250,
+                        width: double.infinity,
                         child: Iphone3DViewer(),
                       );
 
+                      // Блок с новостями
+                      final newsBlock = const AppleNewsWidget();
+
                       if (!isWide) {
-                        // На мобильных/узких экранах: Заголовок -> 3D -> Часы
+                        // На мобильных/узких экранах: всё друг под другом
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             titleBlock,
                             const SizedBox(height: 24),
                             iphoneBlock,
+                            const SizedBox(height: 16),
+                            newsBlock,
                             const SizedBox(height: 24),
                             const SizedBox(
                               width: double.infinity,
@@ -146,7 +152,7 @@ class HomeScreen extends StatelessWidget {
                         );
                       }
 
-                      // На широких экранах: Слева Заголовок + 3D, Справа Часы
+                      // На широких экранах: Слева (Заголовок + [3D + Новости]), Справа Часы
                       return Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -156,7 +162,21 @@ class HomeScreen extends StatelessWidget {
                               children: [
                                 titleBlock,
                                 const SizedBox(height: 24),
-                                iphoneBlock,
+                                // Компас и новости встают рядом друг с другом
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      flex: 2,
+                                      child: iphoneBlock,
+                                    ),
+                                    const SizedBox(width: 16),
+                                    const Expanded(
+                                      flex: 3,
+                                      child: AppleNewsWidget(),
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),

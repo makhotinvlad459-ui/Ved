@@ -883,4 +883,15 @@ class ApiService {
       throw Exception('Ошибка отмены: $e');
     }
   }
+   // ============================================================
+  // НОВОСТИ APPLE
+  // ============================================================
+  Future<List<dynamic>> getAppleNews() async {
+    try {
+      final response = await _dio.get('/news/apple');
+      return response.data['articles'] ?? [];
+    } catch (e) {
+      throw Exception('Ошибка загрузки новостей: $e');
+    }
+  }
 }
