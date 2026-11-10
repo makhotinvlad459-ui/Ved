@@ -13,10 +13,11 @@
   L = K * D
   M = K (+1.5 если ЧЗ)
   N = M * D
+- Строка итогов сразу под данными: SUM по D, G, I, L, N (жирным).
 - Блок параметров и ставок — тоже формулы.
 """
 import os
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from decimal import Decimal, ROUND_HALF_UP
 
 import openpyxl
@@ -43,9 +44,13 @@ def _round2(v):
 def generate_for_alice_xlsx(
     result: Dict[str, Any],
     session_id: str,
+    sale_number: Optional[str] = None,
 ) -> str:
     """
     Генерирует xlsx с 14 колонками и живыми формулами.
+
+    sale_number — номер реализации (например, "110"). Если задан,
+    файл на диске называется for_alice_110.xlsx, иначе for_alice_<session_id[:8]>.xlsx.
     """
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -70,6 +75,10 @@ def generate_for_alice_xlsx(
     edit_fill = PatternFill(
         start_color="FFF9E6", end_color="FFF9E6", fill_type="solid"
     )  # подсветка редактируемых колонок
+    totals_font = Font(bold=True)
+    totals_fill = PatternFill(
+        start_color="E8F5E9", end_color="E8F5E9", fill_type="solid"
+    )
 
     # === Заголовки ===
     headers = [
@@ -139,22 +148,42 @@ def generate_for_alice_xlsx(
     # Диапазон для SUM с запасом (чтобы добавление строк работало)
     sum_range_end = last_data_row + SUM_TAIL_ROWS
 
-    # === Блок итогов ===
-    row += 1
+    # === Строка итогов сразу под данными ===
+    # В одной строке SUM по числовым колонкам: D (кол-во), G (общий вес),
+    # I (стоимость партии), L (стоимость с логистикой), N (итог).
+    totals_row = row
+    ws.cell(totals_row, 3).value = "Итого:"
+    ws.cell(totals_row, 3).font = totals_font
+    ws.cell(totals_row, 3).alignment = Alignment(horizontal="right", vertical="center")
 
-    total_weight_row = row
-    ws.cell(row, 1).value = "Итого вес:"
-    ws.cell(row, 1).font = Font(bold=True)
-    ws.cell(row, 2).value = f"=SUM(G{first_data_row}:G{sum_range_end})"
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
+    for col in range(1, 15):
+        cell = ws.cell(totals_row, col)
+        cell.border = border
+        cell.fill = totals_fill
+        cell.font = totals_font
+        cell.alignment = cell_align
 
-    total_sum_row = row
-    ws.cell(row, 1).value = "Итого сумма:"
-    ws.cell(row, 1).font = Font(bold=True)
-    ws.cell(row, 2).value = f"=SUM(N{first_data_row}:N{sum_range_end})"
-    ws.cell(row, 2).number_format = "#,##0.00"
-    row += 2
+    # D — сумма количеств
+    ws.cell(totals_row, 4).value = f"=SUM(D{first_data_row}:D{sum_range_end})"
+    ws.cell(totals_row, 4).number_format = "#,##0"
+
+    # G — общий вес
+    ws.cell(totals_row, 7).value = f"=SUM(G{first_data_row}:G{sum_range_end})"
+    ws.cell(totals_row, 7).number_format = "#,##0.00"
+
+    # I — стоимость партии
+    ws.cell(totals_row, 9).value = f"=SUM(I{first_data_row}:I{sum_range_end})"
+    ws.cell(totals_row, 9).number_format = "#,##0.00"
+
+    # L — стоимость с логистикой
+    ws.cell(totals_row, 12).value = f"=SUM(L{first_data_row}:L{sum_range_end})"
+    ws.cell(totals_row, 12).number_format = "#,##0.00"
+
+    # N — итог
+    ws.cell(totals_row, 14).value = f"=SUM(N{first_data_row}:N{sum_range_end})"
+    ws.cell(totals_row, 14).number_format = "#,##0.00"
+
+    row = totals_row + 2
 
     # === Параметры расчёта ===
     ws.cell(row, 1).value = "Параметры расчёта:"
@@ -187,9 +216,10 @@ def generate_for_alice_xlsx(
     ws.cell(row, 1).font = Font(bold=True)
     row += 1
 
+    # Ссылаемся на G в строке итогов (общий вес), а не на старый «Итого вес:»
     log_usd_row = row
     ws.cell(row, 1).value = "Логистика всего (USD)"
-    ws.cell(row, 2).value = f"=B{rate_usd_row}*B{total_weight_row}"
+    ws.cell(row, 2).value = f"=B{rate_usd_row}*G{totals_row}"
     ws.cell(row, 2).number_format = "#,##0.00"
     row += 1
 
@@ -208,8 +238,8 @@ def generate_for_alice_xlsx(
     rate_aed_row = row
     ws.cell(row, 1).value = "Ставка AED/кг (с документами)"
     ws.cell(row, 2).value = (
-        f"=IF(B{total_weight_row}>0,"
-        f"B{total_log_aed_row}/B{total_weight_row},0)"
+        f"=IF(G{totals_row}>0,"
+        f"B{total_log_aed_row}/G{totals_row},0)"
     )
     ws.cell(row, 2).number_format = "#,##0.00"
     row += 1
@@ -217,7 +247,7 @@ def generate_for_alice_xlsx(
     rate_usd_per_kg_row = row
     ws.cell(row, 1).value = "Ставка USD/кг (с документами)"
     ws.cell(row, 2).value = (
-        f"=IF(B{total_weight_row}>0,"
+        f"=IF(G{totals_row}>0,"
         f"B{rate_aed_row}/B{usd_row},0)"
     )
     ws.cell(row, 2).number_format = "#,##0.00"
@@ -248,7 +278,9 @@ def generate_for_alice_xlsx(
     for col in range(5, 15):
         ws.column_dimensions[get_column_letter(col)].width = 14
 
-    output_path = os.path.join(OUTPUT_DIR, f"for_alice_{session_id[:8]}.xlsx")
+    # === Имя файла: номер реализации, если задан ===
+    suffix = (sale_number or "").strip() or session_id[:8]
+    output_path = os.path.join(OUTPUT_DIR, f"for_alice_{suffix}.xlsx")
     wb.save(output_path)
 
     return output_path
