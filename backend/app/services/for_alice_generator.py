@@ -44,9 +44,6 @@ def generate_for_alice_xlsx(
     result: Dict[str, Any],
     session_id: str,
 ) -> str:
-    """
-    Генерирует xlsx с 14 колонками и живыми формулами.
-    """
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     wb = openpyxl.Workbook()
@@ -69,7 +66,8 @@ def generate_for_alice_xlsx(
     )
     edit_fill = PatternFill(
         start_color="FFF9E6", end_color="FFF9E6", fill_type="solid"
-    )  # подсветка редактируемых колонок
+    )
+    bold = Font(bold=True)
 
     # === Заголовки ===
     headers = [
@@ -101,25 +99,22 @@ def generate_for_alice_xlsx(
     row = first_data_row
 
     for r in result["rows"]:
-        # Значения (редактируемые)
         ws.cell(row, 1).value = r.get("model_number") or ""
         ws.cell(row, 2).value = r.get("part_number") or ""
         ws.cell(row, 3).value = r.get("name") or ""
-        ws.cell(row, 4).value = int(r.get("qty") or 0)         # D — редактируется
-        ws.cell(row, 5).value = _round2(r.get("weight")) or 0  # E — редактируется
-        ws.cell(row, 8).value = _round2(r.get("price")) or 0   # H — редактируется
+        ws.cell(row, 4).value = int(r.get("qty") or 0)
+        ws.cell(row, 5).value = _round2(r.get("weight")) or 0
+        ws.cell(row, 8).value = _round2(r.get("price")) or 0
 
-        # Формулы (J заполняется позже, когда известна строка ставки)
-        ws.cell(row, 6).value = f"=ROUND(E{row}*{PACKAGING_FACTOR},2)"   # F
-        ws.cell(row, 7).value = f"=F{row}*D{row}"                        # G
-        ws.cell(row, 9).value = f"=H{row}*D{row}"                        # I
-        ws.cell(row, 11).value = f"=H{row}+J{row}"                       # K
-        ws.cell(row, 12).value = f"=K{row}*D{row}"                       # L
+        ws.cell(row, 6).value = f"=ROUND(E{row}*{PACKAGING_FACTOR},2)"
+        ws.cell(row, 7).value = f"=F{row}*D{row}"
+        ws.cell(row, 9).value = f"=H{row}*D{row}"
+        ws.cell(row, 11).value = f"=H{row}+J{row}"
+        ws.cell(row, 12).value = f"=K{row}*D{row}"
         cz = f"+{CZ_FEE}" if r.get("is_cz") else ""
-        ws.cell(row, 13).value = f"=K{row}{cz}"                          # M
-        ws.cell(row, 14).value = f"=M{row}*D{row}"                       # N
+        ws.cell(row, 13).value = f"=K{row}{cz}"
+        ws.cell(row, 14).value = f"=M{row}*D{row}"
 
-        # Стили
         for col in range(1, 15):
             cell = ws.cell(row, col)
             cell.border = border
@@ -128,7 +123,6 @@ def generate_for_alice_xlsx(
                 cell.number_format = "#,##0.00"
             if col == 4:
                 cell.number_format = "#,##0"
-            # Подсветка редактируемых колонок (D, E, H)
             if col in (4, 5, 8):
                 cell.fill = edit_fill
 
@@ -136,94 +130,103 @@ def generate_for_alice_xlsx(
 
     last_data_row = row - 1
 
-    # Диапазон для SUM с запасом (чтобы добавление строк работало)
-    sum_range_end = last_data_row + SUM_TAIL_ROWS
+    # === Строка итогов прямо под данными (строка 4 в примере) ===
+    total_row = row
+    ws.cell(total_row, 4).value = f"=SUM(D{first_data_row}:D{last_data_row})"
+    ws.cell(total_row, 4).number_format = "#,##0"
+    ws.cell(total_row, 7).value = f"=SUM(G{first_data_row}:G{last_data_row})"
+    ws.cell(total_row, 7).number_format = "#,##0.00"
+    ws.cell(total_row, 9).value = f"=SUM(I{first_data_row}:I{last_data_row})"
+    ws.cell(total_row, 9).number_format = "#,##0.00"
+    ws.cell(total_row, 14).value = f"=SUM(N{first_data_row}:N{last_data_row})"
+    ws.cell(total_row, 14).number_format = "#,##0.00"
+    for col in range(1, 15):
+        ws.cell(total_row, col).border = border
+        ws.cell(total_row, col).font = bold
 
-    # === Блок итогов ===
+    row = total_row + 1
+
+    # === Итого вес / Итого сумма: значения в B, подписи в C ===
+    ws.cell(row, 2).value = f"=G{total_row}"
+    ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 2).font = bold
+    ws.cell(row, 3).value = "Итого вес:"
+    ws.cell(row, 3).font = bold
     row += 1
 
-    total_weight_row = row
-    ws.cell(row, 1).value = "Итого вес:"
-    ws.cell(row, 1).font = Font(bold=True)
-    ws.cell(row, 2).value = f"=SUM(G{first_data_row}:G{sum_range_end})"
+    ws.cell(row, 2).value = f"=N{total_row}"
     ws.cell(row, 2).number_format = "#,##0.00"
-    row += 1
-
-    total_sum_row = row
-    ws.cell(row, 1).value = "Итого сумма:"
-    ws.cell(row, 1).font = Font(bold=True)
-    ws.cell(row, 2).value = f"=SUM(N{first_data_row}:N{sum_range_end})"
-    ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 2).font = bold
+    ws.cell(row, 3).value = "Итого сумма:"
+    ws.cell(row, 3).font = bold
     row += 2
 
-    # === Параметры расчёта ===
-    ws.cell(row, 1).value = "Параметры расчёта:"
-    ws.cell(row, 1).font = Font(bold=True)
+    # === Параметры расчёта: подписи в C, значения в B ===
+    ws.cell(row, 3).value = "Параметры расчёта:"
+    ws.cell(row, 3).font = bold
     row += 1
 
     rate_usd_row = row
-    ws.cell(row, 1).value = "Ставка логистики (USD/кг)"
     ws.cell(row, 2).value = result["totals"]["logistics_rate_usd"]
     ws.cell(row, 2).number_format = "#,##0.00"
     ws.cell(row, 2).fill = edit_fill
+    ws.cell(row, 3).value = "Ставка логистики (USD/кг)"
     row += 1
 
     usd_row = row
-    ws.cell(row, 1).value = "Курс USD → AED"
     ws.cell(row, 2).value = result["totals"]["usd_to_aed"]
     ws.cell(row, 2).number_format = "#,##0.000"
     ws.cell(row, 2).fill = edit_fill
+    ws.cell(row, 3).value = "Курс USD → AED"
     row += 1
 
     docs_row = row
-    ws.cell(row, 1).value = "Расходы на документы (AED)"
     ws.cell(row, 2).value = result["totals"]["documents_cost_aed"]
     ws.cell(row, 2).number_format = "#,##0.00"
     ws.cell(row, 2).fill = edit_fill
+    ws.cell(row, 3).value = "Расходы на документы (AED)"
     row += 2
 
-    # === Расчёт логистики ===
-    ws.cell(row, 1).value = "Расчёт логистики:"
-    ws.cell(row, 1).font = Font(bold=True)
+    # === Расчёт логистики: подписи в C, значения в B ===
+    ws.cell(row, 3).value = "Расчёт логистики:"
+    ws.cell(row, 3).font = bold
     row += 1
 
     log_usd_row = row
-    ws.cell(row, 1).value = "Логистика всего (USD)"
-    ws.cell(row, 2).value = f"=B{rate_usd_row}*B{total_weight_row}"
+    ws.cell(row, 2).value = f"=B{rate_usd_row}*B{total_row - 1}"  # B(итого вес)
     ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 3).value = "Логистика всего (USD)"
     row += 1
 
     log_aed_row = row
-    ws.cell(row, 1).value = "Логистика всего (AED)"
     ws.cell(row, 2).value = f"=B{log_usd_row}*B{usd_row}"
     ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 3).value = "Логистика всего (AED)"
     row += 1
 
     total_log_aed_row = row
-    ws.cell(row, 1).value = "Итого логистика (AED)"
     ws.cell(row, 2).value = f"=B{log_aed_row}+B{docs_row}"
     ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 3).value = "Итого логистика (AED)"
     row += 1
 
     rate_aed_row = row
-    ws.cell(row, 1).value = "Ставка AED/кг (с документами)"
     ws.cell(row, 2).value = (
-        f"=IF(B{total_weight_row}>0,"
-        f"B{total_log_aed_row}/B{total_weight_row},0)"
+        f"=IF(B{total_row - 1}>0,B{total_log_aed_row}/B{total_row - 1},0)"
     )
     ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 3).value = "Ставка AED/кг (с документами)"
     row += 1
 
     rate_usd_per_kg_row = row
-    ws.cell(row, 1).value = "Ставка USD/кг (с документами)"
     ws.cell(row, 2).value = (
-        f"=IF(B{total_weight_row}>0,"
-        f"B{rate_aed_row}/B{usd_row},0)"
+        f"=IF(B{total_row - 1}>0,B{rate_aed_row}/B{usd_row},0)"
     )
     ws.cell(row, 2).number_format = "#,##0.00"
+    ws.cell(row, 3).value = "Ставка USD/кг (с документами)"
     row += 1
 
-    # === Заполняем колонку J (Логистика/ед) теперь, когда rate_aed_row известна ===
+    # === Заполняем J: логистика/ед = ROUND(F * ставка AED/кг, 2) ===
     for r_idx in range(first_data_row, last_data_row + 1):
         ws.cell(r_idx, 10).value = f"=ROUND(F{r_idx}*$B${rate_aed_row},2)"
 
