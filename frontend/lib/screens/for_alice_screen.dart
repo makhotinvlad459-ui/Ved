@@ -34,6 +34,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
   final _rateController = TextEditingController(text: '8.3');
   final _documentsController = TextEditingController(text: '2150');
   final _usdToAedController = TextEditingController(text: '3.674');
+  final _realizationController = TextEditingController(text: '');
 
   final List<_ForAliceRow> _rows = [_ForAliceRow()];
 
@@ -55,6 +56,7 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
     _rateController.dispose();
     _documentsController.dispose();
     _usdToAedController.dispose();
+    _realizationController.dispose();
     _focusNode.dispose();
     for (final r in _rows) {
       r.dispose();
@@ -400,12 +402,22 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
       final newSessionId = genResult['session_id'];
       if (newSessionId == null) throw Exception('Сессия не создана');
 
-      final response = await api.forAliceDownload(newSessionId);
+      final realization = _realizationController.text.trim();
+
+      final response = await api.forAliceDownload(
+        newSessionId,
+        realizationNumber: realization.isEmpty ? null : realization,
+      );
       final bytes = response.data as List<int>;
       final blob = html.Blob([bytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
+
+      final filename = realization.isNotEmpty
+          ? 'for_alice_$realization.xlsx'
+          : 'For_Alice_${newSessionId.substring(0, 8)}.xlsx';
+
       final anchor = html.AnchorElement(href: url)
-        ..setAttribute('download', 'For_Alice_${newSessionId.substring(0, 8)}.xlsx')
+        ..setAttribute('download', filename)
         ..click();
       html.Url.revokeObjectUrl(url);
 
@@ -467,6 +479,16 @@ class _ForAliceScreenState extends State<ForAliceScreen> {
           const Text(
             'Параметры расчёта',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _realizationController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: '№ реализации',
+              hintText: '140',
+              border: OutlineInputBorder(),
+            ),
           ),
           const SizedBox(height: 12),
           Row(

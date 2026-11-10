@@ -781,16 +781,15 @@ class ApiService {
     }
   }
 
-  Future<Response> forAliceDownload(String sessionId) async {
-    try {
-      return await _dio.get(
-        '/for-alice/download/$sessionId',
-        options: Options(responseType: ResponseType.bytes),
-      );
-    } catch (e) {
-      throw Exception('Ошибка скачивания: $e');
-    }
-  }
+  Future<Response> forAliceDownload(String sessionId, {String? realizationNumber}) {
+  return _dio.get(
+    '/for-alice/download/$sessionId',
+    queryParameters: realizationNumber != null
+        ? {'realization_number': realizationNumber}
+        : null,
+    options: Options(responseType: ResponseType.bytes),
+  );
+}
 
       // ============================================================
   // 12. ДЕКЛАРИРОВАНИЕ (ОДИН ИНВОЙС)

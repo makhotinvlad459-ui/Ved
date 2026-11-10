@@ -34,6 +34,7 @@ class ForAliceRequest(BaseModel):
     logistics_rate_usd: float
     usd_to_aed: float = 3.674
     documents_cost_aed: float
+    realization_number: Optional[str] = None
 
 
 class SaveWeightRequest(BaseModel):
@@ -198,15 +199,22 @@ async def generate_for_alice(
     }
 
 
-@router.get("/download/{session_id}")
-async def download_for_alice(session_id: str):
+async def download_for_alice(
+    session_id: str,
+    realization_number: Optional[str] = None,
+):
     path = os.path.join(OUTPUT_DIR, f"for_alice_{session_id[:8]}.xlsx")
 
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Файл не найден")
 
+    if realization_number:
+        filename = f"for_alice_{realization_number}.xlsx"
+    else:
+        filename = f"For_Alice_{session_id[:8]}.xlsx"
+
     return FileResponse(
         path=path,
-        filename=f"For_Alice_{session_id[:8]}.xlsx",
+        filename=filename,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
