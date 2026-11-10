@@ -30,9 +30,6 @@ OUTPUT_DIR = "/app/output"
 PACKAGING_FACTOR = 1.15
 CZ_FEE = 1.5
 
-# Насколько «с запасом» тянем SUM-диапазоны, чтобы новые строки попадали
-SUM_TAIL_ROWS = 1000
-
 
 def _round2(v):
     if v is None:
@@ -44,6 +41,9 @@ def generate_for_alice_xlsx(
     result: Dict[str, Any],
     session_id: str,
 ) -> str:
+    """
+    Генерирует xlsx с 14 колонками и живыми формулами.
+    """
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     wb = openpyxl.Workbook()
@@ -66,7 +66,7 @@ def generate_for_alice_xlsx(
     )
     edit_fill = PatternFill(
         start_color="FFF9E6", end_color="FFF9E6", fill_type="solid"
-    )
+    )  # подсветка редактируемых колонок
     bold = Font(bold=True)
 
     # === Заголовки ===
@@ -99,22 +99,25 @@ def generate_for_alice_xlsx(
     row = first_data_row
 
     for r in result["rows"]:
+        # Значения (редактируемые)
         ws.cell(row, 1).value = r.get("model_number") or ""
         ws.cell(row, 2).value = r.get("part_number") or ""
         ws.cell(row, 3).value = r.get("name") or ""
-        ws.cell(row, 4).value = int(r.get("qty") or 0)
-        ws.cell(row, 5).value = _round2(r.get("weight")) or 0
-        ws.cell(row, 8).value = _round2(r.get("price")) or 0
+        ws.cell(row, 4).value = int(r.get("qty") or 0)         # D — редактируется
+        ws.cell(row, 5).value = _round2(r.get("weight")) or 0  # E — редактируется
+        ws.cell(row, 8).value = _round2(r.get("price")) or 0   # H — редактируется
 
-        ws.cell(row, 6).value = f"=ROUND(E{row}*{PACKAGING_FACTOR},2)"
-        ws.cell(row, 7).value = f"=F{row}*D{row}"
-        ws.cell(row, 9).value = f"=H{row}*D{row}"
-        ws.cell(row, 11).value = f"=H{row}+J{row}"
-        ws.cell(row, 12).value = f"=K{row}*D{row}"
+        # Формулы (J заполняется позже, когда известна строка ставки)
+        ws.cell(row, 6).value = f"=ROUND(E{row}*{PACKAGING_FACTOR},2)"   # F
+        ws.cell(row, 7).value = f"=F{row}*D{row}"                        # G
+        ws.cell(row, 9).value = f"=H{row}*D{row}"                        # I
+        ws.cell(row, 11).value = f"=H{row}+J{row}"                       # K
+        ws.cell(row, 12).value = f"=K{row}*D{row}"                       # L
         cz = f"+{CZ_FEE}" if r.get("is_cz") else ""
-        ws.cell(row, 13).value = f"=K{row}{cz}"
-        ws.cell(row, 14).value = f"=M{row}*D{row}"
+        ws.cell(row, 13).value = f"=K{row}{cz}"                          # M
+        ws.cell(row, 14).value = f"=M{row}*D{row}"                       # N
 
+        # Стили
         for col in range(1, 15):
             cell = ws.cell(row, col)
             cell.border = border
@@ -123,6 +126,7 @@ def generate_for_alice_xlsx(
                 cell.number_format = "#,##0.00"
             if col == 4:
                 cell.number_format = "#,##0"
+            # Подсветка редактируемых колонок (D, E, H)
             if col in (4, 5, 8):
                 cell.fill = edit_fill
 
@@ -130,7 +134,7 @@ def generate_for_alice_xlsx(
 
     last_data_row = row - 1
 
-    # === Строка итогов прямо под данными (строка 4 в примере) ===
+    # === Строка итогов прямо под данными ===
     total_row = row
     ws.cell(total_row, 4).value = f"=SUM(D{first_data_row}:D{last_data_row})"
     ws.cell(total_row, 4).number_format = "#,##0"
@@ -147,18 +151,20 @@ def generate_for_alice_xlsx(
     row = total_row + 1
 
     # === Итого вес / Итого сумма: значения в B, подписи в C ===
-    ws.cell(row, 2).value = f"=G{total_row}"
-    ws.cell(row, 2).number_format = "#,##0.00"
-    ws.cell(row, 2).font = bold
-    ws.cell(row, 3).value = "Итого вес:"
-    ws.cell(row, 3).font = bold
+    weight_total_row = row
+    ws.cell(weight_total_row, 2).value = f"=G{total_row}"
+    ws.cell(weight_total_row, 2).number_format = "#,##0.00"
+    ws.cell(weight_total_row, 2).font = bold
+    ws.cell(weight_total_row, 3).value = "Итого вес:"
+    ws.cell(weight_total_row, 3).font = bold
     row += 1
 
-    ws.cell(row, 2).value = f"=N{total_row}"
-    ws.cell(row, 2).number_format = "#,##0.00"
-    ws.cell(row, 2).font = bold
-    ws.cell(row, 3).value = "Итого сумма:"
-    ws.cell(row, 3).font = bold
+    sum_total_row = row
+    ws.cell(sum_total_row, 2).value = f"=N{total_row}"
+    ws.cell(sum_total_row, 2).number_format = "#,##0.00"
+    ws.cell(sum_total_row, 2).font = bold
+    ws.cell(sum_total_row, 3).value = "Итого сумма:"
+    ws.cell(sum_total_row, 3).font = bold
     row += 2
 
     # === Параметры расчёта: подписи в C, значения в B ===
@@ -193,7 +199,7 @@ def generate_for_alice_xlsx(
     row += 1
 
     log_usd_row = row
-    ws.cell(row, 2).value = f"=B{rate_usd_row}*B{total_row - 1}"  # B(итого вес)
+    ws.cell(row, 2).value = f"=B{rate_usd_row}*B{weight_total_row}"
     ws.cell(row, 2).number_format = "#,##0.00"
     ws.cell(row, 3).value = "Логистика всего (USD)"
     row += 1
@@ -212,7 +218,8 @@ def generate_for_alice_xlsx(
 
     rate_aed_row = row
     ws.cell(row, 2).value = (
-        f"=IF(B{total_row - 1}>0,B{total_log_aed_row}/B{total_row - 1},0)"
+        f"=IF(B{weight_total_row}>0,"
+        f"B{total_log_aed_row}/B{weight_total_row},0)"
     )
     ws.cell(row, 2).number_format = "#,##0.00"
     ws.cell(row, 3).value = "Ставка AED/кг (с документами)"
@@ -220,13 +227,14 @@ def generate_for_alice_xlsx(
 
     rate_usd_per_kg_row = row
     ws.cell(row, 2).value = (
-        f"=IF(B{total_row - 1}>0,B{rate_aed_row}/B{usd_row},0)"
+        f"=IF(B{weight_total_row}>0,"
+        f"B{rate_aed_row}/B{usd_row},0)"
     )
     ws.cell(row, 2).number_format = "#,##0.00"
     ws.cell(row, 3).value = "Ставка USD/кг (с документами)"
     row += 1
 
-    # === Заполняем J: логистика/ед = ROUND(F * ставка AED/кг, 2) ===
+    # === Заполняем колонку J (Логистика/ед) теперь, когда rate_aed_row известна ===
     for r_idx in range(first_data_row, last_data_row + 1):
         ws.cell(r_idx, 10).value = f"=ROUND(F{r_idx}*$B${rate_aed_row},2)"
 
