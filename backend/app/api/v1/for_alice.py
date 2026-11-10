@@ -198,7 +198,7 @@ async def generate_for_alice(
         "totals": result["totals"],
     }
 
-
+@router.get("/download/{session_id}")
 async def download_for_alice(
     session_id: str,
     realization_number: Optional[str] = None,
